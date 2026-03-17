@@ -268,11 +268,23 @@ export const ExceptionsConfigSchema = z.object({
 
 export type ExceptionsConfig = z.infer<typeof ExceptionsConfigSchema>;
 
+// ── Session Baseline ────────────────────────────────────────────────
+
+export const SessionBaselineConfigSchema = z.object({
+	enabled: z.boolean().default(true),
+	window_size: z.number().int().min(3).default(10),
+	check_interval: z.number().int().min(1).default(5),
+	std_threshold: z.number().min(0.5).default(2.0),
+	storage_path: z.string().default("~/.sage/session-baselines.json"),
+});
+export type SessionBaselineConfig = z.infer<typeof SessionBaselineConfigSchema>;
+
 export const ConfigSchema = z.object({
 	url_check: UrlCheckConfigSchema.default({}),
 	file_check: FileCheckConfigSchema.default({}),
 	package_check: PackageCheckConfigSchema.default({}),
 	amsi_check: AmsiCheckConfigSchema.default({}),
+	session_baseline: SessionBaselineConfigSchema.default({}),
 	heuristics_enabled: z.boolean().default(true),
 	cache: CacheConfigSchema.default({}),
 	allowlist: AllowlistConfigSchema.default({}),
@@ -285,6 +297,8 @@ export const ConfigSchema = z.object({
 export type UrlCheckConfig = z.infer<typeof UrlCheckConfigSchema>;
 export type FileCheckConfig = z.infer<typeof FileCheckConfigSchema>;
 export type PackageCheckConfig = z.infer<typeof PackageCheckConfigSchema>;
+export type AmsiCheckConfig = z.infer<typeof AmsiCheckConfigSchema>;
+export type SessionBaselineConfig = z.infer<typeof SessionBaselineConfigSchema>;
 export type CacheConfig = z.infer<typeof CacheConfigSchema>;
 export type AllowlistConfig = z.infer<typeof AllowlistConfigSchema>;
 export type LoggingConfig = z.infer<typeof LoggingConfigSchema>;
