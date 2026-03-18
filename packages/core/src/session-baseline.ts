@@ -7,15 +7,19 @@
  * - Domain concentration (e.g., 30 requests to *.attacker.com)
  * - File path radius expansion (progressive access to sensitive directories)
  * - Tool type distribution shifts (unusual ratio of Read/Write/Bash calls)
+ *
+ * Storage: per-session stat files in ~/.sage/sessions/{sessionId}.json
+ * Baselines: computed on-the-fly from completed session files
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { nullLogger, type Logger } from "./types.js";
+import { mkdir, readFile, writeFile, readdir, unlink, rename } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { nullLogger, type Logger, type SessionBaselineConfig } from "./types.js";
 
 const DEFAULT_WINDOW_SIZE = 10; // sessions
 const DEFAULT_CHECK_INTERVAL = 5; // actions between checks
 const DEFAULT_STD_THRESHOLD = 2.0; // standard deviations
+const STALE_SESSION_AGE_MS = 3600_000; // 1 hour
 
 export interface SessionStats {
 	sessionId: string;
@@ -37,16 +41,6 @@ export interface SessionBaseline {
 	windowSize: number;
 }
 
-export interface BaselineStore {
-	byAgent: Record<string, {
-		actionCounts: Record<string, SessionBaseline>;
-		bashCommandCounts: SessionBaseline;
-		curlRequestCounts: SessionBaseline;
-		domainConcentration: SessionBaseline;
-		filePathRadius: SessionBaseline;
-	}>;
-}
-
 export interface AnomalyResult {
 	type: "volume" | "domain_concentration" | "file_radius" | "tool_distribution";
 	description: string;
@@ -56,21 +50,13 @@ export interface AnomalyResult {
 	deviation: number; // number of standard deviations from mean
 }
 
-export interface SessionBaselineConfig {
-	enabled: boolean;
-	windowSize: number;
-	checkInterval: number;
-	stdThreshold: number;
-	storagePath: string;
-}
-
 function createDefaultConfig(): SessionBaselineConfig {
 	return {
 		enabled: true,
-		windowSize: DEFAULT_WINDOW_SIZE,
-		checkInterval: DEFAULT_CHECK_INTERVAL,
-		stdThreshold: DEFAULT_STD_THRESHOLD,
-		storagePath: "~/.sage/session-baselines.json",
+		window_size: 10,
+		check_interval: 5,
+		std_threshold: 2.0,
+		storage_dir: "~/.sage/sessions",
 	};
 }
 
@@ -82,30 +68,72 @@ function resolvePath(path: string): string {
 	return resolve(path);
 }
 
-async function loadBaselines(config: SessionBaselineConfig, logger: Logger): Promise<BaselineStore> {
-	const path = resolvePath(config.storagePath);
+function sessionFilePath(storageDir: string, sessionId: string): string {
+	return join(resolvePath(storageDir), `${sessionId}.json`);
+}
+
+/**
+ * Atomically write a session file (write to temp, rename).
+ * Rename is atomic on the same filesystem.
+ */
+async function atomicWriteSession(
+	filePath: string,
+	data: SessionStats,
+	logger: Logger,
+): Promise<void> {
+	const tmpPath = `${filePath}.tmp-${process.pid}`;
 	try {
-		const content = await readFile(path, "utf-8");
-		return JSON.parse(content) as BaselineStore;
-	} catch {
-		return { byAgent: {} };
+		await writeFile(tmpPath, JSON.stringify(data, null, 2), "utf-8");
+		await rename(tmpPath, filePath);
+	} catch (error) {
+		// Clean up temp file on failure
+		try { await unlink(tmpPath); } catch { /* best effort */ }
+		logger.warn("Failed to write session file", { filePath, error });
+		throw error;
 	}
 }
 
-async function saveBaselines(
-	config: SessionBaselineConfig,
-	baselines: BaselineStore,
-	logger: Logger,
-): Promise<boolean> {
-	const path = resolvePath(config.storagePath);
+/**
+ * Read a completed session stat file.
+ */
+async function readSessionFile(filePath: string): Promise<SessionStats | null> {
 	try {
-		await mkdir(dirname(path), { recursive: true });
-		await writeFile(path, JSON.stringify(baselines, null, 2), "utf-8");
-		return true;
-	} catch (error) {
-		logger.warn("Failed to save session baselines", { error });
-		return false;
+		const content = await readFile(filePath, "utf-8");
+		return JSON.parse(content) as SessionStats;
+	} catch {
+		return null;
 	}
+}
+
+/**
+ * List all completed session files in the storage directory,
+ * filtering to those with activity within the window.
+ */
+async function listCompletedSessions(
+	storageDir: string,
+	currentSessionId: string,
+): Promise<SessionStats[]> {
+	const dir = resolvePath(storageDir);
+	let entries: string[];
+	try {
+		entries = await readdir(dir);
+	} catch {
+		return [];
+	}
+
+	const sessions: SessionStats[] = [];
+	for (const entry of entries) {
+		if (!entry.endsWith(".json")) continue;
+		if (entry.startsWith(`tmp-`) || entry.includes(".tmp-")) continue;
+		const sessionId = entry.replace(/\.json$/, "");
+		if (sessionId === currentSessionId) continue; // skip current
+		const session = await readSessionFile(join(dir, entry));
+		if (session) sessions.push(session);
+	}
+
+	// Sort by startedAt descending, take window
+	sessions.sort((a, b) => b.startedAt - a.startedAt);
+	return sessions;
 }
 
 function computeMean(values: number[]): number {
@@ -133,6 +161,16 @@ function getDirectoryDepth(path: string): number {
 	return path.split("/").filter((segment) => segment.length > 0).length;
 }
 
+/**
+ * Compute a SessionBaseline from an array of historical values.
+ */
+function computeBaseline(values: number[], windowSize: number): SessionBaseline {
+	const trimmed = values.slice(0, windowSize);
+	const mean = computeMean(trimmed);
+	const stdDev = computeStdDev(trimmed, mean);
+	return { mean, stdDev, windowSize: trimmed.length };
+}
+
 export class SessionBaselineTracker {
 	private config: SessionBaselineConfig;
 	private logger: Logger;
@@ -142,6 +180,39 @@ export class SessionBaselineTracker {
 		this.config = { ...createDefaultConfig(), ...config };
 		this.logger = logger ?? nullLogger;
 		this.activeSessions = new Map();
+	}
+
+	/**
+	 * Clean up stale session files from disk.
+	 * Call this once at session start to tidy up .sage/sessions/.
+	 */
+	async truncateStaleSessionFiles(maxAgeMs: number = STALE_SESSION_AGE_MS): Promise<number> {
+		const dir = resolvePath(this.config.storage_dir);
+		let entries: string[];
+		try {
+			entries = await readdir(dir);
+		} catch {
+			return 0;
+		}
+
+		const now = Date.now();
+		let deleted = 0;
+
+		for (const entry of entries) {
+			if (!entry.endsWith(".json")) continue;
+			const filePath = join(dir, entry);
+			const session = await readSessionFile(filePath);
+			if (session && (now - session.lastActivity) > maxAgeMs) {
+				try {
+					await unlink(filePath);
+					deleted++;
+				} catch (error) {
+					this.logger.warn("Failed to delete stale session file", { filePath, error });
+				}
+			}
+		}
+
+		return deleted;
 	}
 
 	/**
@@ -173,14 +244,25 @@ export class SessionBaselineTracker {
 	}
 
 	/**
-	 * Record an action in the session stats.
+	 * Persist the current session stats to disk (atomic write).
 	 */
-	recordAction(
+	async persistSession(sessionId: string): Promise<void> {
+		const session = this.activeSessions.get(sessionId);
+		if (!session) return;
+		const filePath = sessionFilePath(this.config.storage_dir, sessionId);
+		await mkdir(dirname(filePath), { recursive: true });
+		await atomicWriteSession(filePath, session, this.logger);
+	}
+
+	/**
+	 * Record an action in the session stats and persist.
+	 */
+	async recordAction(
 		sessionId: string,
 		toolName: string,
 		toolInput: Record<string, unknown>,
 		agentId?: string,
-	): SessionStats {
+	): Promise<SessionStats> {
 		const session = this.getOrCreateSession(sessionId, agentId);
 
 		// Update action counts
@@ -189,19 +271,15 @@ export class SessionBaselineTracker {
 		// Track tool-specific metrics
 		if (toolName === "Bash") {
 			session.bashCommands++;
-		} else if (toolName === "WebFetch" || toolName === "Bash") {
-			if (toolName === "Bash") {
-				const command = String(toolInput.command || "");
-				if (command.includes("curl") || command.includes("wget")) {
-					session.curlRequests++;
-				}
+			const command = String(toolInput.command || "");
+			if (command.includes("curl") || command.includes("wget")) {
+				session.curlRequests++;
 			}
-			if (toolName === "WebFetch") {
-				const url = String(toolInput.url || "");
-				if (url) {
-					const domain = extractDomain(url);
-					session.domains[domain] = (session.domains[domain] || 0) + 1;
-				}
+		} else if (toolName === "WebFetch") {
+			const url = String(toolInput.url || "");
+			if (url) {
+				const domain = extractDomain(url);
+				session.domains[domain] = (session.domains[domain] || 0) + 1;
 			}
 		} else if (toolName === "Read") {
 			session.fileReads++;
@@ -217,6 +295,11 @@ export class SessionBaselineTracker {
 			}
 		}
 
+		session.lastActivity = Date.now();
+
+		// Persist to disk (atomic rename)
+		await this.persistSession(sessionId);
+
 		return session;
 	}
 
@@ -224,7 +307,7 @@ export class SessionBaselineTracker {
 	 * Check if this action count warrants a baseline check.
 	 */
 	shouldCheckBaselines(actionCount: number): boolean {
-		return actionCount % this.config.checkInterval === 0;
+		return actionCount % this.config.check_interval === 0;
 	}
 
 	/**
@@ -234,174 +317,91 @@ export class SessionBaselineTracker {
 		session: SessionStats,
 		agentId?: string,
 	): Promise<AnomalyResult[]> {
-		if (!agentId || !this.config.enabled) {
+		if (!this.config.enabled) {
 			return [];
 		}
 
-		const baselines = await loadBaselines(this.config, this.logger);
-		const agentBaselines = baselines.byAgent[agentId];
+		// Load completed sessions (exclude current)
+		const historical = await listCompletedSessions(
+			this.config.storage_dir,
+			session.sessionId,
+		);
 
-		if (!agentBaselines) {
-			// No historical data yet - initialize but don't flag anomalies
-			await this.updateBaselines(baselines, agentId, session);
+		if (historical.length === 0) {
 			return [];
 		}
 
+		const windowSize = this.config.window_size;
+		const threshold = this.config.std_threshold;
 		const anomalies: AnomalyResult[] = [];
-		const actionTotal = Object.values(session.actionCounts).reduce((sum, c) => sum + c, 0);
 
 		// Check 1: Volume anomaly (bash commands)
-		if (agentBaselines.bashCommandCounts.windowSize >= 3) {
-			const { mean, stdDev } = agentBaselines.bashCommandCounts;
-			if (stdDev > 0) {
-				const deviation = (session.bashCommands - mean) / stdDev;
-				if (deviation > this.config.stdThreshold) {
-					anomalies.push({
-						type: "volume",
-						description: `Bash command volume ${session.bashCommands.toFixed(0)} exceeds baseline (${mean.toFixed(1)} ± ${stdDev.toFixed(1)}) by ${deviation.toFixed(1)}σ`,
-						severity: deviation > 3.0 ? "critical" : "warning",
-						currentValue: session.bashCommands,
-						baseline: agentBaselines.bashCommandCounts,
-						deviation,
-					});
-				}
+		const bashValues = historical.map((s) => s.bashCommands);
+		const bashBaseline = computeBaseline(bashValues, windowSize);
+		if (bashBaseline.stdDev > 0 && bashBaseline.windowSize >= 3) {
+			const deviation = (session.bashCommands - bashBaseline.mean) / bashBaseline.stdDev;
+			if (deviation > threshold) {
+				anomalies.push({
+					type: "volume",
+					description: `Bash command volume ${session.bashCommands} exceeds baseline (${bashBaseline.mean.toFixed(1)} ± ${bashBaseline.stdDev.toFixed(1)}) by ${deviation.toFixed(1)}σ`,
+					severity: deviation > 3.0 ? "critical" : "warning",
+					currentValue: session.bashCommands,
+					baseline: bashBaseline,
+					deviation,
+				});
 			}
 		}
 
 		// Check 2: Domain concentration
-		const maxDomainCount = Math.max(0, ...Object.values(session.domains));
-		if (agentBaselines.domainConcentration.windowSize >= 3) {
-			const { mean, stdDev } = agentBaselines.domainConcentration;
-			if (stdDev > 0 && maxDomainCount > 0) {
-				const deviation = (maxDomainCount - mean) / stdDev;
-				if (deviation > this.config.stdThreshold) {
-					const topDomain = Object.entries(session.domains).sort((a, b) => b[1] - a[1])[0]?.[0];
-					anomalies.push({
-						type: "domain_concentration",
-						description: `Domain concentration ${maxDomainCount} requests to ${topDomain || "single domain"} exceeds baseline (${mean.toFixed(1)} ± ${stdDev.toFixed(1)}) by ${deviation.toFixed(1)}σ`,
-						severity: deviation > 3.0 ? "critical" : "warning",
-						currentValue: maxDomainCount,
-						baseline: agentBaselines.domainConcentration,
-						deviation,
-					});
-				}
+		const domainMaxValues = historical.map((s) => Math.max(0, ...Object.values(s.domains)));
+		const domainBaseline = computeBaseline(domainMaxValues, windowSize);
+		const currentMaxDomain = Math.max(0, ...Object.values(session.domains));
+		if (domainBaseline.stdDev > 0 && domainBaseline.windowSize >= 3 && currentMaxDomain > 0) {
+			const deviation = (currentMaxDomain - domainBaseline.mean) / domainBaseline.stdDev;
+			if (deviation > threshold) {
+				const topDomain = Object.entries(session.domains)
+					.sort((a, b) => b[1] - a[1])[0]?.[0];
+				anomalies.push({
+					type: "domain_concentration",
+					description: `Domain concentration ${currentMaxDomain} requests to ${topDomain || "single domain"} exceeds baseline (${domainBaseline.mean.toFixed(1)} ± ${domainBaseline.stdDev.toFixed(1)}) by ${deviation.toFixed(1)}σ`,
+					severity: deviation > 3.0 ? "critical" : "warning",
+					currentValue: currentMaxDomain,
+					baseline: domainBaseline,
+					deviation,
+				});
 			}
 		}
 
 		// Check 3: File path radius expansion
-		const maxDepth = session.filePaths.reduce((max, path) => {
-			return Math.max(max, getDirectoryDepth(path));
-		}, 0);
-		if (agentBaselines.filePathRadius.windowSize >= 3) {
-			const { mean, stdDev } = agentBaselines.filePathRadius;
-			if (stdDev > 0 && maxDepth > 0) {
-				const deviation = (maxDepth - mean) / stdDev;
-				if (deviation > this.config.stdThreshold) {
-					anomalies.push({
-						type: "file_radius",
-						description: `File access depth ${maxDepth} exceeds baseline (${mean.toFixed(1)} ± ${stdDev.toFixed(1)}) by ${deviation.toFixed(1)}σ`,
-						severity: deviation > 3.0 ? "critical" : "warning",
-						currentValue: maxDepth,
-						baseline: agentBaselines.filePathRadius,
-						deviation,
-					});
-				}
+		const depthValues = historical.map((s) =>
+			s.filePaths.reduce((max, p) => Math.max(max, getDirectoryDepth(p)), 0),
+		);
+		const depthBaseline = computeBaseline(depthValues, windowSize);
+		const currentMaxDepth = session.filePaths.reduce(
+			(max, p) => Math.max(max, getDirectoryDepth(p)),
+			0,
+		);
+		if (depthBaseline.stdDev > 0 && depthBaseline.windowSize >= 3 && currentMaxDepth > 0) {
+			const deviation = (currentMaxDepth - depthBaseline.mean) / depthBaseline.stdDev;
+			if (deviation > threshold) {
+				anomalies.push({
+					type: "file_radius",
+					description: `File access depth ${currentMaxDepth} exceeds baseline (${depthBaseline.mean.toFixed(1)} ± ${depthBaseline.stdDev.toFixed(1)}) by ${deviation.toFixed(1)}σ`,
+					severity: deviation > 3.0 ? "critical" : "warning",
+					currentValue: currentMaxDepth,
+					baseline: depthBaseline,
+					deviation,
+				});
 			}
 		}
-
-		// Update baselines with completed session data
-		await this.updateBaselines(baselines, agentId, session);
 
 		return anomalies;
 	}
 
 	/**
-	 * Update rolling baselines with the current session's final stats.
+	 * Clean up expired sessions from in-memory map (no activity for >1 hour).
 	 */
-	private async updateBaselines(
-		baselines: BaselineStore,
-		agentId: string,
-		session: SessionStats,
-	): Promise<void> {
-		if (!baselines.byAgent[agentId]) {
-			baselines.byAgent[agentId] = {
-				actionCounts: {},
-				bashCommandCounts: { mean: 0, stdDev: 0, windowSize: 0 },
-				curlRequestCounts: { mean: 0, stdDev: 0, windowSize: 0 },
-				domainConcentration: { mean: 0, stdDev: 0, windowSize: 0 },
-				filePathRadius: { mean: 0, stdDev: 0, windowSize: 0 },
-			};
-		}
-
-		const agentBaselines = baselines.byAgent[agentId];
-		const windowSize = this.config.windowSize;
-
-		// Update bash command baseline (sliding window)
-		this.updateBaselineValue(
-			agentBaselines.bashCommandCounts,
-			session.bashCommands,
-			windowSize,
-		);
-
-		// Update domain concentration baseline
-		const maxDomainCount = Math.max(0, ...Object.values(session.domains));
-		this.updateBaselineValue(
-			agentBaselines.domainConcentration,
-			maxDomainCount,
-			windowSize,
-		);
-
-		// Update file path radius baseline
-		const maxDepth = session.filePaths.reduce((max, path) => {
-			return Math.max(max, getDirectoryDepth(path));
-		}, 0);
-		this.updateBaselineValue(
-			agentBaselines.filePathRadius,
-			maxDepth,
-			windowSize,
-		);
-
-		// Update action counts per tool type
-		for (const [toolType, count] of Object.entries(session.actionCounts)) {
-			if (!agentBaselines.actionCounts[toolType]) {
-				agentBaselines.actionCounts[toolType] = { mean: 0, stdDev: 0, windowSize: 0 };
-			}
-			this.updateBaselineValue(agentBaselines.actionCounts[toolType], count, windowSize);
-		}
-
-		await saveBaselines(this.config, baselines, this.logger);
-	}
-
-	/**
-	 * Update a single baseline value using a sliding window approach.
-	 * For simplicity, we use exponential moving average approximation.
-	 */
-	private updateBaselineValue(
-		baseline: SessionBaseline,
-		newValue: number,
-		windowSize: number,
-	): void {
-		// Simple approach: treat as streaming statistics
-		// Using Welford's online algorithm approximation
-		const n = baseline.windowSize + 1;
-		const delta = newValue - baseline.mean;
-		baseline.mean = baseline.mean + delta / Math.min(n, windowSize);
-		
-		// Simplified variance update (not strictly Welford's but practical)
-		if (baseline.windowSize >= 1) {
-			const delta2 = newValue - baseline.mean;
-			baseline.stdDev = Math.sqrt(
-				Math.max(0, baseline.stdDev * baseline.stdDev + delta * delta2 / Math.min(n, windowSize)),
-			);
-		}
-		
-		baseline.windowSize = Math.min(n, windowSize);
-	}
-
-	/**
-	 * Clean up expired sessions (no activity for >1 hour).
-	 */
-	cleanupExpiredSessions(maxAgeMs = 3600000): number {
+	cleanupExpiredSessions(maxAgeMs = STALE_SESSION_AGE_MS): number {
 		const now = Date.now();
 		let expired = 0;
 
