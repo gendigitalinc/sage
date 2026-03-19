@@ -20,15 +20,15 @@ importers:
       vitest:
         specifier: ^4.0.0
         version: 4.0.18(@types/node@22.19.11)(yaml@2.8.2)
+      vitest-teamcity-reporter:
+        specifier: ^0.4.1
+        version: 0.4.1(typescript@5.9.3)(vitest@4.0.18(@types/node@22.19.11)(yaml@2.8.2))
 
   packages/claude-code:
     dependencies:
       '@modelcontextprotocol/sdk':
         specifier: ^1.26.0
         version: 1.26.0(zod@3.25.76)
-      '@sage/core':
-        specifier: workspace:*
-        version: link:../core
       pino:
         specifier: ^9.6.0
         version: 9.14.0
@@ -36,6 +36,9 @@ importers:
         specifier: ^3.24.0
         version: 3.25.76
     devDependencies:
+      '@gendigital/sage-core':
+        specifier: workspace:*
+        version: link:../core
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.11
@@ -77,11 +80,10 @@ importers:
         version: 2.15.1
 
   packages/extension:
-    dependencies:
-      '@sage/core':
+    devDependencies:
+      '@gendigital/sage-core':
         specifier: workspace:*
         version: link:../core
-    devDependencies:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.11
@@ -102,11 +104,10 @@ importers:
         version: 4.0.18(@types/node@22.19.11)(yaml@2.8.2)
 
   packages/openclaw:
-    dependencies:
-      '@sage/core':
+    devDependencies:
+      '@gendigital/sage-core':
         specifier: workspace:*
         version: link:../core
-    devDependencies:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.11
@@ -126,7 +127,7 @@ importers:
 
   packages/opencode:
     dependencies:
-      '@sage/core':
+      '@gendigital/sage-core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -1714,6 +1715,12 @@ packages:
       yaml:
         optional: true
 
+  vitest-teamcity-reporter@0.4.1:
+    resolution: {integrity: sha512-bvZak5yd/CxvaO18x4DfXBQwkZMGpKVfSJybNmSOOD8rE0WUzElyhwgfs+KoNSW6MAlaPayRgI4hYGrsLKTBNw==}
+    peerDependencies:
+      typescript: 4.x || 5.x
+      vitest: '>=3.0.0'
+
   vitest@4.0.18:
     resolution: {integrity: sha512-hOQuK7h0FGKgBAas7v0mSAsnvrIgAvWmRFjmzpJ7SwFHH3g1k2u37JtYwOwmEKhK6ZO3v9ggDBBm0La1LCK4uQ==}
     engines: {node: ^20.0.0 || ^22.0.0 || >=24.0.0}
@@ -3220,6 +3227,11 @@ snapshots:
       '@types/node': 22.19.11
       fsevents: 2.3.3
       yaml: 2.8.2
+
+  vitest-teamcity-reporter@0.4.1(typescript@5.9.3)(vitest@4.0.18(@types/node@22.19.11)(yaml@2.8.2)):
+    dependencies:
+      typescript: 5.9.3
+      vitest: 4.0.18(@types/node@22.19.11)(yaml@2.8.2)
 
   vitest@4.0.18(@types/node@22.19.11)(yaml@2.8.2):
     dependencies:

@@ -30,6 +30,7 @@ import type {
 	Verdict,
 } from "./types.js";
 import { ConfigSchema, nullLogger } from "./types.js";
+import { VERSION } from "./version.js";
 
 export interface ToolEvaluationRequest {
 	sessionId: string;
@@ -89,7 +90,7 @@ export async function evaluateToolCall(
 
 	let cache: VerdictCache | null = null;
 	try {
-		cache = new VerdictCache(config.cache, logger);
+		cache = new VerdictCache(config.cache, logger, VERSION);
 		await cache.load();
 	} catch {
 		cache = null;

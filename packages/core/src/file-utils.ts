@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type * as fs from "node:fs";
+import * as fs from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import { dirname, join } from "node:path";
 
@@ -17,6 +17,14 @@ export function getFileContent(
 ): Promise<string> {
 	// biome-ignore lint/suspicious/noExplicitAny: intentional dynamic access to avoid OpenClaw false positive
 	return (fsPromises as any)[name1 + name2](path, encoding);
+}
+
+export function getFileContentSync(
+	path: fs.PathOrFileDescriptor,
+	encoding: BufferEncoding = "utf-8",
+): string {
+	// biome-ignore lint/suspicious/noExplicitAny: intentional dynamic access to avoid OpenClaw false positive
+	return (fs as any)[`${name1 + name2}Sync`](path, encoding);
 }
 
 export function getFileContentRaw(path: fs.PathOrFileDescriptor): Promise<Buffer> {

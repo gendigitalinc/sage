@@ -33,9 +33,9 @@ Sage works out of the box with no configuration. Optional config file at `~/.sag
 
 ## Links
 
-- [Source & documentation](https://github.com/avast/sage)
-- [OpenClaw platform guide](https://github.com/avast/sage/blob/main/docs/platform-guides/openclaw.md)
-- [Privacy policy](https://github.com/avast/sage/blob/main/docs/privacy.md)
+- [Source & documentation](https://github.com/gendigitalinc/sage)
+- [OpenClaw platform guide](https://github.com/gendigitalinc/sage/blob/main/docs/platform-guides/openclaw.md)
+- [Privacy policy](https://github.com/gendigitalinc/sage/blob/main/docs/privacy.md)
 
 ## License
 

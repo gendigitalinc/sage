@@ -2,7 +2,12 @@
  * sage_allowlist_add and sage_allowlist_remove tools for OpenClaw.
  */
 
-import { type ApprovalStore, addToAllowlist, type Logger, removeFromAllowlist } from "@sage/core";
+import {
+	type ApprovalStore,
+	addToAllowlist,
+	type Logger,
+	removeFromAllowlist,
+} from "@gendigital/sage-core";
 import type { ToolDefinition } from "./gate-tool.js";
 
 export function createAllowlistAddTool(

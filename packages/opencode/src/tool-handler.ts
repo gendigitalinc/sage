@@ -4,7 +4,7 @@ import {
 	formatDenyMessage,
 	guardToolCall,
 	type Logger,
-} from "@sage/core";
+} from "@gendigital/sage-core";
 import { SageVerdictBlockError, SageVerdictError } from "./error.js";
 import { extractFromOpenCodeTool } from "./extractors.js";
 

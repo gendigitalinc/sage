@@ -20,7 +20,7 @@ Sage intercepts tool calls (Bash commands, URL fetches, file writes) via hook sy
 Requires [Node.js >= 18](https://nodejs.org/).
 
 ```
-/plugin marketplace add https://github.com/avast/sage.git
+/plugin marketplace add https://github.com/gendigitalinc/sage.git
 /plugin install sage@sage
 ```
 
@@ -48,10 +48,10 @@ cp -r packages/openclaw sage && openclaw plugins install ./sage
 Use a local source checkout and add the plugin path in OpenCode config:
 
 ```bash
-git clone https://github.com/avast/sage
+git clone https://github.com/gendigitalinc/sage
 cd sage
 pnpm install
-pnpm --filter @sage/opencode run build
+pnpm --filter @gendigital/sage-opencode run build
 ```
 
 ```json

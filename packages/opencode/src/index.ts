@@ -1,11 +1,16 @@
 /**
  * Sage OpenCode plugin.
- * Intercepts tool calls and uses @sage/core to enforce security verdicts.
+ * Intercepts tool calls and uses @gendigital/sage-core to enforce security verdicts.
  */
 
+import {
+	ApprovalStore,
+	addToAllowlist,
+	approveAction,
+	removeFromAllowlist,
+} from "@gendigital/sage-core";
 import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin/tool";
-import { ApprovalStore, addToAllowlist, approveAction, removeFromAllowlist } from "@sage/core";
 import { getBundledDataDirs } from "./bundled-dirs.js";
 import { OpencodeLogger } from "./logger-adaptor.js";
 import { createSessionScanHandler } from "./startup-scan.js";

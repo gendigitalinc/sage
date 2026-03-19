@@ -112,7 +112,7 @@ describe("checkForUpdate", () => {
 	it("returns null when response has no version field", async () => {
 		globalThis.fetch = vi.fn().mockResolvedValue({
 			ok: true,
-			json: async () => ({ name: "@sage/core" }),
+			json: async () => ({ name: "@gendigital/sage-core" }),
 		});
 
 		const result = await checkForUpdate("0.4.0");

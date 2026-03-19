@@ -2,8 +2,8 @@
  * Bridges OpenCode's client logger to Sage's Logger interface.
  */
 
+import type { Logger } from "@gendigital/sage-core";
 import type { PluginInput } from "@opencode-ai/plugin";
-import type { Logger } from "@sage/core";
 
 export class OpencodeLogger implements Logger {
 	private client: PluginInput["client"];

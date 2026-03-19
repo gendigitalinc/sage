@@ -259,4 +259,112 @@ describe("credential threats", () => {
 	it("detects more ~/.ssh/id_ed25519 (004)", () => {
 		expect(matchCommand(engine, "more ~/.ssh/id_ed25519")).toContain("CLT-CRED-004");
 	});
+
+	// --- CLT-CRED-007: Copy/move/link secret files ---
+
+	it("detects cp .env /tmp/backup (007)", () => {
+		expect(matchCommand(engine, "cp .env /tmp/backup")).toContain("CLT-CRED-007");
+	});
+
+	it("detects mv .env.local /tmp/ (007)", () => {
+		expect(matchCommand(engine, "mv .env.local /tmp/")).toContain("CLT-CRED-007");
+	});
+
+	it("detects cp ~/.ssh/id_rsa /tmp/key (007)", () => {
+		expect(matchCommand(engine, "cp ~/.ssh/id_rsa /tmp/key")).toContain("CLT-CRED-007");
+	});
+
+	it("detects rsync ~/.aws/credentials /tmp/ (007)", () => {
+		expect(matchCommand(engine, "rsync ~/.aws/credentials /tmp/")).toContain("CLT-CRED-007");
+	});
+
+	it("does not match scp -i ~/.ssh/id_rsa user@host:/tmp (007 FP — identity file)", () => {
+		expect(matchCommand(engine, "scp -i ~/.ssh/id_rsa user@host:/tmp")).not.toContain(
+			"CLT-CRED-007",
+		);
+	});
+
+	it("detects ln -s ~/.pgpass /tmp/pgpass (007)", () => {
+		expect(matchCommand(engine, "ln -s ~/.pgpass /tmp/pgpass")).toContain("CLT-CRED-007");
+	});
+
+	it("detects ditto ~/.npmrc /tmp/npmrc (007)", () => {
+		expect(matchCommand(engine, "ditto ~/.npmrc /tmp/npmrc")).toContain("CLT-CRED-007");
+	});
+
+	it("does not match cp README.md /tmp/ (007 FP)", () => {
+		expect(matchCommand(engine, "cp README.md /tmp/")).not.toContain("CLT-CRED-007");
+	});
+
+	it("does not match mv src/app.ts dist/ (007 FP)", () => {
+		expect(matchCommand(engine, "mv src/app.ts dist/")).not.toContain("CLT-CRED-007");
+	});
+
+	it("does not match cp my-master.key /tmp/ (007 FP — substring)", () => {
+		expect(matchCommand(engine, "cp my-master.key /tmp/")).not.toContain("CLT-CRED-007");
+	});
+
+	it("does not match cp README.env.example /tmp/ (007 FP)", () => {
+		expect(matchCommand(engine, "cp README.env.example /tmp/")).not.toContain("CLT-CRED-007");
+	});
+
+	it("does not match cp config.env.test /tmp/ (007 FP — not a dotfile)", () => {
+		expect(matchCommand(engine, "cp config.env.test /tmp/")).not.toContain("CLT-CRED-007");
+	});
+
+	it("does not match mv README.env /tmp/ (007 FP — not a dotfile)", () => {
+		expect(matchCommand(engine, "mv README.env /tmp/")).not.toContain("CLT-CRED-007");
+	});
+
+	// --- CLT-CRED-008: Archive secret files ---
+
+	it("detects tar czf secrets.tar.gz .env (008)", () => {
+		expect(matchCommand(engine, "tar czf secrets.tar.gz .env")).toContain("CLT-CRED-008");
+	});
+
+	it("detects zip backup.zip ~/.ssh/id_rsa (008)", () => {
+		expect(matchCommand(engine, "zip backup.zip ~/.ssh/id_rsa")).toContain("CLT-CRED-008");
+	});
+
+	it("detects tar czf backup.tar.gz .aws/credentials (008)", () => {
+		expect(matchCommand(engine, "tar czf backup.tar.gz .aws/credentials")).toContain(
+			"CLT-CRED-008",
+		);
+	});
+
+	it("detects 7z a archive.7z .npmrc (008)", () => {
+		expect(matchCommand(engine, "7z a archive.7z .npmrc")).toContain("CLT-CRED-008");
+	});
+
+	it("does not match tar czf src.tar.gz src/ (008 FP)", () => {
+		expect(matchCommand(engine, "tar czf src.tar.gz src/")).not.toContain("CLT-CRED-008");
+	});
+
+	it("does not match zip release.zip dist/ (008 FP)", () => {
+		expect(matchCommand(engine, "zip release.zip dist/")).not.toContain("CLT-CRED-008");
+	});
+
+	it("does not match tar czf x.tar.gz old-credentials.yml (008 FP — substring)", () => {
+		expect(matchCommand(engine, "tar czf x.tar.gz old-credentials.yml")).not.toContain(
+			"CLT-CRED-008",
+		);
+	});
+
+	it("does not match tar czf x.tar.gz README.env (008 FP — not a dotfile)", () => {
+		expect(matchCommand(engine, "tar czf x.tar.gz README.env")).not.toContain("CLT-CRED-008");
+	});
+
+	it("does not match zip archive.zip config.env.test (008 FP — not a dotfile)", () => {
+		expect(matchCommand(engine, "zip archive.zip config.env.test")).not.toContain("CLT-CRED-008");
+	});
+
+	// --- .envrc false positive ---
+
+	it("does not match cp .envrc /tmp/ (007 FP — not .env)", () => {
+		expect(matchCommand(engine, "cp .envrc /tmp/")).not.toContain("CLT-CRED-007");
+	});
+
+	it("does not match tar czf x.tar.gz .envrc (008 FP — not .env)", () => {
+		expect(matchCommand(engine, "tar czf x.tar.gz .envrc")).not.toContain("CLT-CRED-008");
+	});
 });

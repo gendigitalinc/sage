@@ -1,5 +1,17 @@
 # @gendigital/sage-openclaw
 
+## 0.6.0
+
+### Minor Changes
+
+- Rename packages from `@sage/*` to `@gendigital/sage-*`, update GitHub org from `avast/sage` to `gendigitalinc/sage`, and add a one-time migration banner for Claude Code users still referencing the old marketplace URL.
+
+### Patch Changes
+
+- Move @sage/core from dependencies to devDependencies in the openclaw connector package.
+- Bypass OpenClaw security check false positives on Sage installation.
+- Move @gendigital/sage-core from dependencies to devDependencies in claude-code and extension packages (core is bundled by esbuild, not needed at runtime). Add prepack guard to core, openclaw, and opencode to reject publish with unresolved workspace: references when not using pnpm.
+
 ## 0.5.3
 
 ### Patch Changes

@@ -40,3 +40,8 @@ packages/opencode/resources/
 
 # Gitleaks config (contains internal infrastructure names)
 .gitleaks.toml
+
+.pnpm-store
+
+# Dummy canary e2e threat rules
+threats/dummy.yaml

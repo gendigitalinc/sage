@@ -2,7 +2,7 @@
 
 ## Reporting Vulnerabilities
 
-Please report security vulnerabilities privately via [GitHub Security Advisories](https://github.com/avast/sage/security/advisories/new). Do not open public issues for security bugs.
+Please report security vulnerabilities privately via [GitHub Security Advisories](https://github.com/gendigitalinc/sage/security/advisories/new). Do not open public issues for security bugs.
 
 Include:
 

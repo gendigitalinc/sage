@@ -4,8 +4,8 @@ import type {
 	PluginScanResult,
 	Verdict,
 	VersionCheckResult,
-} from "@sage/core";
-import { formatStartupClean, formatThreatBanner, severityEmoji } from "@sage/core";
+} from "@gendigital/sage-core";
+import { formatStartupClean, formatThreatBanner, severityEmoji } from "@gendigital/sage-core";
 import { describe, expect, it } from "vitest";
 import { formatBlockReason } from "../format.js";
 
@@ -81,7 +81,7 @@ describe("formatStartupClean", () => {
 		expect(msg).toContain("Update available");
 		expect(msg).toContain("v0.4.0");
 		expect(msg).toContain("v0.5.0");
-		expect(msg).toContain("github.com/avast/sage");
+		expect(msg).toContain("github.com/gendigitalinc/sage");
 	});
 
 	it("does not append update notice when up to date", () => {

@@ -15,10 +15,10 @@ Unmapped tools pass through unchanged.
 Clone the repo, build the OpenCode package, then point OpenCode to this package path:
 
 ```bash
-git clone https://github.com/avast/sage
+git clone https://github.com/gendigitalinc/sage
 cd sage
 pnpm install
-pnpm --filter @sage/opencode run build
+pnpm --filter @gendigital/sage-opencode run build
 ```
 
 Global config (`~/.config/opencode/opencode.json`):
@@ -86,7 +86,7 @@ Sage automatically scans all installed OpenCode plugins when a new session start
 
 ### Self-Protection
 
-- Sage excludes itself from scanning (`@sage/opencode`)
+- Sage excludes itself from scanning (`@gendigital/sage-opencode`)
 - Fail-open philosophy: Errors don't block OpenCode
 
 ### Cache Location
@@ -96,7 +96,7 @@ Scan cache stored at `~/.sage/plugin_scan_cache.json` for performance.
 ## Build
 
 ```bash
-pnpm --filter @sage/opencode run build
+pnpm --filter @gendigital/sage-opencode run build
 ```
 
 This copies `threats/` and `allowlists/` into `packages/opencode/resources/`.

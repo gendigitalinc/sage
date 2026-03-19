@@ -1,5 +1,10 @@
-import type { PluginFinding, PluginInfo, PluginScanResult, VersionCheckResult } from "@sage/core";
-import { formatStartupClean, formatThreatBanner } from "@sage/core";
+import type {
+	PluginFinding,
+	PluginInfo,
+	PluginScanResult,
+	VersionCheckResult,
+} from "@gendigital/sage-core";
+import { formatStartupClean, formatThreatBanner } from "@gendigital/sage-core";
 import { describe, expect, it } from "vitest";
 
 function makePlugin(key = "test-plugin@marketplace"): PluginInfo {

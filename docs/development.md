@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-git clone https://github.com/avast/sage
+git clone https://github.com/gendigitalinc/sage
 cd sage
 git checkout pre-release
 pnpm install
@@ -143,10 +143,10 @@ pnpm test:e2e:openclaw
 ```
 sage/
 ├── packages/
-│   ├── core/           @sage/core - detection engine
-│   ├── claude-code/    @sage/claude-code - Claude Code hooks
-│   ├── openclaw/       sage - OpenClaw connector
-│   ├── opencode/       @sage/opencode - OpenCode plugin
+│   ├── core/           @gendigital/sage-core - detection engine
+│   ├── claude-code/    @gendigital/sage-claude-code - Claude Code hooks
+│   ├── openclaw/       @gendigital/sage-openclaw - OpenClaw connector
+│   ├── opencode/       @gendigital/sage-opencode - OpenCode plugin
 │   └── extension/      Cursor and VS Code extensions
 ├── threats/            YAML threat definitions
 ├── allowlists/         Trusted domain allowlists
@@ -178,7 +178,7 @@ sage/
 
 ## Versioning
 
-This project uses [Changesets](https://github.com/changesets/changesets) with **linked mode** — all four packages (`@sage/core`, `@sage/claude-code`, `@gendigital/sage-openclaw`, `sage-cursor`) sync versions when released together, but individual packages can be bumped independently.
+This project uses [Changesets](https://github.com/changesets/changesets) with **linked mode** — all five packages (`@gendigital/sage-core`, `@gendigital/sage-claude-code`, `@gendigital/sage-openclaw`, `@gendigital/sage-opencode`, `sage-cursor`) sync versions when released together, but individual packages can be bumped independently.
 
 **Workflow:**
 

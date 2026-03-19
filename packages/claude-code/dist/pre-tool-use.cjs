@@ -9312,7 +9312,7 @@ var require_thread_stream = __commonJS({
     var { version } = require_package();
     var { EventEmitter } = require("events");
     var { Worker } = require("worker_threads");
-    var { join: join9 } = require("path");
+    var { join: join10 } = require("path");
     var { pathToFileURL } = require("url");
     var { wait } = require_wait();
     var {
@@ -9348,7 +9348,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join9(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join10(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         trackUnmanagedFds: false,
@@ -9734,7 +9734,7 @@ var require_transport = __commonJS({
     "use strict";
     var { createRequire } = require("module");
     var getCallers = require_caller();
-    var { join: join9, isAbsolute: isAbsolute2, sep: sep2 } = require("node:path");
+    var { join: join10, isAbsolute: isAbsolute2, sep: sep2 } = require("node:path");
     var sleep = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
     var ThreadStream = require_thread_stream();
@@ -9797,7 +9797,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join9(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join10(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -9815,7 +9815,7 @@ var require_transport = __commonJS({
           });
         });
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join9(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join10(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -9837,7 +9837,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join9(__dirname, "..", "file.js");
+          return join10(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -10826,7 +10826,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join9 = ",";
+            let join10 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -10840,7 +10840,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join9 = `,
+                join10 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -10848,13 +10848,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join9;
+                res += join10;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join9}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join10}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -10875,7 +10875,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join9 = `,
+              join10 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -10889,13 +10889,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join9;
+                separator = join10;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join9;
+              separator = join10;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -10936,7 +10936,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join9 = ",";
+            let join10 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -10949,7 +10949,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join9 = `,
+                join10 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -10957,13 +10957,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join9;
+                res += join10;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join9}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join10}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -10976,7 +10976,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join9 = `,
+              join10 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -10985,7 +10985,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join9;
+                separator = join10;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -11043,20 +11043,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join10 = `,
+              const join11 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join10;
+                res2 += join11;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join10}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join11}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -11072,16 +11072,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join9 = `,
+            const join10 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join9, maximumBreadth);
+              res += stringifyTypedArray(value, join10, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join9;
+              separator = join10;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -11092,13 +11092,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join9;
+                separator = join10;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join9;
+              separator = join10;
             }
             if (separator !== "") {
               res = `
@@ -11625,8 +11625,8 @@ var require_pino = __commonJS({
 });
 
 // src/pre-tool-use.ts
-var import_node_fs = require("node:fs");
-var import_node_path10 = require("node:path");
+var import_node_fs2 = require("node:fs");
+var import_node_path11 = require("node:path");
 
 // ../core/dist/config.js
 var import_node_os = require("node:os");
@@ -15782,10 +15782,6 @@ var ConfigSchema = external_exports.object({
 
 // ../core/dist/config.js
 var SAGE_DIR = "~/.sage";
-function currentHomeDir() {
-  const envHome = process.env.HOME?.trim();
-  return envHome && envHome.length > 0 ? envHome : (0, import_node_os.homedir)();
-}
 function resolvedSageDir() {
   return resolvePath(SAGE_DIR);
 }
@@ -15803,7 +15799,7 @@ function defaultAuditPath() {
 }
 function resolvePath(pathStr) {
   if (pathStr.startsWith("~/") || pathStr === "~") {
-    return (0, import_node_path2.join)(currentHomeDir(), pathStr.slice(1));
+    return (0, import_node_path2.join)((0, import_node_os.homedir)(), pathStr.slice(1));
   }
   return pathStr;
 }
@@ -16079,10 +16075,12 @@ var VerdictCache = class {
   path;
   config;
   logger;
-  constructor(config, logger2 = nullLogger) {
+  version;
+  constructor(config, logger2 = nullLogger, version) {
     this.config = config;
     this.logger = logger2;
     this.path = resolvePath(config.path);
+    this.version = version;
   }
   async load() {
     if (!this.config.enabled)
@@ -16104,12 +16102,8 @@ var VerdictCache = class {
       return null;
     const key = normalizeUrl(url);
     const entry = this.store.urls[key];
-    if (!entry)
+    if (!entry || this.isStale(entry))
       return null;
-    if (new Date(entry.expiresAt).getTime() <= Date.now()) {
-      delete this.store.urls[key];
-      return null;
-    }
     return {
       verdict: entry.verdict,
       severity: entry.severity,
@@ -16127,19 +16121,16 @@ var VerdictCache = class {
     this.store.urls[key] = {
       ...verdict,
       checkedAt: now.toISOString(),
-      expiresAt: expiresAt.toISOString()
+      expiresAt: expiresAt.toISOString(),
+      sageVersion: this.version
     };
   }
   getCommand(commandHash) {
     if (!this.config.enabled)
       return null;
     const entry = this.store.commands[commandHash];
-    if (!entry)
+    if (!entry || this.isStale(entry))
       return null;
-    if (new Date(entry.expiresAt).getTime() <= Date.now()) {
-      delete this.store.commands[commandHash];
-      return null;
-    }
     return {
       verdict: entry.verdict,
       severity: entry.severity,
@@ -16154,19 +16145,16 @@ var VerdictCache = class {
     this.store.commands[commandHash] = {
       ...verdict,
       checkedAt: now.toISOString(),
-      expiresAt: FAR_FUTURE
+      expiresAt: FAR_FUTURE,
+      sageVersion: this.version
     };
   }
   getPackage(key) {
     if (!this.config.enabled)
       return null;
     const entry = this.store.packages[key];
-    if (!entry)
+    if (!entry || this.isStale(entry))
       return null;
-    if (new Date(entry.expiresAt).getTime() <= Date.now()) {
-      delete this.store.packages[key];
-      return null;
-    }
     return {
       verdict: entry.verdict,
       severity: entry.severity,
@@ -16183,8 +16171,16 @@ var VerdictCache = class {
     this.store.packages[key] = {
       ...verdict,
       checkedAt: now.toISOString(),
-      expiresAt: expiresAt.toISOString()
+      expiresAt: expiresAt.toISOString(),
+      sageVersion: this.version
     };
+  }
+  isStale(entry) {
+    if (new Date(entry.expiresAt).getTime() <= Date.now())
+      return true;
+    if (this.version && this.version !== "dev" && entry.sageVersion !== this.version)
+      return true;
+    return false;
   }
   computePackageTtl(verdict, packageAgeDays) {
     const isFresh = packageAgeDays !== null && packageAgeDays < 7;
@@ -16201,15 +16197,37 @@ var VerdictCache = class {
     if (!this.config.enabled)
       return;
     try {
+      this.pruneStaleEntries();
       await atomicWriteJson(this.path, this.store);
     } catch (e) {
       this.logger.warn(`Failed to save cache to ${this.path}`, { error: String(e) });
     }
   }
+  pruneStaleEntries() {
+    for (const [key, entry] of Object.entries(this.store.urls)) {
+      if (this.isStale(entry))
+        delete this.store.urls[key];
+    }
+    for (const [key, entry] of Object.entries(this.store.commands)) {
+      if (this.isStale(entry))
+        delete this.store.commands[key];
+    }
+    for (const [key, entry] of Object.entries(this.store.packages)) {
+      if (this.isStale(entry))
+        delete this.store.packages[key];
+    }
+  }
 };
 
+// ../core/dist/clients/amsi-spawn.js
+var chldproc1 = "node:child_";
+var chldproc2 = "process";
+var chldproc = require(chldproc1 + chldproc2);
+function spawn(command, args, options) {
+  return chldproc.spawn(command, args, options);
+}
+
 // ../core/dist/clients/amsi.js
-var import_node_child_process = require("node:child_process");
 var AMSI_RESULT_DETECTED = 32768;
 var AMSI_RESULT_BLOCKED_BY_ADMIN_START = 16384;
 var MAX_SCAN_LENGTH = 1048576;
@@ -16217,7 +16235,7 @@ var PS_TIMEOUT = 15e3;
 function isWSL() {
   if (process.platform !== "linux")
     return false;
-  return !!process.env.WSL_DISTRO_NAME;
+  return !!process["env"]["WSL_DISTRO_NAME"];
 }
 function isAmsiSupported() {
   return process.platform === "win32" || isWSL();
@@ -16468,7 +16486,7 @@ var PersistentPowershellAmsiBackend = class {
   }
   async init() {
     try {
-      this.process = (0, import_node_child_process.spawn)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", PS_PERSISTENT_SCRIPT], {
+      this.process = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", PS_PERSISTENT_SCRIPT], {
         stdio: ["pipe", "pipe", "pipe"],
         windowsHide: true
       });
@@ -16592,7 +16610,7 @@ var WslPowershellAmsiBackend = class {
     const truncated = content.length > MAX_SCAN_LENGTH ? content.slice(0, MAX_SCAN_LENGTH) : content;
     return new Promise((resolve3) => {
       try {
-        const ps = (0, import_node_child_process.spawn)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", PS_ONESHOT_SCRIPT], { stdio: ["pipe", "pipe", "pipe"] });
+        const ps = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", PS_ONESHOT_SCRIPT], { stdio: ["pipe", "pipe", "pipe"] });
         let stdout = "";
         const timer = setTimeout(() => {
           this.logger.warn("AMSI: PowerShell one-shot timeout", { contentName });
@@ -16684,7 +16702,23 @@ var AmsiClient = class {
 };
 
 // ../core/dist/version.js
-var VERSION = true ? "0.5.2" : "dev";
+var import_node_fs = require("node:fs");
+var import_node_path5 = require("node:path");
+var import_node_url = require("node:url");
+var import_meta = {};
+function resolveVersion() {
+  if (true)
+    return "0.6.0";
+  try {
+    const pkgPath = (0, import_node_path5.join)((0, import_node_path5.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
+    const pkg = JSON.parse((0, import_node_fs.readFileSync)(pkgPath, "utf-8"));
+    if (typeof pkg.version === "string")
+      return pkg.version;
+  } catch {
+  }
+  return "dev";
+}
+var VERSION = resolveVersion();
 
 // ../core/dist/clients/file-check.js
 var DEFAULT_TIMEOUT = 5;
@@ -17018,9 +17052,9 @@ var UrlCheckClient = class {
     const queries = urls.map((url) => ({ key: { "url-like": url } }));
     const payload = {
       queries,
-      client_info: {
-        product_name: SERVICE_NAME2,
-        product_version: VERSION
+      "client-info": {
+        "product-name": SERVICE_NAME2,
+        "product-version": VERSION
       }
     };
     try {
@@ -17365,7 +17399,7 @@ function extractFromRead(toolInput) {
 
 // ../core/dist/trusted-domains.js
 var import_promises2 = require("node:fs/promises");
-var import_node_path5 = require("node:path");
+var import_node_path6 = require("node:path");
 var import_yaml = __toESM(require_dist(), 1);
 async function loadTrustedDomains(allowlistsDir, logger2 = nullLogger) {
   let files;
@@ -17377,7 +17411,7 @@ async function loadTrustedDomains(allowlistsDir, logger2 = nullLogger) {
   }
   const domains = [];
   for (const filename of files) {
-    const filePath = (0, import_node_path5.join)(allowlistsDir, filename);
+    const filePath = (0, import_node_path6.join)(allowlistsDir, filename);
     let content;
     try {
       content = await getFileContent(filePath);
@@ -17955,7 +17989,7 @@ function extractFromRequirementsTxt(content) {
 
 // ../core/dist/threat-loader.js
 var import_promises3 = require("node:fs/promises");
-var import_node_path6 = require("node:path");
+var import_node_path7 = require("node:path");
 var import_yaml2 = __toESM(require_dist(), 1);
 var REQUIRED_FIELDS = /* @__PURE__ */ new Set([
   "id",
@@ -17993,7 +18027,7 @@ async function loadThreats(threatDir, logger2 = nullLogger) {
     return threats;
   }
   for (const filename of files) {
-    const filePath = (0, import_node_path6.join)(threatDir, filename);
+    const filePath = (0, import_node_path7.join)(threatDir, filename);
     let content;
     try {
       content = await getFileContent(filePath);
@@ -18089,7 +18123,7 @@ async function evaluateToolCall(request, context) {
   }
   let cache = null;
   try {
-    cache = new VerdictCache(config.cache, logger2);
+    cache = new VerdictCache(config.cache, logger2, VERSION);
     await cache.load();
   } catch {
     cache = null;
@@ -18322,21 +18356,26 @@ function separatorLine(headerLength) {
 
 // ../core/dist/plugin-scan-cache.js
 var import_node_os3 = require("node:os");
-var import_node_path7 = require("node:path");
-var DEFAULT_CACHE_PATH = (0, import_node_path7.join)((0, import_node_os3.homedir)(), ".sage", "plugin_scan_cache.json");
+var import_node_path8 = require("node:path");
+var DEFAULT_CACHE_PATH = (0, import_node_path8.join)((0, import_node_os3.homedir)(), ".sage", "plugin_scan_cache.json");
 
 // ../core/dist/plugin-scanner.js
 var import_node_os4 = require("node:os");
-var import_node_path8 = require("node:path");
-var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path8.join)((0, import_node_os4.homedir)(), ".claude", "plugins", "installed_plugins.json");
+var import_node_path9 = require("node:path");
+var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path9.join)((0, import_node_os4.homedir)(), ".claude", "plugins", "installed_plugins.json");
 var MAX_FILE_SIZE = 512 * 1024;
+var STR_ARG = `(?:"((?:[^"\\\\]|\\\\.)*)"|'((?:[^'\\\\]|\\\\.)*)'|\`([^\`]*)\`)`;
+var JS_EXEC_RE = new RegExp(`\\bexec(?:File)?(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
+var JS_SPAWN_RE = new RegExp(`\\bspawn(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
+var JS_EXECA_RE = new RegExp(`\\bexeca\\s*\\(\\s*${STR_ARG}`, "g");
+var JS_BUN_SHELL_RE = new RegExp(`\\bBun\\.shell\\s*\\(\\s*${STR_ARG}`, "g");
 
 // src/pre-tool-use.ts
 var import_pino = __toESM(require_pino(), 1);
 
 // src/approval-tracker.ts
 var import_promises4 = require("node:fs/promises");
-var import_node_path9 = require("node:path");
+var import_node_path10 = require("node:path");
 var PENDING_STALE_MS2 = 60 * 60 * 1e3;
 var CONSUMED_TTL_MS = 10 * 60 * 1e3;
 var STALE_FILE_MS = 2 * 60 * 60 * 1e3;
@@ -18347,7 +18386,7 @@ function resolvedSageDir2() {
   return resolvePath(SAGE_DIR);
 }
 function pendingPath(sessionId) {
-  return (0, import_node_path9.join)(resolvedSageDir2(), `pending-approvals-${sanitizeSessionId(sessionId)}.json`);
+  return (0, import_node_path10.join)(resolvedSageDir2(), `pending-approvals-${sanitizeSessionId(sessionId)}.json`);
 }
 async function loadJson(path) {
   try {
@@ -18445,12 +18484,12 @@ function makeResponse(verdict) {
   };
 }
 function getPluginRoot() {
-  return (0, import_node_path10.resolve)(__dirname, "..", "..", "..");
+  return (0, import_node_path11.resolve)(__dirname, "..", "..", "..");
 }
 async function main() {
   let rawInput;
   try {
-    rawInput = (0, import_node_fs.readFileSync)(0, "utf-8");
+    rawInput = (0, import_node_fs2.readFileSync)(0, "utf-8");
   } catch {
     process.stdout.write("{}\n");
     return;
@@ -18506,8 +18545,8 @@ async function main() {
   const verdict = await evaluateToolCall(
     { sessionId, toolName, toolInput, artifacts },
     {
-      threatsDir: (0, import_node_path10.join)(pluginRoot, "threats"),
-      allowlistsDir: (0, import_node_path10.join)(pluginRoot, "allowlists"),
+      threatsDir: (0, import_node_path11.join)(pluginRoot, "threats"),
+      allowlistsDir: (0, import_node_path11.join)(pluginRoot, "allowlists"),
       logger
     }
   );

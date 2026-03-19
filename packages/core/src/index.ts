@@ -1,4 +1,4 @@
-// @sage/core public API
+// @gendigital/sage-core public API
 
 // Allowlist
 export {
@@ -52,9 +52,15 @@ export {
 	extractUrls,
 } from "./extractors.js";
 // File utilities
-export { atomicWriteJson, getFileContent, pruneOrphanedTmpFiles } from "./file-utils.js";
+export {
+	atomicWriteJson,
+	getFileContent,
+	getFileContentSync,
+	pruneOrphanedTmpFiles,
+} from "./file-utils.js";
 // Format (shared alert formatting)
 export {
+	formatMigrationNotice,
 	formatSessionStartMessage,
 	formatStartupClean,
 	formatThreatBanner,
@@ -80,6 +86,8 @@ export {
 export { HeuristicsEngine } from "./heuristics.js";
 // Installation ID
 export { getInstallationId } from "./installation-id.js";
+// Marketplace migration (TODO: remove after v0.7.x) // gitleaks:allow
+export { needsMarketplaceMigration } from "./marketplace-migration.js";
 export type { PackageCheckerConfig, PackageCheckInput } from "./package-checker.js";
 // Package checker
 export { PackageChecker } from "./package-checker.js";
@@ -179,6 +187,6 @@ export {
 } from "./types.js";
 // URL utilities
 export { hashCommand, normalizeFilePath, normalizeUrl } from "./url-utils.js";
-// Version check
 export type { VersionCheckContext, VersionCheckResult } from "./version-check.js";
+// Version check
 export { checkForUpdate, isNewerVersion } from "./version-check.js";

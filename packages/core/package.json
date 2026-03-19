@@ -1,7 +1,10 @@
 {
-  "name": "@sage/core",
+  "name": "@gendigital/sage-core",
   "license": "Apache-2.0",
-  "version": "0.5.2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "version": "0.6.0",
   "type": "module",
   "exports": {
     ".": {
@@ -14,7 +17,8 @@
   ],
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist *.tsbuildinfo"
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "prepack": "node ../../scripts/check-workspace-refs.mjs"
   },
   "dependencies": {
     "yaml": "^2.7.0",

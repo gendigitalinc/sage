@@ -4,7 +4,9 @@
   "type": "module",
   "packageManager": "pnpm@10.29.3",
   "pnpm": {
-    "onlyBuiltDependencies": ["koffi"]
+    "onlyBuiltDependencies": [
+      "koffi"
+    ]
   },
   "engines": {
     "node": ">=18"
@@ -32,6 +34,7 @@
     "@biomejs/biome": "^2.0.0",
     "@changesets/cli": "^2.29.8",
     "typescript": "^5.9.0",
-    "vitest": "^4.0.0"
+    "vitest": "^4.0.0",
+    "vitest-teamcity-reporter": "^0.4.1"
   }
 }

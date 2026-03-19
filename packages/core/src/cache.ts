@@ -18,11 +18,13 @@ export class VerdictCache {
 	private readonly path: string;
 	private readonly config: CacheConfig;
 	private readonly logger: Logger;
+	private readonly version: string | undefined;
 
-	constructor(config: CacheConfig, logger: Logger = nullLogger) {
+	constructor(config: CacheConfig, logger: Logger = nullLogger, version?: string) {
 		this.config = config;
 		this.logger = logger;
 		this.path = resolvePath(config.path);
+		this.version = version;
 	}
 
 	async load(): Promise<void> {
@@ -37,7 +39,6 @@ export class VerdictCache {
 				packages: data.packages ?? {},
 			};
 		} catch {
-			// Missing or corrupt file — start with empty cache
 			this.store = { urls: {}, commands: {}, packages: {} };
 		}
 	}
@@ -46,12 +47,7 @@ export class VerdictCache {
 		if (!this.config.enabled) return null;
 		const key = normalizeUrl(url);
 		const entry = this.store.urls[key];
-		if (!entry) return null;
-
-		if (new Date(entry.expiresAt).getTime() <= Date.now()) {
-			delete this.store.urls[key];
-			return null;
-		}
+		if (!entry || this.isStale(entry)) return null;
 
 		return {
 			verdict: entry.verdict,
@@ -73,18 +69,14 @@ export class VerdictCache {
 			...verdict,
 			checkedAt: now.toISOString(),
 			expiresAt: expiresAt.toISOString(),
+			sageVersion: this.version,
 		};
 	}
 
 	getCommand(commandHash: string): CachedVerdict | null {
 		if (!this.config.enabled) return null;
 		const entry = this.store.commands[commandHash];
-		if (!entry) return null;
-
-		if (new Date(entry.expiresAt).getTime() <= Date.now()) {
-			delete this.store.commands[commandHash];
-			return null;
-		}
+		if (!entry || this.isStale(entry)) return null;
 
 		return {
 			verdict: entry.verdict,
@@ -102,18 +94,14 @@ export class VerdictCache {
 			...verdict,
 			checkedAt: now.toISOString(),
 			expiresAt: FAR_FUTURE,
+			sageVersion: this.version,
 		};
 	}
 
 	getPackage(key: string): CachedVerdict | null {
 		if (!this.config.enabled) return null;
 		const entry = this.store.packages[key];
-		if (!entry) return null;
-
-		if (new Date(entry.expiresAt).getTime() <= Date.now()) {
-			delete this.store.packages[key];
-			return null;
-		}
+		if (!entry || this.isStale(entry)) return null;
 
 		return {
 			verdict: entry.verdict,
@@ -134,7 +122,14 @@ export class VerdictCache {
 			...verdict,
 			checkedAt: now.toISOString(),
 			expiresAt: expiresAt.toISOString(),
+			sageVersion: this.version,
 		};
+	}
+
+	private isStale(entry: { expiresAt: string; sageVersion?: string }): boolean {
+		if (new Date(entry.expiresAt).getTime() <= Date.now()) return true;
+		if (this.version && this.version !== "dev" && entry.sageVersion !== this.version) return true;
+		return false;
 	}
 
 	private computePackageTtl(verdict: string, packageAgeDays: number | null): number {
@@ -154,9 +149,22 @@ export class VerdictCache {
 		if (!this.config.enabled) return;
 
 		try {
+			this.pruneStaleEntries();
 			await atomicWriteJson(this.path, this.store);
 		} catch (e) {
 			this.logger.warn(`Failed to save cache to ${this.path}`, { error: String(e) });
+		}
+	}
+
+	private pruneStaleEntries(): void {
+		for (const [key, entry] of Object.entries(this.store.urls)) {
+			if (this.isStale(entry)) delete this.store.urls[key];
+		}
+		for (const [key, entry] of Object.entries(this.store.commands)) {
+			if (this.isStale(entry)) delete this.store.commands[key];
+		}
+		for (const [key, entry] of Object.entries(this.store.packages)) {
+			if (this.isStale(entry)) delete this.store.packages[key];
 		}
 	}
 }

@@ -5,10 +5,10 @@
 Install from a local source checkout and point OpenCode at the plugin path:
 
 ```bash
-git clone https://github.com/avast/sage
+git clone https://github.com/gendigitalinc/sage
 cd sage
 pnpm install
-pnpm --filter @sage/opencode run build
+pnpm --filter @gendigital/sage-opencode run build
 ```
 
 Global config (`~/.config/opencode/opencode.json`):
@@ -27,7 +27,7 @@ Project config (`.opencode/opencode.json`):
 }
 ```
 
-`@sage/opencode` is not published to npm. Use a local path plugin entry.
+`@gendigital/sage-opencode` is not published to npm. Use a local path plugin entry.
 
 ## How It Works
 
@@ -79,7 +79,7 @@ Sage should block the call or require explicit approval.
 ## Development
 
 ```bash
-pnpm --filter @sage/opencode run build
+pnpm --filter @gendigital/sage-opencode run build
 pnpm test -- packages/opencode/src/__tests__/integration.test.ts
 pnpm test:e2e:opencode
 ```

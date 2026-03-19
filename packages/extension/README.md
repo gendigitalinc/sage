@@ -44,7 +44,7 @@ Sage sends URL hashes and package hashes to Gen Digital reputation APIs. File co
 
 ## Links
 
-- [GitHub](https://github.com/avast/sage)
-- [Configuration docs](https://github.com/avast/sage/blob/main/docs/configuration.md)
-- [Threat rules](https://github.com/avast/sage/blob/main/docs/threat-rules.md)
-- [Privacy](https://github.com/avast/sage/blob/main/docs/privacy.md)
+- [GitHub](https://github.com/gendigitalinc/sage)
+- [Configuration docs](https://github.com/gendigitalinc/sage/blob/main/docs/configuration.md)
+- [Threat rules](https://github.com/gendigitalinc/sage/blob/main/docs/threat-rules.md)
+- [Privacy](https://github.com/gendigitalinc/sage/blob/main/docs/privacy.md)

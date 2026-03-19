@@ -17,8 +17,8 @@ const SESSION = "test-session-1";
 // Mock resolvePath to use temp dirs instead of ~/.sage/
 let tmpDir: string;
 
-vi.mock("@sage/core", async () => {
-	const actual = await vi.importActual("@sage/core");
+vi.mock("@gendigital/sage-core", async () => {
+	const actual = await vi.importActual("@gendigital/sage-core");
 	return {
 		...actual,
 		resolvePath: (p: string) => {

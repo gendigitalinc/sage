@@ -1,4 +1,18 @@
-# @sage/core
+# @gendigital/sage-core
+
+## 0.6.0
+
+### Minor Changes
+
+- Add 17 new threat rules: copy/move evasion detection (CLT-CRED-007/008, CLT-WIN-CRED-010), deletion protection for .env, database, and .git (CLT-CMD-027/028/029), and file path rules for Android signing, Firebase, cloud creds, package manager tokens, Terraform state, vault/secrets, private keys/certs, kubeconfig, build system creds, shell history, and JetBrains DB creds (CLT-FILE-010..020).
+- Extract command artifacts from JS/TS plugin files using regex-based detection of Node.js/Bun/zx command execution APIs. Add .mjs/.mts to scannable extensions.
+- Rename packages from `@sage/*` to `@gendigital/sage-*`, update GitHub org from `avast/sage` to `gendigitalinc/sage`, and add a one-time migration banner for Claude Code users still referencing the old marketplace URL.
+
+### Patch Changes
+
+- Bypass OpenClaw security check false positives on Sage installation.
+- Move @gendigital/sage-core from dependencies to devDependencies in claude-code and extension packages (core is bundled by esbuild, not needed at runtime). Add prepack guard to core, openclaw, and opencode to reject publish with unresolved workspace: references when not using pnpm.
+- Stale entries in cache get ignored (and removed)
 
 ## 0.5.2
 

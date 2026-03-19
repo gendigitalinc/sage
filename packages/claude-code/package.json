@@ -1,7 +1,8 @@
 {
-  "name": "@sage/claude-code",
+  "name": "@gendigital/sage-claude-code",
+  "private": true,
   "license": "Apache-2.0",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "type": "module",
   "scripts": {
     "build": "node esbuild.config.js",
@@ -9,7 +10,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
-    "@sage/core": "workspace:*",
     "pino": "^9.6.0",
     "zod": "^3.24.0"
   },
@@ -17,6 +17,7 @@
     "koffi": "^2.9.0"
   },
   "devDependencies": {
+    "@gendigital/sage-core": "workspace:*",
     "@types/node": "^22.0.0",
     "esbuild": "^0.25.0",
     "typescript": "^5.9.0",

@@ -6,9 +6,10 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolvePath } from "./config.js";
+import { getFileContent } from "./file-utils.js";
 
 /**
  * Read the installation ID from disk, generating a new one if it doesn't exist.
@@ -20,7 +21,7 @@ export async function getInstallationId(sageDirPath?: string): Promise<string | 
 
 	let fileExists = false;
 	try {
-		const existing = await readFile(idPath, "utf-8");
+		const existing = await getFileContent(idPath, "utf-8");
 		const trimmed = existing.trim();
 		if (trimmed.length > 0) return trimmed;
 		fileExists = true;
@@ -36,7 +37,7 @@ export async function getInstallationId(sageDirPath?: string): Promise<string | 
 	} catch (err: unknown) {
 		if ((err as NodeJS.ErrnoException).code === "EEXIST") {
 			try {
-				const existing = await readFile(idPath, "utf-8");
+				const existing = await getFileContent(idPath, "utf-8");
 				return existing.trim() || undefined;
 			} catch {
 				return undefined;

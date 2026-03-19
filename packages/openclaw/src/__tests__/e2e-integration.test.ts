@@ -3,7 +3,7 @@
  *
  * Loads the built dist/index.cjs bundle (not source imports) and
  * calls register() with a mock OpenClaw API to capture the
- * before_tool_call handler. Tests run against the real @sage/core
+ * before_tool_call handler. Tests run against the real @gendigital/sage-core
  * pipeline: real extractors, heuristics, YAML threats, URL check.
  *
  * Included in `pnpm test` (standard test suite).
@@ -223,6 +223,43 @@ describe("OpenClaw integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 			expect(result.blockReason).toContain("Sage blocked");
 			expect(result.blockReason).not.toContain("sage_approve");
 		});
+	});
+
+	// --- Self-exclusion ---
+
+	it("excludes @gendigital/sage-openclaw from scanning", async () => {
+		const prevHome = process.env.HOME;
+		const tmpHome = await mkdtemp(resolve(tmpdir(), "sage-openclaw-selfexcl-"));
+		const extensionsDir = resolve(tmpHome, ".openclaw", "extensions", "sage");
+		await mkdir(extensionsDir, { recursive: true });
+		await writeFile(
+			resolve(extensionsDir, "package.json"),
+			JSON.stringify({ name: "@gendigital/sage-openclaw", version: "1.0.0" }),
+			"utf8",
+		);
+		process.env.HOME = tmpHome;
+
+		try {
+			const { createSessionScanHandler } = await import("../startup-scan.js");
+			let findingsBanner: string | null = null;
+			const scanHandler = createSessionScanHandler(
+				{ debug() {}, info() {}, warn() {}, error() {} },
+				(banner) => {
+					findingsBanner = banner;
+				},
+			);
+
+			await scanHandler();
+			// Self-exclusion should filter out our own package; clean scan reports no threats
+			expect(findingsBanner).toContain("No threats found");
+		} finally {
+			if (prevHome === undefined) {
+				delete process.env.HOME;
+			} else {
+				process.env.HOME = prevHome;
+			}
+			await rm(tmpHome, { recursive: true, force: true });
+		}
 	});
 
 	// --- URL check (network-dependent) ---

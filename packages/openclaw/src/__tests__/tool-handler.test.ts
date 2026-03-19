@@ -1,4 +1,4 @@
-import { ApprovalStore, nullLogger } from "@sage/core";
+import { ApprovalStore, nullLogger } from "@gendigital/sage-core";
 import { describe, expect, it, vi } from "vitest";
 import {
 	createToolCallHandler,
@@ -6,7 +6,7 @@ import {
 	type ToolCallEvent,
 } from "../tool-handler.js";
 
-vi.mock("@sage/core", async (importOriginal) => {
+vi.mock("@gendigital/sage-core", async (importOriginal) => {
 	const actual = (await importOriginal()) as Record<string, unknown>;
 	return {
 		...actual,
@@ -58,7 +58,7 @@ describe("createToolCallHandler", () => {
 
 	it("deny verdict → block with formatted message", async () => {
 		setup();
-		const { guardToolCall } = await import("@sage/core");
+		const { guardToolCall } = await import("@gendigital/sage-core");
 		(guardToolCall as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
 			verdict: {
 				decision: "deny",
@@ -84,7 +84,7 @@ describe("createToolCallHandler", () => {
 
 	it("ask verdict → block with actionId for gate tool", async () => {
 		setup();
-		const { guardToolCall } = await import("@sage/core");
+		const { guardToolCall } = await import("@gendigital/sage-core");
 		(guardToolCall as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
 			verdict: {
 				decision: "ask",
@@ -109,7 +109,7 @@ describe("createToolCallHandler", () => {
 
 	it("error in handler → fail-open (undefined)", async () => {
 		setup();
-		const { guardToolCall } = await import("@sage/core");
+		const { guardToolCall } = await import("@gendigital/sage-core");
 		(guardToolCall as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("boom"));
 
 		const result = await handler({ toolName: "exec", params: { command: "ls" } });

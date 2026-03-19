@@ -27,7 +27,7 @@ export function separatorLine(headerLength: number): string {
 }
 
 export function formatUpdateNotice(result: VersionCheckResult): string {
-	return `⬆️  Update available: v${result.currentVersion} → v${result.latestVersion} (https://github.com/avast/sage)`;
+	return `⬆️  Update available: v${result.currentVersion} → v${result.latestVersion} (https://github.com/gendigitalinc/sage)`;
 }
 
 export function formatStartupClean(
@@ -94,4 +94,9 @@ export function formatSessionStartMessage(version: string, result: SessionStartR
 		return formatThreatBanner(version, result.scanResults, result.versionCheck);
 	}
 	return formatStartupClean(version, result.versionCheck);
+}
+
+// TODO: Remove marketplace migration notice after v0.7.x // gitleaks:allow
+export function formatMigrationNotice(): string {
+	return "\u26a0\ufe0f  Sage has moved \u2192 run: /plugin marketplace remove sage && /plugin marketplace add https://github.com/gendigitalinc/sage.git";
 }

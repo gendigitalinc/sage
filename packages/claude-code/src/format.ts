@@ -1,11 +1,11 @@
 /**
  * Formatting for Sage Claude Code alerts.
- * Shared formatting (severityEmoji, formatThreatBanner, etc.) lives in @sage/core.
+ * Shared formatting (severityEmoji, formatThreatBanner, etc.) lives in @gendigital/sage-core.
  * This file keeps Claude Code-specific verdict formatting.
  */
 
-import type { Verdict } from "@sage/core";
-import { kv, PAD, SEPARATOR_WIDTH, separatorLine, severityEmoji } from "@sage/core";
+import type { Verdict } from "@gendigital/sage-core";
+import { kv, PAD, SEPARATOR_WIDTH, separatorLine, severityEmoji } from "@gendigital/sage-core";
 
 export function artifactTypeLabel(type: string): string {
 	if (type === "url") return "URL";

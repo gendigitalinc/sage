@@ -6,13 +6,14 @@ Sage is a TypeScript monorepo with a shared core library and platform-specific c
 
 ```
 packages/
-├── core/          @sage/core        Platform-agnostic detection engine
-├── claude-code/   @sage/claude-code  Claude Code hook entry points
-├── openclaw/      sage              OpenClaw plugin connector
-└── extension/                       Cursor and VS Code extensions
+├── core/          @gendigital/sage-core         Platform-agnostic detection engine
+├── claude-code/   @gendigital/sage-claude-code   Claude Code hook entry points
+├── openclaw/      @gendigital/sage-openclaw       OpenClaw plugin connector
+├── opencode/      @gendigital/sage-opencode       OpenCode plugin connector
+└── extension/     sage-cursor                     Cursor and VS Code extensions (unscoped: vsce rejects @ and / in extension names)
 ```
 
-### `@sage/core`
+### `@gendigital/sage-core`
 
 The core library contains all detection logic. It has no platform dependencies and is imported by all connectors.
 
@@ -36,7 +37,7 @@ The core library contains all detection logic. It has no platform dependencies a
 | `clients/file-check.ts` | File reputation API client |
 | `clients/package-registry.ts` | npm/PyPI registry client |
 
-### `@sage/claude-code`
+### `@gendigital/sage-claude-code`
 
 Two entry points, each bundled by esbuild into a single CJS file:
 
@@ -45,7 +46,7 @@ Two entry points, each bundled by esbuild into a single CJS file:
 
 Registered via `hooks/hooks.json`.
 
-### `sage` (OpenClaw)
+### `@gendigital/sage-openclaw` (OpenClaw)
 
 In-process plugin using `api.on('before_tool_call')`. Includes:
 
@@ -98,5 +99,5 @@ Extension hooks (Cursor / VS Code) always exit with code `0`; the host reads the
 
 - **All patterns are data.** Detection rules live in `threats/*.yaml`, not in code. This makes rules easy to review, contribute, and update independently.
 - **Fail-open.** Every error path returns `allow`. Sage should never break the agent.
-- **Shared core.** All platforms use the same `@sage/core` library, ensuring consistent detection regardless of connector.
+- **Shared core.** All platforms use the same `@gendigital/sage-core` library, ensuring consistent detection regardless of connector.
 - **No runtime dependencies beyond Node.js.** The core uses native `fetch`, `yaml` for YAML parsing, and `zod` for validation. Connectors are bundled into single CJS files.

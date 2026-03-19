@@ -18,7 +18,7 @@ import {
 	extractFromWrite,
 	type Logger,
 	type Verdict,
-} from "@sage/core";
+} from "@gendigital/sage-core";
 import pino from "pino";
 import { addPendingApproval } from "./approval-tracker.js";
 import { formatBlockReason } from "./format.js";

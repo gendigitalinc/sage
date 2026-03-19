@@ -2,7 +2,7 @@
  * Bridges OpenClaw's PluginLogger to Sage's Logger interface.
  */
 
-import type { Logger } from "@sage/core";
+import type { Logger } from "@gendigital/sage-core";
 
 /** Mirrors OpenClaw's PluginLogger type without importing it. */
 export interface PluginLogger {

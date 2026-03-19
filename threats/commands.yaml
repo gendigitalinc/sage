@@ -250,7 +250,7 @@
   severity: high
   confidence: 0.80
   action: block
-  pattern: "\\b(while|for)\\b[^;]*;\\s*do[^;]*\\b(bash|sh|curl|wget)\\b"
+  pattern: "\\b(while|for)\\b[^;]*;\\s*do[^;]*(\\b(bash|sh)\\s+-c\\b|\\b(curl|wget)\\b[^;]*\\|\\s*(?:sudo\\s+)?(?:env\\s+)?(?:[^\\s\"']*[\\\\/])?(bash|sh|zsh|ksh|dash)\\b|\\b(curl|wget)\\b[^;]*(?:(-d|--data|--data-binary)\\s+['\\\"]?@\\S+|(--upload-file|-T)\\s+['\\\"]?\\S+))"
   match_on: command
   title: "Loop executing shell or download commands"
   expires_at: null
@@ -303,5 +303,42 @@
   pattern: "\\brm\\s+(-[a-zA-Z]+\\s+)*-[a-zA-Z]*[rR][a-zA-Z]*(\\s+-[a-zA-Z]+)*\\s+/(home|Users|etc|usr|var|boot|bin|sbin|lib|lib64|opt|root|System|Applications|Library|Volumes|private|mnt)\\b/?(\\s|$|[;&|])"
   match_on: command
   title: "Recursive deletion of critical system directory"
+  expires_at: null
+  revoked: false
+
+# --- Deletion of .env files ---
+- id: "CLT-CMD-027"
+  category: tool
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "\\brm\\s+(-{1,2}[\\w-]+(=\\S+)?\\s+)*(\\S+[\\\\/])?\\.env(?!\\S*\\.(example|sample|template|dist)\\b)(\\.(local|production|prod|staging|stage|development|dev|test))?\\b"
+  match_on: command
+  title: "Deletion of .env file"
+  expires_at: null
+  revoked: false
+
+# --- Deletion of database files ---
+- id: "CLT-CMD-028"
+  category: tool
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "\\brm\\s+(-{1,2}[\\w-]+(=\\S+)?\\s+)*\\S+\\.(db|sqlite|sqlite3)\\b"
+  match_on: command
+  title: "Deletion of database file"
+  expires_at: null
+  revoked: false
+
+# --- Deletion of .git directory ---
+- id: "CLT-CMD-029"
+  category: tool
+  severity: high
+  confidence: 0.90
+  action: require_approval
+  pattern: "\\b(rm|del|rmdir|rd|Remove-Item|unlink)\\b.*(\\s|[\\\\/])\\.git(\\s|[\\\\/]|$)"
+  case_insensitive: true
+  match_on: command
+  title: "Deletion of .git directory"
   expires_at: null
   revoked: false

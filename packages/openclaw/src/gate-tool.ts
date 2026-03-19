@@ -3,7 +3,7 @@
  * Sage-flagged tool calls after user confirmation.
  */
 
-import { type ApprovalStore, approveAction } from "@sage/core";
+import { type ApprovalStore, approveAction } from "@gendigital/sage-core";
 
 export interface ToolDefinition {
 	name: string;

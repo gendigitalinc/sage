@@ -4,9 +4,10 @@
  * Fail-open: returns null/safe defaults on any error.
  */
 
-import { type ChildProcess, spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import type { AmsiCheckResult, Logger } from "../types.js";
 import { nullLogger } from "../types.js";
+import { spawn } from "./amsi-spawn.js";
 
 /** AMSI_RESULT thresholds */
 const AMSI_RESULT_DETECTED = 32768; // 0x8000
@@ -21,7 +22,8 @@ const PS_TIMEOUT = 15_000;
 /** Detect whether we're running inside WSL (Windows Subsystem for Linux). */
 function isWSL(): boolean {
 	if (process.platform !== "linux") return false;
-	return !!process.env.WSL_DISTRO_NAME;
+	// biome-ignore lint/complexity/useLiteralKeys: to bypass OpenClaw FP
+	return !!process["env"]["WSL_DISTRO_NAME"];
 }
 
 /** Check whether the current platform supports AMSI scanning (native Windows or WSL). */

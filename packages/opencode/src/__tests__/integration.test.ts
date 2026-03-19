@@ -2,7 +2,7 @@
  * Integration tests for Sage OpenCode plugin.
  *
  * Loads the built dist/index.js bundle (not source imports) and validates
- * behavior against the real @sage/core pipeline.
+ * behavior against the real @gendigital/sage-core pipeline.
  */
 
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -372,12 +372,19 @@ describe("OpenCode integration: Plugin scanning", { timeout: 30_000 }, () => {
 		await rm(projectDir, { recursive: true, force: true });
 	});
 
-	it("excludes @sage/opencode from scanning", async () => {
-		const npmCacheDir = resolve(tmpHome, ".cache", "opencode", "node_modules", "@sage", "opencode");
+	it("excludes @gendigital/sage-opencode from scanning", async () => {
+		const npmCacheDir = resolve(
+			tmpHome,
+			".cache",
+			"opencode",
+			"node_modules",
+			"@gendigital",
+			"sage-opencode",
+		);
 		await mkdir(npmCacheDir, { recursive: true });
 		await writeFile(
 			resolve(npmCacheDir, "package.json"),
-			JSON.stringify({ name: "@sage/opencode", version: "1.0.0" }, null, 2),
+			JSON.stringify({ name: "@gendigital/sage-opencode", version: "1.0.0" }, null, 2),
 			"utf8",
 		);
 
@@ -390,7 +397,7 @@ describe("OpenCode integration: Plugin scanning", { timeout: 30_000 }, () => {
 		};
 		const _plugins = await discoverOpenCodePlugins(logger);
 
-		// Plugins may include @sage/opencode from discovery
+		// Plugins may include @gendigital/sage-opencode from discovery
 		// but startup-scan filters it out before scanning
 		const { createSessionScanHandler } = await import("../startup-scan.js");
 		let findingsBanner: string | null = null;
@@ -487,14 +494,9 @@ describe("OpenCode integration: Plugin scanning", { timeout: 30_000 }, () => {
 
 		await handler();
 
-		if (findingsBanner?.includes("⚠️")) {
-			// Threats detected - verify banner format
-			expect(findingsBanner).toContain("suspect.js");
-			expect(findingsBanner).toMatch(/\d+ finding\(s\)/);
-		} else {
-			// Clean scan (if threat pattern didn't trigger for some reason)
-			expect(findingsBanner).toContain("No threats found");
-		}
+		expect(findingsBanner).toBeDefined();
+		expect(findingsBanner).toContain("Threat Detected");
+		expect(findingsBanner).toContain("suspect");
 	});
 
 	it("handles scan errors gracefully (fail-open)", async () => {

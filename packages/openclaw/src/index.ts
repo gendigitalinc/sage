@@ -4,7 +4,7 @@
  * startup/session scan hooks, and before_agent_start handler.
  */
 
-import { ApprovalStore } from "@sage/core";
+import { ApprovalStore } from "@gendigital/sage-core";
 import { createAllowlistAddTool, createAllowlistRemoveTool } from "./allowlist-tools.js";
 import { getBundledDataDirs } from "./bundled-dirs.js";
 import { createSageApproveTool } from "./gate-tool.js";

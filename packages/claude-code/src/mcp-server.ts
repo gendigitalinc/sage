@@ -7,8 +7,6 @@
  * - sage_allowlist_remove: Remove a URL, command, or file path from the allowlist (ungated)
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
 	addCommand,
 	addFilePath,
@@ -23,7 +21,9 @@ import {
 	removeFilePath,
 	removeUrl,
 	saveAllowlist,
-} from "@sage/core";
+} from "@gendigital/sage-core";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import pino from "pino";
 import { z } from "zod";
 import {

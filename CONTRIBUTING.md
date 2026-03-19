@@ -5,7 +5,7 @@ Thank you for your interest in contributing to Sage.
 ## Development Setup
 
 ```bash
-git clone https://github.com/avast/sage
+git clone https://github.com/gendigitalinc/sage
 cd sage
 git checkout pre-release
 pnpm install
@@ -74,4 +74,4 @@ This separation ensures that code merged from PRs goes through a review and secu
 
 Use GitHub Issues for bugs and feature requests.
 
-**Security vulnerabilities:** Please report privately via [GitHub Security Advisories](https://github.com/avast/sage/security/advisories/new). Do not open public issues for security bugs.
+**Security vulnerabilities:** Please report privately via [GitHub Security Advisories](https://github.com/gendigitalinc/sage/security/advisories/new). Do not open public issues for security bugs.

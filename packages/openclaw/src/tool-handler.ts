@@ -14,7 +14,7 @@ import {
 	formatDenyMessage,
 	guardToolCall,
 	type Logger,
-} from "@sage/core";
+} from "@gendigital/sage-core";
 
 export interface ToolCallEvent {
 	toolName: string;

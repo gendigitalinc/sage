@@ -2,13 +2,13 @@
   "name": "sage-cursor",
   "displayName": "Gen Sage",
   "description": "Safety for Agents — protects AI agent tool calls against dangerous commands, malicious URLs, and harmful file writes.",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "private": true,
   "publisher": "Gen",
   "icon": "sage-icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/avast/sage.git"
+    "url": "https://github.com/gendigitalinc/sage.git"
   },
   "license": "Apache-2.0",
   "engines": {
@@ -91,10 +91,8 @@
     "package:vscode:vsix": "npm run build && node scripts/package-vscode-vsix.mjs",
     "package:vsix": "npm run package:cursor:vsix && npm run package:vscode:vsix"
   },
-  "dependencies": {
-    "@sage/core": "workspace:*"
-  },
   "devDependencies": {
+    "@gendigital/sage-core": "workspace:*",
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.97.0",
     "@vscode/test-electron": "^2.5.2",

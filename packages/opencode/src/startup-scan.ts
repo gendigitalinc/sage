@@ -3,7 +3,7 @@
  * Thin wrapper over core's createScanHandler.
  */
 
-import { createScanHandler as coreScanHandler, type Logger } from "@sage/core";
+import { createScanHandler as coreScanHandler, type Logger } from "@gendigital/sage-core";
 import { getBundledDataDirs, getSageVersion } from "./bundled-dirs.js";
 import { discoverOpenCodePlugins } from "./plugin-discovery.js";
 
@@ -19,7 +19,7 @@ export function createSessionScanHandler(
 		logger,
 		context: "session",
 		discoverPlugins: () => discoverOpenCodePlugins(logger, projectDir),
-		selfPrefix: "@sage/opencode@",
+		selfPrefix: "@gendigital/sage-opencode@",
 		threatsDir,
 		allowlistsDir,
 		version,

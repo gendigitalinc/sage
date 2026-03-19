@@ -9312,7 +9312,7 @@ var require_thread_stream = __commonJS({
     var { version } = require_package();
     var { EventEmitter } = require("events");
     var { Worker } = require("worker_threads");
-    var { join: join10 } = require("path");
+    var { join: join12 } = require("path");
     var { pathToFileURL } = require("url");
     var { wait } = require_wait();
     var {
@@ -9348,7 +9348,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join10(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join12(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         trackUnmanagedFds: false,
@@ -9734,7 +9734,7 @@ var require_transport = __commonJS({
     "use strict";
     var { createRequire } = require("module");
     var getCallers = require_caller();
-    var { join: join10, isAbsolute: isAbsolute2, sep: sep2 } = require("node:path");
+    var { join: join12, isAbsolute: isAbsolute2, sep: sep2 } = require("node:path");
     var sleep = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
     var ThreadStream = require_thread_stream();
@@ -9797,7 +9797,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join10(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join12(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -9815,7 +9815,7 @@ var require_transport = __commonJS({
           });
         });
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join10(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join12(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -9837,7 +9837,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join10(__dirname, "..", "file.js");
+          return join12(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -10826,7 +10826,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join10 = ",";
+            let join12 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -10840,7 +10840,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join10 = `,
+                join12 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -10848,13 +10848,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join10;
+                res += join12;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join10}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join12}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -10875,7 +10875,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join10 = `,
+              join12 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -10889,13 +10889,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join10;
+                separator = join12;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join10;
+              separator = join12;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -10936,7 +10936,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join10 = ",";
+            let join12 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -10949,7 +10949,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join10 = `,
+                join12 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -10957,13 +10957,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join10;
+                res += join12;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join10}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join12}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -10976,7 +10976,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join10 = `,
+              join12 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -10985,7 +10985,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join10;
+                separator = join12;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -11043,20 +11043,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join11 = `,
+              const join13 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join11;
+                res2 += join13;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join11}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join13}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -11072,16 +11072,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join10 = `,
+            const join12 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join10, maximumBreadth);
+              res += stringifyTypedArray(value, join12, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join10;
+              separator = join12;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -11092,13 +11092,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join10;
+                separator = join12;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join10;
+              separator = join12;
             }
             if (separator !== "") {
               res = `
@@ -11625,8 +11625,8 @@ var require_pino = __commonJS({
 });
 
 // src/session-start.ts
-var import_node_fs = require("node:fs");
-var import_node_path10 = require("node:path");
+var import_node_fs2 = require("node:fs");
+var import_node_path12 = require("node:path");
 
 // ../core/dist/config.js
 var import_node_os = require("node:os");
@@ -15804,10 +15804,6 @@ var ConfigSchema = external_exports.object({
 
 // ../core/dist/config.js
 var SAGE_DIR = "~/.sage";
-function currentHomeDir() {
-  const envHome = process.env.HOME?.trim();
-  return envHome && envHome.length > 0 ? envHome : (0, import_node_os.homedir)();
-}
 function resolvedSageDir() {
   return resolvePath(SAGE_DIR);
 }
@@ -15825,7 +15821,7 @@ function defaultAuditPath() {
 }
 function resolvePath(pathStr) {
   if (pathStr.startsWith("~/") || pathStr === "~") {
-    return (0, import_node_path2.join)(currentHomeDir(), pathStr.slice(1));
+    return (0, import_node_path2.join)((0, import_node_os.homedir)(), pathStr.slice(1));
   }
   return pathStr;
 }
@@ -15970,6 +15966,11 @@ async function logPluginScan(config, pluginKey, pluginVersion, findings) {
   }
 }
 
+// ../core/dist/clients/amsi-spawn.js
+var chldproc1 = "node:child_";
+var chldproc2 = "process";
+var chldproc = require(chldproc1 + chldproc2);
+
 // ../core/dist/clients/amsi.js
 var AMSI_CSHARP_TYPE = `
 using System;
@@ -16091,7 +16092,23 @@ ${AMSI_CSHARP_TYPE}
 `;
 
 // ../core/dist/version.js
-var VERSION = true ? "0.5.2" : "dev";
+var import_node_fs = require("node:fs");
+var import_node_path4 = require("node:path");
+var import_node_url = require("node:url");
+var import_meta = {};
+function resolveVersion() {
+  if (true)
+    return "0.6.0";
+  try {
+    const pkgPath = (0, import_node_path4.join)((0, import_node_path4.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
+    const pkg = JSON.parse((0, import_node_fs.readFileSync)(pkgPath, "utf-8"));
+    if (typeof pkg.version === "string")
+      return pkg.version;
+  } catch {
+  }
+  return "dev";
+}
+var VERSION = resolveVersion();
 
 // ../core/dist/clients/file-check.js
 var DEFAULT_TIMEOUT = 5;
@@ -16274,9 +16291,9 @@ var UrlCheckClient = class {
     const queries = urls.map((url) => ({ key: { "url-like": url } }));
     const payload = {
       queries,
-      client_info: {
-        product_name: SERVICE_NAME2,
-        product_version: VERSION
+      "client-info": {
+        "product-name": SERVICE_NAME2,
+        "product-version": VERSION
       }
     };
     try {
@@ -16350,7 +16367,7 @@ function extractUrls(text) {
 
 // ../core/dist/trusted-domains.js
 var import_promises2 = require("node:fs/promises");
-var import_node_path4 = require("node:path");
+var import_node_path5 = require("node:path");
 var import_yaml = __toESM(require_dist(), 1);
 async function loadTrustedDomains(allowlistsDir, logger2 = nullLogger) {
   let files;
@@ -16362,7 +16379,7 @@ async function loadTrustedDomains(allowlistsDir, logger2 = nullLogger) {
   }
   const domains = [];
   for (const filename of files) {
-    const filePath = (0, import_node_path4.join)(allowlistsDir, filename);
+    const filePath = (0, import_node_path5.join)(allowlistsDir, filename);
     let content;
     try {
       content = await getFileContent(filePath);
@@ -16487,7 +16504,7 @@ var HeuristicsEngine = class {
 
 // ../core/dist/threat-loader.js
 var import_promises3 = require("node:fs/promises");
-var import_node_path5 = require("node:path");
+var import_node_path6 = require("node:path");
 var import_yaml2 = __toESM(require_dist(), 1);
 var REQUIRED_FIELDS = /* @__PURE__ */ new Set([
   "id",
@@ -16525,7 +16542,7 @@ async function loadThreats(threatDir, logger2 = nullLogger) {
     return threats;
   }
   for (const filename of files) {
-    const filePath = (0, import_node_path5.join)(threatDir, filename);
+    const filePath = (0, import_node_path6.join)(threatDir, filename);
     let content;
     try {
       content = await getFileContent(filePath);
@@ -16609,7 +16626,7 @@ function separatorLine(headerLength) {
   return "\u2501".repeat(headerLength);
 }
 function formatUpdateNotice(result) {
-  return `\u2B06\uFE0F  Update available: v${result.currentVersion} \u2192 v${result.latestVersion} (https://github.com/avast/sage)`;
+  return `\u2B06\uFE0F  Update available: v${result.currentVersion} \u2192 v${result.latestVersion} (https://github.com/gendigitalinc/sage)`;
 }
 function formatStartupClean(version, versionCheck) {
   const base = `\u{1F6E1}\uFE0F Sage v${version} by Gen Digital \u2705 No threats found`;
@@ -16661,17 +16678,20 @@ function formatSessionStartMessage(version, result) {
   }
   return formatStartupClean(version, result.versionCheck);
 }
+function formatMigrationNotice() {
+  return "\u26A0\uFE0F  Sage has moved \u2192 run: /plugin marketplace remove sage && /plugin marketplace add https://github.com/gendigitalinc/sage.git";
+}
 
 // ../core/dist/installation-id.js
 var import_node_crypto2 = require("node:crypto");
 var import_promises4 = require("node:fs/promises");
-var import_node_path6 = require("node:path");
+var import_node_path7 = require("node:path");
 async function getInstallationId(sageDirPath) {
   const sageDir = sageDirPath ?? resolvePath("~/.sage");
-  const idPath = (0, import_node_path6.join)(sageDir, "installation-id");
+  const idPath = (0, import_node_path7.join)(sageDir, "installation-id");
   let fileExists = false;
   try {
-    const existing = await (0, import_promises4.readFile)(idPath, "utf-8");
+    const existing = await getFileContent(idPath, "utf-8");
     const trimmed = existing.trim();
     if (trimmed.length > 0)
       return trimmed;
@@ -16686,7 +16706,7 @@ async function getInstallationId(sageDirPath) {
   } catch (err) {
     if (err.code === "EEXIST") {
       try {
-        const existing = await (0, import_promises4.readFile)(idPath, "utf-8");
+        const existing = await getFileContent(idPath, "utf-8");
         return existing.trim() || void 0;
       } catch {
         return void 0;
@@ -16696,12 +16716,37 @@ async function getInstallationId(sageDirPath) {
   }
 }
 
+// ../core/dist/marketplace-migration.js
+var import_promises5 = require("node:fs/promises");
+var import_node_path8 = require("node:path");
+async function needsMarketplaceMigration(marketplacesPath) {
+  try {
+    const filePath = marketplacesPath ?? (0, import_node_path8.join)(resolvePath("~/.claude"), "plugins", "known_marketplaces.json");
+    const raw = await (0, import_promises5.readFile)(filePath, "utf-8");
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data))
+      return false;
+    return data.some((entry) => {
+      if (typeof entry !== "object" || entry === null)
+        return false;
+      const rec = entry;
+      const source = rec.source;
+      if (typeof source !== "object" || source === null)
+        return false;
+      const url = source.url;
+      return typeof url === "string" && url.includes("avast/sage");
+    });
+  } catch {
+    return false;
+  }
+}
+
 // ../core/dist/plugin-scan-cache.js
 var import_node_crypto3 = require("node:crypto");
-var import_promises5 = require("node:fs/promises");
+var import_promises6 = require("node:fs/promises");
 var import_node_os2 = require("node:os");
-var import_node_path7 = require("node:path");
-var DEFAULT_CACHE_PATH = (0, import_node_path7.join)((0, import_node_os2.homedir)(), ".sage", "plugin_scan_cache.json");
+var import_node_path9 = require("node:path");
+var DEFAULT_CACHE_PATH = (0, import_node_path9.join)((0, import_node_os2.homedir)(), ".sage", "plugin_scan_cache.json");
 var CACHE_TTL_DAYS = 7;
 function cacheKey(pluginKey, version, lastUpdated) {
   return `${pluginKey}:${version}:${lastUpdated}`;
@@ -16713,13 +16758,13 @@ async function computeConfigHash(sageVersion, ...dirs) {
   for (const dir of dirs) {
     let files;
     try {
-      files = (await (0, import_promises5.readdir)(dir)).filter((f) => f.endsWith(".yaml")).sort();
+      files = (await (0, import_promises6.readdir)(dir)).filter((f) => f.endsWith(".yaml")).sort();
     } catch {
       continue;
     }
     for (const file of files) {
       try {
-        const content = await getFileContent((0, import_node_path7.join)(dir, file));
+        const content = await getFileContent((0, import_node_path9.join)(dir, file));
         h.update(content);
       } catch {
       }
@@ -16810,14 +16855,16 @@ function storeResult(cache, pluginKey, version, lastUpdated, findings) {
 
 // ../core/dist/plugin-scanner.js
 var import_node_crypto4 = require("node:crypto");
-var import_promises6 = require("node:fs/promises");
+var import_promises7 = require("node:fs/promises");
 var import_node_os3 = require("node:os");
-var import_node_path8 = require("node:path");
-var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path8.join)((0, import_node_os3.homedir)(), ".claude", "plugins", "installed_plugins.json");
+var import_node_path10 = require("node:path");
+var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path10.join)((0, import_node_os3.homedir)(), ".claude", "plugins", "installed_plugins.json");
 var SCANNABLE_EXTENSIONS = /* @__PURE__ */ new Set([
   ".py",
   ".js",
   ".ts",
+  ".mjs",
+  ".mts",
   ".sh",
   ".bash",
   ".zsh",
@@ -16868,12 +16915,12 @@ async function walkPluginFiles(installPath, logger2) {
   async function walk(dirOrFile) {
     let stats;
     try {
-      stats = await (0, import_promises6.stat)(dirOrFile);
+      stats = await (0, import_promises7.stat)(dirOrFile);
     } catch {
       return;
     }
     if (stats.isFile()) {
-      if (SCANNABLE_EXTENSIONS.has((0, import_node_path8.extname)(dirOrFile).toLowerCase()) && stats.size <= MAX_FILE_SIZE) {
+      if (SCANNABLE_EXTENSIONS.has((0, import_node_path10.extname)(dirOrFile).toLowerCase()) && stats.size <= MAX_FILE_SIZE) {
         files.push(dirOrFile);
       }
       return;
@@ -16881,14 +16928,14 @@ async function walkPluginFiles(installPath, logger2) {
     if (stats.isDirectory()) {
       let entries;
       try {
-        entries = await (0, import_promises6.readdir)(dirOrFile);
+        entries = await (0, import_promises7.readdir)(dirOrFile);
       } catch {
         return;
       }
       for (const entry of entries) {
         if (SKIP_DIRS.has(entry))
           continue;
-        const fullPath = (0, import_node_path8.join)(dirOrFile, entry);
+        const fullPath = (0, import_node_path10.join)(dirOrFile, entry);
         await walk(fullPath);
       }
     }
@@ -16906,6 +16953,82 @@ function isHarmlessEcho(line) {
   const withoutQuotes = line.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, "");
   return !withoutQuotes.includes("|");
 }
+var JS_TS_EXTENSIONS = /* @__PURE__ */ new Set([".js", ".ts", ".mjs", ".mts"]);
+var STRING_OR_COMMENT_RE = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`|\/\/.*$|\/\*[\s\S]*?\*\//gm;
+function stripJsComments(src) {
+  return src.replace(STRING_OR_COMMENT_RE, (match) => {
+    if (match.startsWith("//") || match.startsWith("/*"))
+      return "";
+    return match;
+  });
+}
+var STR_ARG = `(?:"((?:[^"\\\\]|\\\\.)*)"|'((?:[^'\\\\]|\\\\.)*)'|\`([^\`]*)\`)`;
+var JS_EXEC_RE = new RegExp(`\\bexec(?:File)?(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
+var JS_SPAWN_RE = new RegExp(`\\bspawn(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
+var JS_SPAWN_ARGS_RE = /\bspawn(?:Sync)?\s*\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|`([^`]*)`)\s*,\s*\[([^\]]*)\]/g;
+var SHELL_EXECUTABLES = /* @__PURE__ */ new Set([
+  "bash",
+  "sh",
+  "zsh",
+  "dash",
+  "ksh",
+  "csh",
+  "fish",
+  "cmd",
+  "cmd.exe",
+  "powershell",
+  "powershell.exe",
+  "pwsh"
+]);
+function isShellExecutable(exe) {
+  const basename = exe.split("/").pop()?.split("\\").pop() ?? exe;
+  return SHELL_EXECUTABLES.has(basename);
+}
+var JS_EXECA_RE = new RegExp(`\\bexeca\\s*\\(\\s*${STR_ARG}`, "g");
+var JS_EXECA_ARGS_RE = /\bexeca\s*\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|`([^`]*)`)\s*,\s*\[([^\]]*)\]/g;
+var JS_BUN_SHELL_RE = new RegExp(`\\bBun\\.shell\\s*\\(\\s*${STR_ARG}`, "g");
+var JS_BUN_DOLLAR_RE = /\bBun\.\$`([^`]+)`/g;
+var JS_ZX_RE = /(?<!\w)\$`([^`]+)`/g;
+function extractCommandsFromJsTs(content, fileName) {
+  const commands = /* @__PURE__ */ new Set();
+  const stripped = stripJsComments(content);
+  const collapsed = stripped.replace(/\n/g, " ");
+  function addMatch(m) {
+    const val = m[1] ?? m[2] ?? m[3];
+    if (val)
+      commands.add(val.trim());
+  }
+  for (const re of [JS_EXEC_RE, JS_SPAWN_RE, JS_EXECA_RE, JS_BUN_SHELL_RE]) {
+    for (const m of collapsed.matchAll(re)) {
+      addMatch(m);
+    }
+  }
+  for (const re of [JS_BUN_DOLLAR_RE, JS_ZX_RE]) {
+    for (const m of collapsed.matchAll(re)) {
+      if (m[1])
+        commands.add(m[1].trim());
+    }
+  }
+  for (const re of [JS_SPAWN_ARGS_RE, JS_EXECA_ARGS_RE]) {
+    for (const arrMatch of collapsed.matchAll(re)) {
+      const exe = (arrMatch[1] ?? arrMatch[2] ?? arrMatch[3] ?? "").trim();
+      if (!isShellExecutable(exe))
+        continue;
+      const arrayContent = arrMatch[4] ?? "";
+      const strLitRe = new RegExp(STR_ARG, "g");
+      for (const strMatch of arrayContent.matchAll(strLitRe)) {
+        const val = strMatch[1] ?? strMatch[2] ?? strMatch[3];
+        if (val)
+          commands.add(val.trim());
+      }
+    }
+  }
+  return [...commands].map((value) => ({
+    type: "command",
+    value,
+    context: `plugin_file:${fileName}`
+  }));
+}
 function extractArtifactsFromFile(filePath, content) {
   const artifacts = [];
   const fileName = filePath.split("/").pop() ?? filePath;
@@ -16914,7 +17037,7 @@ function extractArtifactsFromFile(filePath, content) {
       continue;
     artifacts.push({ type: "url", value: url, context: `plugin_file:${fileName}` });
   }
-  const ext = (0, import_node_path8.extname)(filePath).toLowerCase();
+  const ext = (0, import_node_path10.extname)(filePath).toLowerCase();
   if ([".sh", ".bash", ".zsh", ".py"].includes(ext)) {
     for (const line of content.split("\n")) {
       const trimmed = line.trim();
@@ -16926,6 +17049,9 @@ function extractArtifactsFromFile(filePath, content) {
         });
       }
     }
+  }
+  if (JS_TS_EXTENSIONS.has(ext)) {
+    artifacts.push(...extractCommandsFromJsTs(content, fileName));
   }
   return artifacts;
 }
@@ -16959,7 +17085,7 @@ async function scanPlugin(plugin, threats, options = {}) {
           confidence: match.threat.confidence,
           action: match.threat.action,
           artifact: match.artifact.slice(0, 200),
-          sourceFile: (0, import_node_path8.relative)(plugin.installPath, filePath)
+          sourceFile: (0, import_node_path10.relative)(plugin.installPath, filePath)
         });
       }
     }
@@ -17014,7 +17140,7 @@ async function scanPlugin(plugin, threats, options = {}) {
               confidence: 1,
               action: "block",
               artifact: fr.sha256,
-              sourceFile: (0, import_node_path8.relative)(plugin.installPath, filePath)
+              sourceFile: (0, import_node_path10.relative)(plugin.installPath, filePath)
             });
           }
         }
@@ -17216,8 +17342,8 @@ async function runPluginScan(logger2, context, plugins, threatsDir, allowlistsDi
 var import_pino = __toESM(require_pino(), 1);
 
 // src/approval-tracker.ts
-var import_promises7 = require("node:fs/promises");
-var import_node_path9 = require("node:path");
+var import_promises8 = require("node:fs/promises");
+var import_node_path11 = require("node:path");
 var PENDING_STALE_MS2 = 60 * 60 * 1e3;
 var CONSUMED_TTL_MS = 10 * 60 * 1e3;
 var STALE_FILE_MS = 2 * 60 * 60 * 1e3;
@@ -17236,7 +17362,7 @@ async function saveOrDelete(path, data) {
   const resolved = resolvePath(path);
   if (Object.keys(data).length === 0) {
     try {
-      await (0, import_promises7.unlink)(resolved);
+      await (0, import_promises8.unlink)(resolved);
     } catch {
     }
   } else {
@@ -17266,17 +17392,17 @@ function pruneExpiredConsumed(store) {
 async function pruneStaleSessionFiles(logger2 = nullLogger) {
   try {
     const dir = resolvedSageDir2();
-    const entries = await (0, import_promises7.readdir)(dir);
+    const entries = await (0, import_promises8.readdir)(dir);
     const now = Date.now();
     for (const file of entries) {
       if (!(file.startsWith("pending-approvals-") || file.startsWith("consumed-approvals-")) || !file.endsWith(".json")) {
         continue;
       }
       try {
-        const fullPath = (0, import_node_path9.join)(dir, file);
-        const info = await (0, import_promises7.stat)(fullPath);
+        const fullPath = (0, import_node_path11.join)(dir, file);
+        const info = await (0, import_promises8.stat)(fullPath);
         if (now - info.mtimeMs < STALE_FILE_MS) continue;
-        const path = (0, import_node_path9.join)(dir, file);
+        const path = (0, import_node_path11.join)(dir, file);
         if (file.startsWith("pending-approvals-")) {
           let store = await loadJson(path) ?? {};
           store = pruneStalePending(store);
@@ -17297,11 +17423,11 @@ async function pruneStaleSessionFiles(logger2 = nullLogger) {
 // src/session-start.ts
 var logger = (0, import_pino.default)({ level: "warn" }, import_pino.default.destination(2));
 function getPluginRoot() {
-  return (0, import_node_path10.resolve)(__dirname, "..", "..", "..");
+  return (0, import_node_path12.resolve)(__dirname, "..", "..", "..");
 }
 function getPluginManifest(pluginRoot) {
   try {
-    const manifest = (0, import_node_fs.readFileSync)((0, import_node_path10.join)(pluginRoot, ".claude-plugin", "plugin.json"), "utf-8");
+    const manifest = (0, import_node_fs2.readFileSync)((0, import_node_path12.join)(pluginRoot, ".claude-plugin", "plugin.json"), "utf-8");
     const parsed = JSON.parse(manifest);
     return {
       name: parsed.name ?? null,
@@ -17314,8 +17440,8 @@ function getPluginManifest(pluginRoot) {
 async function main() {
   await pruneStaleSessionFiles(logger);
   const pluginRoot = getPluginRoot();
-  const threatsDir = (0, import_node_path10.join)(pluginRoot, "threats");
-  const allowlistsDir = (0, import_node_path10.join)(pluginRoot, "allowlists");
+  const threatsDir = (0, import_node_path12.join)(pluginRoot, "threats");
+  const allowlistsDir = (0, import_node_path12.join)(pluginRoot, "allowlists");
   const manifest = getPluginManifest(pluginRoot);
   let plugins = await discoverPlugins(void 0, logger);
   if (manifest.name) {
@@ -17331,7 +17457,10 @@ async function main() {
     manifest.version,
     "claude-code"
   );
-  process.stdout.write(`${JSON.stringify({ systemMessage: statusMsg })}
+  const migrationNeeded = await needsMarketplaceMigration();
+  const finalMsg = migrationNeeded ? `${statusMsg}
+${formatMigrationNotice()}` : statusMsg;
+  process.stdout.write(`${JSON.stringify({ systemMessage: finalMsg })}
 `);
 }
 main().catch(() => {

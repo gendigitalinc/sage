@@ -73,9 +73,9 @@ export class UrlCheckClient {
 		const queries = urls.map((url) => ({ key: { "url-like": url } }));
 		const payload = {
 			queries,
-			client_info: {
-				product_name: SERVICE_NAME,
-				product_version: VERSION,
+			"client-info": {
+				"product-name": SERVICE_NAME,
+				"product-version": VERSION,
 			},
 		};
 

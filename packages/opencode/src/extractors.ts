@@ -1,5 +1,5 @@
 /**
- * OpenCode tool input extraction mapped onto @sage/core artifact extractors.
+ * OpenCode tool input extraction mapped onto @gendigital/sage-core artifact extractors.
  */
 
 import {
@@ -8,7 +8,7 @@ import {
 	extractFromEdit,
 	extractFromWebFetch,
 	extractFromWrite,
-} from "@sage/core";
+} from "@gendigital/sage-core";
 
 function asString(value: unknown): string | undefined {
 	return typeof value === "string" ? value : undefined;

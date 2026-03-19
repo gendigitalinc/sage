@@ -12,7 +12,7 @@ Sage supports four platforms: Claude Code, Cursor/VS Code, OpenClaw, and OpenCod
 Install from the Sage marketplace:
 
 ```
-/plugin marketplace add https://github.com/avast/sage.git
+/plugin marketplace add https://github.com/gendigitalinc/sage.git
 /plugin install sage@sage
 ```
 
@@ -65,10 +65,10 @@ The `build` script copies threat definitions and allowlists into `resources/` au
 Install from a local source checkout and link the plugin path in OpenCode config:
 
 ```bash
-git clone https://github.com/avast/sage
+git clone https://github.com/gendigitalinc/sage
 cd sage
 pnpm install
-pnpm --filter @sage/opencode run build
+pnpm --filter @gendigital/sage-opencode run build
 ```
 
 Global config (`~/.config/opencode/opencode.json`):

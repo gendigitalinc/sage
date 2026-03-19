@@ -102,3 +102,138 @@
   title: "Access git hook (potential code execution on git events)"
   expires_at: null
   revoked: false
+
+# --- Android signing files ---
+- id: "CLT-FILE-010"
+  category: secrets
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "(key\\.properties|release\\.keystore|\\.jks|\\.keystore)$"
+  match_on: file_path
+  title: "Access Android signing file"
+  expires_at: null
+  revoked: false
+
+# --- Firebase config files ---
+- id: "CLT-FILE-011"
+  category: secrets
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "(google-services\\.json|GoogleService-Info\\.plist)$"
+  match_on: file_path
+  title: "Access Firebase configuration file"
+  expires_at: null
+  revoked: false
+
+# --- Cloud provider credential files ---
+- id: "CLT-FILE-012"
+  category: secrets
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "(application_default_credentials\\.json|\\.azure/(accessTokens|msal_token_cache)\\.json|\\.config/doctl/config\\.yaml)$"
+  match_on: file_path
+  title: "Access cloud provider credential file"
+  expires_at: null
+  revoked: false
+
+# --- Package manager tokens ---
+- id: "CLT-FILE-013"
+  category: secrets
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "(\\.npmrc|\\.pypirc|\\.gem/credentials|\\.cargo/credentials\\.toml|\\.docker/config\\.json)$"
+  match_on: file_path
+  title: "Access package manager credential file"
+  expires_at: null
+  revoked: false
+
+# --- Terraform state files ---
+- id: "CLT-FILE-014"
+  category: secrets
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "\\.(tfstate(\\.backup)?|tfvars(\\.json)?)$"
+  match_on: file_path
+  title: "Access Terraform state or variables file"
+  expires_at: null
+  revoked: false
+
+# --- Secrets/vault files ---
+- id: "CLT-FILE-015"
+  category: secrets
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "(master\\.key|credentials\\.yml\\.enc|secrets\\.yml|vault\\.yml|\\.vault-pass|\\.vault-token)$"
+  match_on: file_path
+  title: "Access secrets or vault file"
+  expires_at: null
+  revoked: false
+
+# --- Private keys and certificates ---
+# NOTE: .pem also matches public cert chains (fullchain.pem, ca-bundle.pem).
+# Accepted trade-off: require_approval keeps noise bounded, and excluding .pem
+# would miss private key exfiltration.
+- id: "CLT-FILE-016"
+  category: secrets
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "\\.(pem|p12|pfx|p8)$"
+  match_on: file_path
+  title: "Access private key or certificate file"
+  expires_at: null
+  revoked: false
+
+# --- Kubeconfig ---
+- id: "CLT-FILE-017"
+  category: secrets
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "(\\.kube/config|kubeconfig(\\.yaml|\\.yml)?)$"
+  match_on: file_path
+  title: "Access Kubernetes configuration file"
+  expires_at: null
+  revoked: false
+
+# --- Build system credential files ---
+- id: "CLT-FILE-018"
+  category: secrets
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "(\\.m2/settings\\.xml|gradle\\.properties)$"
+  match_on: file_path
+  title: "Access build system credential file"
+  expires_at: null
+  revoked: false
+
+# --- Shell/REPL history files ---
+- id: "CLT-FILE-019"
+  category: secrets
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "\\.(bash_history|zsh_history|mysql_history|python_history|node_repl_history|psql_history|irb_history)$"
+  match_on: file_path
+  title: "Access shell or REPL history file"
+  expires_at: null
+  revoked: false
+
+# --- JetBrains IDE database credentials ---
+- id: "CLT-FILE-020"
+  category: secrets
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "\\.idea/dataSources(\\.xml|/)"
+  match_on: file_path
+  title: "Access JetBrains IDE database credential file"
+  expires_at: null
+  revoked: false

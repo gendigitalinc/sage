@@ -1,4 +1,4 @@
-import { ApprovalStore } from "@sage/core";
+import { ApprovalStore } from "@gendigital/sage-core";
 import { describe, expect, it } from "vitest";
 import { createSageApproveTool } from "../gate-tool.js";
 

@@ -4,7 +4,7 @@
   "commit": false,
   "fixed": [],
   "linked": [
-    ["@sage/core", "@sage/claude-code", "@gendigital/sage-openclaw", "@sage/opencode", "sage-cursor"]
+    ["@gendigital/sage-core", "@gendigital/sage-claude-code", "@gendigital/sage-openclaw", "@gendigital/sage-opencode", "sage-cursor"]
   ],
   "access": "restricted",
   "baseBranch": "main",

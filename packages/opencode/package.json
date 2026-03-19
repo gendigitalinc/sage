@@ -1,7 +1,10 @@
 {
-  "name": "@sage/opencode",
+  "name": "@gendigital/sage-opencode",
   "license": "Apache-2.0",
-  "version": "0.5.2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "version": "0.6.0",
   "type": "module",
   "description": "Safety for Agents - ADR layer for OpenCode",
   "main": "./dist/index.js",
@@ -21,11 +24,12 @@
   "scripts": {
     "build": "pnpm -C ../core build && pnpm run clean && pnpm run sync:assets && tsc",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('resources',{recursive:true,force:true});require('node:fs').rmSync('tsconfig.tsbuildinfo',{force:true})\"",
+    "prepack": "node ../../scripts/check-workspace-refs.mjs",
     "sync:assets": "node scripts/sync-assets.mjs",
     "test": "vitest run"
   },
   "dependencies": {
-    "@sage/core": "workspace:*"
+    "@gendigital/sage-core": "workspace:*"
   },
   "devDependencies": {
     "@opencode-ai/plugin": "^1.2.10",
@@ -44,8 +48,5 @@
     "agent-security",
     "safety",
     "malware-detection"
-  ],
-  "publishConfig": {
-    "access": "public"
-  }
+  ]
 }

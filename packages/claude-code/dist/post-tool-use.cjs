@@ -2023,7 +2023,7 @@ var require_thread_stream = __commonJS({
     var { version } = require_package();
     var { EventEmitter } = require("events");
     var { Worker } = require("worker_threads");
-    var { join: join6 } = require("path");
+    var { join: join7 } = require("path");
     var { pathToFileURL } = require("url");
     var { wait } = require_wait();
     var {
@@ -2059,7 +2059,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join6(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join7(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         trackUnmanagedFds: false,
@@ -2445,7 +2445,7 @@ var require_transport = __commonJS({
     "use strict";
     var { createRequire } = require("module");
     var getCallers = require_caller();
-    var { join: join6, isAbsolute: isAbsolute2, sep: sep2 } = require("node:path");
+    var { join: join7, isAbsolute: isAbsolute2, sep: sep2 } = require("node:path");
     var sleep = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
     var ThreadStream = require_thread_stream();
@@ -2508,7 +2508,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join6(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join7(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -2526,7 +2526,7 @@ var require_transport = __commonJS({
           });
         });
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join6(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join7(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -2548,7 +2548,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join6(__dirname, "..", "file.js");
+          return join7(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -3537,7 +3537,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join6 = ",";
+            let join7 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -3551,7 +3551,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join6 = `,
+                join7 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3559,13 +3559,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join6;
+                res += join7;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join6}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join7}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3586,7 +3586,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join6 = `,
+              join7 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3600,13 +3600,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join6;
+                separator = join7;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join6;
+              separator = join7;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -3647,7 +3647,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join6 = ",";
+            let join7 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -3660,7 +3660,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join6 = `,
+                join7 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -3668,13 +3668,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join6;
+                res += join7;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join6}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join7}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -3687,7 +3687,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join6 = `,
+              join7 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -3696,7 +3696,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join6;
+                separator = join7;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -3754,20 +3754,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join7 = `,
+              const join8 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join7;
+                res2 += join8;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join7}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join8}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -3783,16 +3783,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join6 = `,
+            const join7 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join6, maximumBreadth);
+              res += stringifyTypedArray(value, join7, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join6;
+              separator = join7;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -3803,13 +3803,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join6;
+                separator = join7;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join6;
+              separator = join7;
             }
             if (separator !== "") {
               res = `
@@ -11625,12 +11625,12 @@ var require_dist = __commonJS({
 });
 
 // src/post-tool-use.ts
-var import_node_fs = require("node:fs");
+var import_node_fs2 = require("node:fs");
 var import_pino = __toESM(require_pino(), 1);
 
 // src/approval-tracker.ts
 var import_promises = require("node:fs/promises");
-var import_node_path5 = require("node:path");
+var import_node_path6 = require("node:path");
 
 // ../core/dist/config.js
 var import_node_os = require("node:os");
@@ -15786,13 +15786,9 @@ var ConfigSchema = external_exports.object({
 
 // ../core/dist/config.js
 var SAGE_DIR = "~/.sage";
-function currentHomeDir() {
-  const envHome = process.env.HOME?.trim();
-  return envHome && envHome.length > 0 ? envHome : (0, import_node_os.homedir)();
-}
 function resolvePath(pathStr) {
   if (pathStr.startsWith("~/") || pathStr === "~") {
-    return (0, import_node_path2.join)(currentHomeDir(), pathStr.slice(1));
+    return (0, import_node_path2.join)((0, import_node_os.homedir)(), pathStr.slice(1));
   }
   return pathStr;
 }
@@ -15800,6 +15796,11 @@ function resolvePath(pathStr) {
 // ../core/dist/approval-store.js
 var PENDING_STALE_MS = 60 * 60 * 1e3;
 var APPROVED_TTL_MS = 10 * 60 * 1e3;
+
+// ../core/dist/clients/amsi-spawn.js
+var chldproc1 = "node:child_";
+var chldproc2 = "process";
+var chldproc = require(chldproc1 + chldproc2);
 
 // ../core/dist/clients/amsi.js
 var AMSI_CSHARP_TYPE = `
@@ -15921,6 +15922,25 @@ ${AMSI_CSHARP_TYPE}
 }
 `;
 
+// ../core/dist/version.js
+var import_node_fs = require("node:fs");
+var import_node_path3 = require("node:path");
+var import_node_url = require("node:url");
+var import_meta = {};
+function resolveVersion() {
+  if (true)
+    return "0.6.0";
+  try {
+    const pkgPath = (0, import_node_path3.join)((0, import_node_path3.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
+    const pkg = JSON.parse((0, import_node_fs.readFileSync)(pkgPath, "utf-8"));
+    if (typeof pkg.version === "string")
+      return pkg.version;
+  } catch {
+  }
+  return "dev";
+}
+var VERSION = resolveVersion();
+
 // ../core/dist/extractors.js
 var MAX_CONTENT_SIZE = 64 * 1024;
 
@@ -15932,14 +15952,19 @@ var import_yaml2 = __toESM(require_dist(), 1);
 
 // ../core/dist/plugin-scan-cache.js
 var import_node_os2 = require("node:os");
-var import_node_path3 = require("node:path");
-var DEFAULT_CACHE_PATH = (0, import_node_path3.join)((0, import_node_os2.homedir)(), ".sage", "plugin_scan_cache.json");
+var import_node_path4 = require("node:path");
+var DEFAULT_CACHE_PATH = (0, import_node_path4.join)((0, import_node_os2.homedir)(), ".sage", "plugin_scan_cache.json");
 
 // ../core/dist/plugin-scanner.js
 var import_node_os3 = require("node:os");
-var import_node_path4 = require("node:path");
-var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path4.join)((0, import_node_os3.homedir)(), ".claude", "plugins", "installed_plugins.json");
+var import_node_path5 = require("node:path");
+var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path5.join)((0, import_node_os3.homedir)(), ".claude", "plugins", "installed_plugins.json");
 var MAX_FILE_SIZE = 512 * 1024;
+var STR_ARG = `(?:"((?:[^"\\\\]|\\\\.)*)"|'((?:[^'\\\\]|\\\\.)*)'|\`([^\`]*)\`)`;
+var JS_EXEC_RE = new RegExp(`\\bexec(?:File)?(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
+var JS_SPAWN_RE = new RegExp(`\\bspawn(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
+var JS_EXECA_RE = new RegExp(`\\bexeca\\s*\\(\\s*${STR_ARG}`, "g");
+var JS_BUN_SHELL_RE = new RegExp(`\\bBun\\.shell\\s*\\(\\s*${STR_ARG}`, "g");
 
 // src/approval-tracker.ts
 var PENDING_STALE_MS2 = 60 * 60 * 1e3;
@@ -15952,10 +15977,10 @@ function resolvedSageDir() {
   return resolvePath(SAGE_DIR);
 }
 function pendingPath(sessionId) {
-  return (0, import_node_path5.join)(resolvedSageDir(), `pending-approvals-${sanitizeSessionId(sessionId)}.json`);
+  return (0, import_node_path6.join)(resolvedSageDir(), `pending-approvals-${sanitizeSessionId(sessionId)}.json`);
 }
 function consumedPath(sessionId) {
-  return (0, import_node_path5.join)(resolvedSageDir(), `consumed-approvals-${sanitizeSessionId(sessionId)}.json`);
+  return (0, import_node_path6.join)(resolvedSageDir(), `consumed-approvals-${sanitizeSessionId(sessionId)}.json`);
 }
 async function loadJson(path) {
   try {
@@ -16042,7 +16067,7 @@ var logger = (0, import_pino.default)({ level: "warn" }, import_pino.default.des
 async function main() {
   let rawInput;
   try {
-    rawInput = (0, import_node_fs.readFileSync)(0, "utf-8");
+    rawInput = (0, import_node_fs2.readFileSync)(0, "utf-8");
   } catch {
     process.stdout.write("{}\n");
     return;

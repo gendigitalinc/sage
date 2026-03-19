@@ -9,7 +9,7 @@
 From the Claude Code prompt:
 
 ```
-/plugin marketplace add https://github.com/avast/sage.git
+/plugin marketplace add https://github.com/gendigitalinc/sage.git
 /plugin install sage@sage
 ```
 
@@ -53,7 +53,7 @@ Both hooks execute Node.js scripts from `packages/claude-code/dist/` and communi
 Run Claude Code with a local Sage checkout:
 
 ```bash
-git clone https://github.com/avast/sage ~/sage
+git clone https://github.com/gendigitalinc/sage ~/sage
 cd ~/sage && pnpm install && pnpm build
 claude --plugin-dir ~/sage
 ```

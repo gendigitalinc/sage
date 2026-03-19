@@ -2,12 +2,18 @@
 /**
  * Sage SessionStart hook entry point.
  * Scans installed Claude Code plugins for threats at session startup.
- * Always exits 0 — outputs empty JSON on success, status message on findings.
+ * Always exits 0 — outputs status JSON with systemMessage.
  */
 
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { discoverPlugins, type Logger, runPluginScan } from "@sage/core";
+import {
+	discoverPlugins,
+	formatMigrationNotice,
+	type Logger,
+	needsMarketplaceMigration,
+	runPluginScan,
+} from "@gendigital/sage-core";
 import pino from "pino";
 import { pruneStaleSessionFiles } from "./approval-tracker.js";
 
@@ -56,7 +62,11 @@ async function main(): Promise<void> {
 		manifest.version,
 		"claude-code",
 	);
-	process.stdout.write(`${JSON.stringify({ systemMessage: statusMsg })}\n`);
+
+	// TODO: Remove marketplace migration check after v0.7.x // gitleaks:allow
+	const migrationNeeded = await needsMarketplaceMigration();
+	const finalMsg = migrationNeeded ? `${statusMsg}\n${formatMigrationNotice()}` : statusMsg;
+	process.stdout.write(`${JSON.stringify({ systemMessage: finalMsg })}\n`);
 }
 
 main().catch(() => {

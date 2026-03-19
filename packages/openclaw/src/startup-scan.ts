@@ -3,7 +3,7 @@
  * Thin wrappers over core's createScanHandler.
  */
 
-import { createScanHandler as coreScanHandler, type Logger } from "@sage/core";
+import { createScanHandler as coreScanHandler, type Logger } from "@gendigital/sage-core";
 import { getBundledDataDirs, getSageVersion } from "./bundled-dirs.js";
 import { discoverOpenClawPlugins } from "./plugin-discovery.js";
 
@@ -19,7 +19,7 @@ function createOpenClawScanHandler(
 		logger,
 		context,
 		discoverPlugins: () => discoverOpenClawPlugins(logger),
-		selfPrefix: "sage-openclaw@",
+		selfPrefix: "@gendigital/sage-openclaw@",
 		threatsDir,
 		allowlistsDir,
 		version,

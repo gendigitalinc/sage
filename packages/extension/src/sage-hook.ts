@@ -12,7 +12,7 @@ import {
 	extractFromWrite,
 	extractUrls,
 	type Verdict,
-} from "@sage/core";
+} from "@gendigital/sage-core";
 
 type CursorEventName =
 	| "preToolUse"

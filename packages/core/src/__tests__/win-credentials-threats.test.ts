@@ -184,4 +184,36 @@ describe("Windows credential threats", () => {
 		const ids = matchCommand(engine, "reg query HKLM\\SAM");
 		expect(ids).not.toContain("CLT-WIN-CRED-007");
 	});
+
+	// --- CLT-WIN-CRED-010: Windows copy/move of secret files ---
+
+	it("detects copy .env C:\\tmp\\ (WIN-CRED-010)", () => {
+		expect(matchCommand(engine, "copy .env C:\\tmp\\")).toContain("CLT-WIN-CRED-010");
+	});
+
+	it("detects xcopy .ssh\\id_rsa C:\\tmp\\ (WIN-CRED-010)", () => {
+		expect(matchCommand(engine, "xcopy .ssh\\id_rsa C:\\tmp\\")).toContain("CLT-WIN-CRED-010");
+	});
+
+	it("detects robocopy .aws\\credentials (WIN-CRED-010)", () => {
+		expect(matchCommand(engine, "robocopy . C:\\tmp\\ .aws\\credentials")).toContain(
+			"CLT-WIN-CRED-010",
+		);
+	});
+
+	it("detects Copy-Item .npmrc C:\\tmp\\ (WIN-CRED-010)", () => {
+		expect(matchCommand(engine, "Copy-Item .npmrc C:\\tmp\\")).toContain("CLT-WIN-CRED-010");
+	});
+
+	it("detects Move-Item .env C:\\tmp\\ (WIN-CRED-010)", () => {
+		expect(matchCommand(engine, "Move-Item .env C:\\tmp\\")).toContain("CLT-WIN-CRED-010");
+	});
+
+	it("does not match copy my-master.key C:\\tmp\\ (WIN-CRED-010 FP — substring)", () => {
+		expect(matchCommand(engine, "copy my-master.key C:\\tmp\\")).not.toContain("CLT-WIN-CRED-010");
+	});
+
+	it("does not match copy README.md C:\\tmp\\ (WIN-CRED-010 FP)", () => {
+		expect(matchCommand(engine, "copy README.md C:\\tmp\\")).not.toContain("CLT-WIN-CRED-010");
+	});
 });

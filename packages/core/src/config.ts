@@ -11,11 +11,6 @@ import { ConfigSchema, nullLogger } from "./types.js";
 
 export const SAGE_DIR = "~/.sage";
 
-function currentHomeDir(): string {
-	const envHome = process.env.HOME?.trim();
-	return envHome && envHome.length > 0 ? envHome : homedir();
-}
-
 function resolvedSageDir(): string {
 	return resolvePath(SAGE_DIR);
 }
@@ -39,7 +34,7 @@ function defaultAuditPath(): string {
 /** Expand ~ to the user's home directory. */
 export function resolvePath(pathStr: string): string {
 	if (pathStr.startsWith("~/") || pathStr === "~") {
-		return join(currentHomeDir(), pathStr.slice(1));
+		return join(homedir(), pathStr.slice(1));
 	}
 	return pathStr;
 }

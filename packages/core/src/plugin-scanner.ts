@@ -27,6 +27,8 @@ const SCANNABLE_EXTENSIONS = new Set([
 	".py",
 	".js",
 	".ts",
+	".mjs",
+	".mts",
 	".sh",
 	".bash",
 	".zsh",
@@ -138,6 +140,143 @@ function isHarmlessEcho(line: string): boolean {
 	return !withoutQuotes.includes("|");
 }
 
+const JS_TS_EXTENSIONS = new Set([".js", ".ts", ".mjs", ".mts"]);
+
+/**
+ * Strip JS/TS comments while preserving string literals.
+ * Uses a single-pass regex that matches strings, template literals, and
+ * comments. Only comments are replaced; strings are kept intact so that
+ * `//` inside URLs (e.g. "https://...") is not misidentified as a comment.
+ */
+const STRING_OR_COMMENT_RE =
+	/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`|\/\/.*$|\/\*[\s\S]*?\*\//gm;
+
+function stripJsComments(src: string): string {
+	return src.replace(STRING_OR_COMMENT_RE, (match) => {
+		// Keep strings/templates, blank out comments
+		if (match.startsWith("//") || match.startsWith("/*")) return "";
+		return match;
+	});
+}
+
+/**
+ * Regex patterns for Node.js/Bun/zx command execution APIs.
+ * Each captures the string argument (group 1) from known call sites.
+ *
+ * String literal sub-patterns are escape-aware ("((?:[^"\\]|\\.)+)") so
+ * that escaped quotes inside arguments (e.g. exec("bash -c \"curl ...\""))
+ * don't truncate the capture.
+ */
+
+// Reusable fragment: capture content of "...", '...', or `...`
+// Groups: 1 = double-quoted, 2 = single-quoted, 3 = backtick-quoted
+const STR_ARG = `(?:"((?:[^"\\\\]|\\\\.)*)"|'((?:[^'\\\\]|\\\\.)*)'|` + "`([^`]*)`" + `)`;
+
+// exec("..."), execSync("..."), execFile("..."), execFileSync("...")
+const JS_EXEC_RE = new RegExp(`\\bexec(?:File)?(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
+
+// spawn("..."), spawnSync("...") — first arg is the executable
+const JS_SPAWN_RE = new RegExp(`\\bspawn(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
+
+// spawn/spawnSync array args: spawn("bash", ["-c", "curl ..."])
+// Captures the executable (group 1/2/3) and array content (group 4).
+const JS_SPAWN_ARGS_RE =
+	/\bspawn(?:Sync)?\s*\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|`([^`]*)`)\s*,\s*\[([^\]]*)\]/g;
+
+// Only extract array args when the executable is a shell — otherwise the
+// args are just data passed to the program, not commands to execute.
+// Checked by basename so path-qualified forms like /bin/bash also match.
+const SHELL_EXECUTABLES = new Set([
+	"bash",
+	"sh",
+	"zsh",
+	"dash",
+	"ksh",
+	"csh",
+	"fish",
+	"cmd",
+	"cmd.exe",
+	"powershell",
+	"powershell.exe",
+	"pwsh",
+]);
+
+function isShellExecutable(exe: string): boolean {
+	const basename = exe.split("/").pop()?.split("\\").pop() ?? exe;
+	return SHELL_EXECUTABLES.has(basename);
+}
+
+// execa("...")
+const JS_EXECA_RE = new RegExp(`\\bexeca\\s*\\(\\s*${STR_ARG}`, "g");
+
+// execa array args: execa("bash", ["-c", "curl ..."])
+const JS_EXECA_ARGS_RE =
+	/\bexeca\s*\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|`([^`]*)`)\s*,\s*\[([^\]]*)\]/g;
+
+// Bun.shell("...")
+const JS_BUN_SHELL_RE = new RegExp(`\\bBun\\.shell\\s*\\(\\s*${STR_ARG}`, "g");
+
+// Bun.$`...`
+const JS_BUN_DOLLAR_RE = /\bBun\.\$`([^`]+)`/g;
+
+// $`...` (zx tagged template)
+const JS_ZX_RE = /(?<!\w)\$`([^`]+)`/g;
+
+/**
+ * Extract command artifacts from JS/TS file content.
+ *
+ * Known limitation: matching runs on flattened source text after comment
+ * stripping, so API-call patterns appearing inside string literals (e.g.
+ * help text or documentation examples) will produce false-positive artifacts.
+ * In practice this is low-risk because the artifact must still match a threat
+ * pattern to trigger a finding.
+ */
+export function extractCommandsFromJsTs(content: string, fileName: string): Artifact[] {
+	const commands = new Set<string>();
+	const stripped = stripJsComments(content);
+	// Collapse newlines to spaces so multi-line calls are matched
+	const collapsed = stripped.replace(/\n/g, " ");
+
+	function addMatch(m: RegExpExecArray) {
+		// Capture group 1, 2, or 3 (double, single, or backtick quotes)
+		const val = m[1] ?? m[2] ?? m[3];
+		if (val) commands.add(val.trim());
+	}
+
+	for (const re of [JS_EXEC_RE, JS_SPAWN_RE, JS_EXECA_RE, JS_BUN_SHELL_RE]) {
+		for (const m of collapsed.matchAll(re)) {
+			addMatch(m);
+		}
+	}
+
+	// Bun.$`...` and $`...` — single capture group
+	for (const re of [JS_BUN_DOLLAR_RE, JS_ZX_RE]) {
+		for (const m of collapsed.matchAll(re)) {
+			if (m[1]) commands.add(m[1].trim());
+		}
+	}
+
+	// spawn/spawnSync/execa array args — only extract when the executable is a shell
+	for (const re of [JS_SPAWN_ARGS_RE, JS_EXECA_ARGS_RE]) {
+		for (const arrMatch of collapsed.matchAll(re)) {
+			const exe = (arrMatch[1] ?? arrMatch[2] ?? arrMatch[3] ?? "").trim();
+			if (!isShellExecutable(exe)) continue;
+			const arrayContent = arrMatch[4] ?? "";
+			const strLitRe = new RegExp(STR_ARG, "g");
+			for (const strMatch of arrayContent.matchAll(strLitRe)) {
+				const val = strMatch[1] ?? strMatch[2] ?? strMatch[3];
+				if (val) commands.add(val.trim());
+			}
+		}
+	}
+
+	return [...commands].map((value) => ({
+		type: "command" as const,
+		value,
+		context: `plugin_file:${fileName}`,
+	}));
+}
+
 function extractArtifactsFromFile(filePath: string, content: string): Artifact[] {
 	const artifacts: Artifact[] = [];
 	const fileName = filePath.split("/").pop() ?? filePath;
@@ -166,6 +305,11 @@ function extractArtifactsFromFile(filePath: string, content: string): Artifact[]
 				});
 			}
 		}
+	}
+
+	// For JS/TS files, extract commands from known execution APIs
+	if (JS_TS_EXTENSIONS.has(ext)) {
+		artifacts.push(...extractCommandsFromJsTs(content, fileName));
 	}
 
 	return artifacts;

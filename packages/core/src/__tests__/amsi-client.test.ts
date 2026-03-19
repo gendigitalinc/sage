@@ -7,12 +7,12 @@ vi.mock("koffi", () => {
 });
 
 // Mock child_process so the PowerShell backend can be controlled in tests
-vi.mock("node:child_process", () => ({
+vi.mock("../clients/amsi-spawn.js", () => ({
 	spawn: vi.fn(),
 }));
 
-import { spawn } from "node:child_process";
 import { AmsiClient, isAmsiSupported } from "../clients/amsi.js";
+import { spawn } from "../clients/amsi-spawn.js";
 import type { Logger } from "../types.js";
 import { nullLogger } from "../types.js";
 

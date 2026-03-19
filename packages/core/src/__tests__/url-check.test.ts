@@ -121,6 +121,26 @@ describe("UrlCheckClient", () => {
 		expect(results).toEqual([]);
 	});
 
+	it("sends request payload with kebab-case field names", async () => {
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({ answers: [] }),
+		});
+		globalThis.fetch = mockFetch;
+
+		const client = new UrlCheckClient();
+		await client.checkUrls(["http://example.test"]);
+
+		expect(mockFetch).toHaveBeenCalledTimes(1);
+		const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+
+		// Backend uses #[serde(rename_all = "kebab-case")] — snake_case fields are silently ignored.
+		expect(body).toHaveProperty("client-info");
+		expect(body["client-info"]).toHaveProperty("product-name");
+		expect(body["client-info"]).toHaveProperty("product-version");
+		expect(body).not.toHaveProperty("client_info");
+	});
+
 	it("batches URLs in groups of 50", async () => {
 		const mockFetch = vi.fn().mockResolvedValue({
 			ok: true,

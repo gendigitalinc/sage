@@ -6,7 +6,7 @@
  */
 
 import { readFileSync } from "node:fs";
-import type { Logger } from "@sage/core";
+import type { Logger } from "@gendigital/sage-core";
 import pino from "pino";
 import { consumePendingApproval } from "./approval-tracker.js";
 import { artifactTypeLabel } from "./format.js";

@@ -48,7 +48,7 @@
   severity: high
   confidence: 0.85
   action: require_approval
-  pattern: "heuristics_enabled.*false|url_check.*enabled.*false"
+  pattern: "\"heuristics_enabled\"\\s*:\\s*false|\"url_check\"\\s*:\\s*\\{[^}]*\"enabled\"\\s*:\\s*false"
   match_on: content
   title: "Attempt to disable Sage security features via config"
   expires_at: null

@@ -152,6 +152,7 @@ export interface CachedVerdict {
 export interface CachedEntry extends CachedVerdict {
 	checkedAt: string;
 	expiresAt: string;
+	sageVersion?: string;
 }
 
 export interface CacheStore {

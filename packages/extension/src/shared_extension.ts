@@ -10,7 +10,7 @@ import {
 	loadConfig,
 	pruneOrphanedTmpFiles,
 	resolvePath,
-} from "@sage/core";
+} from "@gendigital/sage-core";
 import * as vscode from "vscode";
 
 import type {
@@ -54,7 +54,7 @@ export function activateManagedHooksExtension(
 			.then((result) => {
 				if (result?.updateAvailable) {
 					void vscode.window.showInformationMessage(
-						`Sage: Update available v${result.currentVersion} → v${result.latestVersion} (https://github.com/avast/sage)`,
+						`Sage: Update available v${result.currentVersion} → v${result.latestVersion} (https://github.com/gendigitalinc/sage)`,
 					);
 				}
 			})

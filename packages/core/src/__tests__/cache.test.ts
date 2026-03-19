@@ -152,6 +152,225 @@ describe("VerdictCache", () => {
 		expect(result).not.toBeNull();
 		expect(result?.verdict).toBe("deny");
 	});
+
+	it("ignores entries from an older Sage version", async () => {
+		const cachePath = join(dir, "cache.json");
+		const farFuture = "9999-12-31T23:59:59+00:00";
+		await writeFile(
+			cachePath,
+			JSON.stringify({
+				urls: {
+					"http://cached.com/": {
+						verdict: "deny",
+						severity: "critical",
+						reasons: ["old rule"],
+						source: "heuristic",
+						checkedAt: new Date().toISOString(),
+						expiresAt: farFuture,
+						sageVersion: "0.5.0",
+					},
+				},
+				commands: {},
+				packages: {},
+			}),
+		);
+
+		const cache = new VerdictCache(makeConfig({ path: cachePath }), undefined, "0.6.0");
+		await cache.load();
+		expect(cache.getUrl("http://cached.com")).toBeNull();
+	});
+
+	it("returns entries matching the current Sage version", async () => {
+		const cachePath = join(dir, "cache.json");
+		const farFuture = "9999-12-31T23:59:59+00:00";
+		await writeFile(
+			cachePath,
+			JSON.stringify({
+				urls: {
+					"http://cached.com/": {
+						verdict: "deny",
+						severity: "critical",
+						reasons: ["still valid"],
+						source: "heuristic",
+						checkedAt: new Date().toISOString(),
+						expiresAt: farFuture,
+						sageVersion: "0.5.0",
+					},
+				},
+				commands: {},
+				packages: {},
+			}),
+		);
+
+		const cache = new VerdictCache(makeConfig({ path: cachePath }), undefined, "0.5.0");
+		await cache.load();
+		const result = cache.getUrl("http://cached.com");
+		expect(result).not.toBeNull();
+		expect(result?.verdict).toBe("deny");
+	});
+
+	it("ignores entries without sageVersion when version is set", async () => {
+		const cachePath = join(dir, "cache.json");
+		const farFuture = "9999-12-31T23:59:59+00:00";
+		await writeFile(
+			cachePath,
+			JSON.stringify({
+				urls: {
+					"http://cached.com/": {
+						verdict: "deny",
+						severity: "critical",
+						reasons: ["old unversioned"],
+						source: "heuristic",
+						checkedAt: new Date().toISOString(),
+						expiresAt: farFuture,
+					},
+				},
+				commands: {},
+				packages: {},
+			}),
+		);
+
+		const cache = new VerdictCache(makeConfig({ path: cachePath }), undefined, "0.6.0");
+		await cache.load();
+		expect(cache.getUrl("http://cached.com")).toBeNull();
+	});
+
+	it("stamps sageVersion on new entries", async () => {
+		const cachePath = join(dir, "cache.json");
+		const cache = new VerdictCache(makeConfig({ path: cachePath }), undefined, "0.6.0");
+		await cache.load();
+		cache.putUrl("http://test.com", makeVerdict(), false);
+		await cache.save();
+
+		const raw = await readFile(cachePath, "utf-8");
+		const data = JSON.parse(raw);
+		expect(data.urls["http://test.com/"].sageVersion).toBe("0.6.0");
+	});
+
+	it("ignores stale command entries from older version", async () => {
+		const cachePath = join(dir, "cache.json");
+		const farFuture = "9999-12-31T23:59:59+00:00";
+		const hash = hashCommand("dangerous command");
+		await writeFile(
+			cachePath,
+			JSON.stringify({
+				urls: {},
+				commands: {
+					[hash]: {
+						verdict: "deny",
+						severity: "critical",
+						reasons: ["old threat"],
+						source: "heuristic",
+						checkedAt: new Date().toISOString(),
+						expiresAt: farFuture,
+						sageVersion: "0.4.0",
+					},
+				},
+				packages: {},
+			}),
+		);
+
+		const cache = new VerdictCache(makeConfig({ path: cachePath }), undefined, "0.5.0");
+		await cache.load();
+		expect(cache.getCommand(hash)).toBeNull();
+	});
+
+	it("ignores stale package entries from older version", async () => {
+		const cachePath = join(dir, "cache.json");
+		const farFuture = "9999-12-31T23:59:59+00:00";
+		await writeFile(
+			cachePath,
+			JSON.stringify({
+				urls: {},
+				commands: {},
+				packages: {
+					"npm:evil-pkg": {
+						verdict: "deny",
+						severity: "critical",
+						reasons: ["malicious"],
+						source: "package_check",
+						checkedAt: new Date().toISOString(),
+						expiresAt: farFuture,
+						sageVersion: "0.4.0",
+					},
+				},
+			}),
+		);
+
+		const cache = new VerdictCache(makeConfig({ path: cachePath }), undefined, "0.5.0");
+		await cache.load();
+		expect(cache.getPackage("npm:evil-pkg")).toBeNull();
+	});
+
+	it("dev version skips version check (wildcard)", async () => {
+		const cachePath = join(dir, "cache.json");
+		const farFuture = "9999-12-31T23:59:59+00:00";
+		await writeFile(
+			cachePath,
+			JSON.stringify({
+				urls: {
+					"http://cached.com/": {
+						verdict: "deny",
+						severity: "critical",
+						reasons: ["flagged"],
+						source: "heuristic",
+						checkedAt: new Date().toISOString(),
+						expiresAt: farFuture,
+						sageVersion: "0.5.0",
+					},
+				},
+				commands: {},
+				packages: {},
+			}),
+		);
+
+		const cache = new VerdictCache(makeConfig({ path: cachePath }), undefined, "dev");
+		await cache.load();
+		const result = cache.getUrl("http://cached.com");
+		expect(result).not.toBeNull();
+		expect(result?.verdict).toBe("deny");
+	});
+
+	it("save prunes stale entries from disk", async () => {
+		const cachePath = join(dir, "cache.json");
+		const farFuture = "9999-12-31T23:59:59+00:00";
+		await writeFile(
+			cachePath,
+			JSON.stringify({
+				urls: {
+					"http://old.com/": {
+						verdict: "deny",
+						severity: "critical",
+						reasons: ["old"],
+						source: "heuristic",
+						checkedAt: new Date().toISOString(),
+						expiresAt: farFuture,
+						sageVersion: "0.4.0",
+					},
+					"http://current.com/": {
+						verdict: "deny",
+						severity: "critical",
+						reasons: ["current"],
+						source: "heuristic",
+						checkedAt: new Date().toISOString(),
+						expiresAt: farFuture,
+						sageVersion: "0.5.0",
+					},
+				},
+				commands: {},
+				packages: {},
+			}),
+		);
+
+		const cache = new VerdictCache(makeConfig({ path: cachePath }), undefined, "0.5.0");
+		await cache.load();
+		await cache.save();
+
+		const raw = await readFile(cachePath, "utf-8");
+		const data = JSON.parse(raw);
+		expect(data.urls["http://old.com/"]).toBeUndefined();
+		expect(data.urls["http://current.com/"]).toBeDefined();
+	});
 });
 
 describe("normalizeUrl", () => {

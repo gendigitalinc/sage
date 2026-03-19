@@ -4,8 +4,8 @@
  * and resources are at packages/openclaw/resources/ (one level up).
  */
 
-import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { getFileContentSync } from "@gendigital/sage-core";
 
 const packageRoot = resolve(__dirname, "..");
 
@@ -21,7 +21,7 @@ let cachedVersion: string | undefined;
 export function getSageVersion(): string {
 	if (cachedVersion) return cachedVersion;
 	try {
-		const pkg = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf-8"));
+		const pkg = JSON.parse(getFileContentSync(join(packageRoot, "package.json"), "utf-8"));
 		cachedVersion = (pkg.version as string) ?? "0.0.0";
 	} catch {
 		cachedVersion = "0.0.0";
