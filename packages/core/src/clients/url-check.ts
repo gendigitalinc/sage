@@ -42,7 +42,9 @@ function buildDomain(): string {
 }
 
 export function resolveEndpoint(path: string): string {
-	const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+	const parts = path.split("?");
+	const pathname = parts[0] ?? path;
+	const normalizedPath = pathname.startsWith("/") ? pathname : `/${pathname}`;
 	return `https://${SERVICE_NAME}-proxy.${buildDomain()}${normalizedPath}`;
 }
 

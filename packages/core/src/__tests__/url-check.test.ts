@@ -1,5 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { UrlCheckClient } from "../clients/url-check.js";
+import { resolveEndpoint, UrlCheckClient } from "../clients/url-check.js";
+
+describe("resolveEndpoint", () => {
+	it("strips query parameters from path", () => {
+		expect(resolveEndpoint("http://any.test/url-check?foo=bar")).toBe(
+			resolveEndpoint("http://any.test/url-check"),
+		);
+		expect(resolveEndpoint("http://any.test/v1/version-check?token=secret")).toBe(
+			resolveEndpoint("http://any.test/v1/version-check"),
+		);
+	});
+});
 
 describe("UrlCheckClient", () => {
 	const originalFetch = globalThis.fetch;
@@ -76,6 +87,32 @@ describe("UrlCheckClient", () => {
 		expect(results).toHaveLength(1);
 		expect(results[0]?.isMalicious).toBe(false);
 		expect(results[0]?.findings).toHaveLength(0);
+	});
+
+	it("removes query parameters", async () => {
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				answers: [
+					{
+						key: "http://safe.test",
+						result: {
+							success: {
+								classification: {
+									result: {},
+								},
+								flags: [],
+							},
+						},
+					},
+				],
+			}),
+		});
+
+		const client = new UrlCheckClient();
+		const results = await client.checkUrls(["http://safe.test?secret=token"]);
+		expect(results).toHaveLength(1);
+		expect(results[0].url).toBe("http://safe.test");
 	});
 
 	it("parses flagged URL response", async () => {

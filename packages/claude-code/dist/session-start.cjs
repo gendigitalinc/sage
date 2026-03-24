@@ -16265,7 +16265,9 @@ function buildDomain() {
   return [getSubdomain(), getProviderName2(), getProviderTld2()].join(".");
 }
 function resolveEndpoint(path) {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const parts = path.split("?");
+  const pathname = parts[0] ?? path;
+  const normalizedPath = pathname.startsWith("/") ? pathname : `/${pathname}`;
   return `https://${SERVICE_NAME2}-proxy.${buildDomain()}${normalizedPath}`;
 }
 var UrlCheckClient = class {
