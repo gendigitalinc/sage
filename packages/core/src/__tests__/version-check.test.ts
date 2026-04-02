@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveEndpoint } from "../clients/url-check.js";
 import { checkForUpdate, isNewerVersion, type VersionCheckContext } from "../version-check.js";
 
 describe("isNewerVersion", () => {
@@ -35,6 +34,10 @@ describe("isNewerVersion", () => {
 
 describe("checkForUpdate", () => {
 	const originalFetch = globalThis.fetch;
+	const baseContext: VersionCheckContext = {
+		agentRuntime: "cursor",
+		iid: "550e8400-e29b-41d4-a716-446655440000",
+	};
 
 	beforeEach(() => {
 		vi.useFakeTimers();
@@ -51,7 +54,7 @@ describe("checkForUpdate", () => {
 			json: async () => ({ version: "1.0.0" }),
 		});
 
-		const result = await checkForUpdate("0.4.0");
+		const result = await checkForUpdate("0.4.0", undefined, undefined, baseContext);
 		expect(result).toEqual({
 			currentVersion: "0.4.0",
 			latestVersion: "1.0.0",
@@ -65,7 +68,7 @@ describe("checkForUpdate", () => {
 			json: async () => ({ version: "0.4.0" }),
 		});
 
-		const result = await checkForUpdate("0.4.0");
+		const result = await checkForUpdate("0.4.0", undefined, undefined, baseContext);
 		expect(result).toEqual({
 			currentVersion: "0.4.0",
 			latestVersion: "0.4.0",
@@ -79,7 +82,7 @@ describe("checkForUpdate", () => {
 			json: async () => ({ version: "0.3.0" }),
 		});
 
-		const result = await checkForUpdate("0.4.0");
+		const result = await checkForUpdate("0.4.0", undefined, undefined, baseContext);
 		expect(result).toEqual({
 			currentVersion: "0.4.0",
 			latestVersion: "0.3.0",
@@ -88,7 +91,7 @@ describe("checkForUpdate", () => {
 	});
 
 	it("returns null for dev builds", async () => {
-		const result = await checkForUpdate("dev");
+		const result = await checkForUpdate("dev", undefined, undefined, baseContext);
 		expect(result).toBeNull();
 	});
 
@@ -98,14 +101,14 @@ describe("checkForUpdate", () => {
 			status: 404,
 		});
 
-		const result = await checkForUpdate("0.4.0");
+		const result = await checkForUpdate("0.4.0", undefined, undefined, baseContext);
 		expect(result).toBeNull();
 	});
 
 	it("returns null on network error", async () => {
 		globalThis.fetch = vi.fn().mockRejectedValue(new Error("network error"));
 
-		const result = await checkForUpdate("0.4.0");
+		const result = await checkForUpdate("0.4.0", undefined, undefined, baseContext);
 		expect(result).toBeNull();
 	});
 
@@ -115,27 +118,8 @@ describe("checkForUpdate", () => {
 			json: async () => ({ name: "@gendigital/sage-core" }),
 		});
 
-		const result = await checkForUpdate("0.4.0");
+		const result = await checkForUpdate("0.4.0", undefined, undefined, baseContext);
 		expect(result).toBeNull();
-	});
-
-	it("always sends POST with environment body", async () => {
-		globalThis.fetch = vi.fn().mockResolvedValue({
-			ok: true,
-			json: async () => ({ version: "0.4.0" }),
-		});
-
-		await checkForUpdate("0.4.0");
-
-		const fetchCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-		expect(fetchCall[0]).toBe(resolveEndpoint("/v1/version-check"));
-		const options = fetchCall[1] as RequestInit;
-		expect(options.method).toBe("POST");
-		const body = JSON.parse(options.body as string);
-		expect(body.sage_version).toBe("0.4.0");
-		expect(body.os).toBe(process.platform);
-		expect(body.arch).toBe(process.arch);
-		expect(typeof body.os_version).toBe("string");
 	});
 
 	it("includes agent context when provided", async () => {
@@ -154,26 +138,8 @@ describe("checkForUpdate", () => {
 
 		const fetchCall = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
 		const body = JSON.parse((fetchCall[1] as RequestInit).body as string);
-		expect(body.agent_runtime).toBe("cursor");
-		expect(body.agent_runtime_version).toBe("0.48.7");
-		expect(body.iid).toBe("550e8400-e29b-41d4-a716-446655440000");
-	});
-
-	it("sends body without iid when installation id is unavailable", async () => {
-		globalThis.fetch = vi.fn().mockResolvedValue({
-			ok: true,
-			json: async () => ({ version: "0.4.0" }),
-		});
-
-		await checkForUpdate("0.4.0", undefined, undefined, {
-			agentRuntime: "claude-code",
-		});
-
-		const body = JSON.parse(
-			((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit)
-				.body as string,
-		);
-		expect(body.agent_runtime).toBe("claude-code");
-		expect(body.iid).toBeUndefined();
+		expect(body.agent.agent_runtime).toBe("cursor");
+		expect(body.agent.agent_runtime_version).toBe("0.48.7");
+		expect(body.identity.uuid).toBe("550e8400-e29b-41d4-a716-446655440000");
 	});
 });

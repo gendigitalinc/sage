@@ -1,5 +1,18 @@
 # @gendigital/sage-core
 
+## 0.7.0
+
+### Minor Changes
+
+- new feature: exceptions - finer grained control over block/allow (replacing old allowlist which is now read only)
+- Add per-session detection notifications: statusline file tracking in core, auto-configured Claude Code status line, IDE notifications in Cursor/VS Code extension, and TUI toasts in OpenCode. Fix OpenClaw E2E model default to match gateway API change.
+
+### Patch Changes
+
+- Fix OpenClaw security check FPs
+- Fix marketplace migration check for new `known_marketplaces.json` object format (previously assumed array)
+- add shared MCP server package with false positive reporting and audit log tools
+
 ## 0.6.0
 
 ### Minor Changes

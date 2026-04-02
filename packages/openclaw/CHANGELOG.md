@@ -1,5 +1,13 @@
 # @gendigital/sage-openclaw
 
+## 0.7.0
+
+### Patch Changes
+
+- Switch E2E tests from dangerous-looking prompts to dummy canary rules that match benign marker strings, eliminating flaky model refusals.
+- Fix OpenClaw security check FPs
+- Add per-session detection notifications: statusline file tracking in core, auto-configured Claude Code status line, IDE notifications in Cursor/VS Code extension, and TUI toasts in OpenCode. Fix OpenClaw E2E model default to match gateway API change.
+
 ## 0.6.0
 
 ### Minor Changes

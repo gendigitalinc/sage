@@ -54,4 +54,4 @@ The skill is registered in `openclaw.plugin.json` and bundled into `resources/sk
 
 ## Code Safety Warning
 
-OpenClaw's `plugins.code_safety` audit will flag Sage with a `potential-exfiltration` warning. This is a false positive - `readFile` and `fetch` coexist in the same bundle because Sage reads local config/cache files and separately sends URL hashes to a reputation API. No file content is transmitted.
+OpenClaw's `plugins.code_safety` audit will flag Sage with a `potential-exfiltration` warning. This is a false positive - `readFile` and `fetch` coexist in the same bundle because Sage reads local config/cache files and separately sends URLs to a reputation API. No file content is transmitted.

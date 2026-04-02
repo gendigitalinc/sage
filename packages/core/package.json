@@ -4,7 +4,8 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.6.0",
+  "description": "Safety for Agents — platform-agnostic detection engine",
+  "version": "0.7.0",
   "type": "module",
   "exports": {
     ".": {
@@ -34,5 +35,13 @@
   },
   "engines": {
     "node": ">=18"
-  }
+  },
+  "keywords": [
+    "security",
+    "adr",
+    "agent security",
+    "malware-detection",
+    "AI",
+    "agentic AI"
+  ]
 }

@@ -3,12 +3,7 @@
  * Intercepts tool calls and uses @gendigital/sage-core to enforce security verdicts.
  */
 
-import {
-	ApprovalStore,
-	addToAllowlist,
-	approveAction,
-	removeFromAllowlist,
-} from "@gendigital/sage-core";
+import { ApprovalStore, approveAction } from "@gendigital/sage-core";
 import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin/tool";
 import { getBundledDataDirs } from "./bundled-dirs.js";
@@ -25,6 +20,8 @@ export const SagePlugin: Plugin = async ({ client, directory }) => {
 
 	// State: track findings per session for one-shot injection
 	const pendingFindingsBySession = new Map<string, string>();
+	// Track scanned sessions to avoid re-triggering on repeated session.updated events
+	const scannedSessions = new Set<string>();
 
 	// Set up the cron job that cleans up the approval store.
 	const interval = setInterval(() => {
@@ -32,9 +29,13 @@ export const SagePlugin: Plugin = async ({ client, directory }) => {
 	}, APPROVAL_STORE_CLEANUP_INTERVAL_MS);
 	interval.unref?.();
 
-	const ARTIFACT_TYPE = tool.schema.enum(["url", "command", "file_path"]);
-
-	const toolHandlers = createToolHandlers(logger, approvalStore, threatsDir, allowlistsDir);
+	const toolHandlers = createToolHandlers(logger, approvalStore, threatsDir, allowlistsDir, {
+		showToast: (msg, variant) => {
+			client.tui
+				.showToast({ body: { title: "Sage", message: msg, variant, duration: 5000 } })
+				.catch(() => {});
+		},
+	});
 
 	return {
 		"tool.execute.before": toolHandlers["tool.execute.before"],
@@ -79,24 +80,30 @@ export const SagePlugin: Plugin = async ({ client, directory }) => {
 			pendingFindingsBySession.delete(sessionID);
 		},
 
-		// Event hook for session.created
+		// Trigger session scan on first session.updated event per session.
+		// OpenCode >=1.3 replaced session.created with session.updated events.
 		event: async ({ event }) => {
-			if (event.type === "session.created") {
-				// biome-ignore lint/suspicious/noExplicitAny: Event types from SDK not fully typed
-				const sessionID = (event as any).sessionID ?? (event as any).id ?? "unknown";
+			if (event.type !== "session.updated") return;
 
-				try {
-					logger.debug("Sage: starting session scan", { sessionID });
+			// biome-ignore lint/suspicious/noExplicitAny: Event types from SDK not fully typed
+			const props = (event as any).properties;
+			const sessionID = props?.sessionID ?? props?.info?.id ?? "unknown";
+			if (sessionID !== "unknown" && scannedSessions.has(sessionID)) return;
 
-					await createSessionScanHandler(logger, directory, (msg) => {
-						pendingFindingsBySession.set(sessionID, msg);
-					})();
-				} catch (error) {
-					logger.error("Sage session scan failed (fail-open)", {
-						sessionID,
-						error: String(error),
-					});
+			try {
+				logger.debug("Sage: starting session scan", { sessionID });
+				const scanHandler = createSessionScanHandler(logger, directory, (msg) => {
+					pendingFindingsBySession.set(sessionID, msg);
+				});
+				await scanHandler();
+				if (sessionID !== "unknown") {
+					scannedSessions.add(sessionID);
 				}
+			} catch (error) {
+				logger.error("Sage session scan failed (fail-open)", {
+					sessionID,
+					error: String(error),
+				});
 			}
 		},
 
@@ -118,41 +125,6 @@ export const SagePlugin: Plugin = async ({ client, directory }) => {
 						return "Rejected by user.";
 					}
 					return approveAction(approvalStore, args.actionId);
-				},
-			}),
-			sage_allowlist_add: tool({
-				description:
-					"Permanently allow a URL, command, or file path after recent user approval through Sage.",
-				args: {
-					type: ARTIFACT_TYPE,
-					value: tool.schema.string().describe("Exact URL, command, or file path to allowlist"),
-					reason: tool.schema.string().optional().describe("Optional reason for allowlist entry"),
-				},
-				async execute(args: {
-					type: "url" | "command" | "file_path";
-					value: string;
-					reason?: string;
-				}) {
-					return addToAllowlist(
-						approvalStore,
-						args.type,
-						args.value,
-						args.reason,
-						undefined,
-						logger,
-					);
-				},
-			}),
-			sage_allowlist_remove: tool({
-				description: "Remove a URL, command, or file path from the Sage allowlist.",
-				args: {
-					type: ARTIFACT_TYPE,
-					value: tool.schema
-						.string()
-						.describe("URL/file path, or command text/command hash for command entries"),
-				},
-				async execute(args: { type: "url" | "command" | "file_path"; value: string }) {
-					return removeFromAllowlist(args.type, args.value, undefined, logger);
 				},
 			}),
 		},

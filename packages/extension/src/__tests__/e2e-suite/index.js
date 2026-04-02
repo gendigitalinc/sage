@@ -182,15 +182,15 @@ async function verifyHookPipelineBlocksThreat() {
 					hook_event_name: "preToolUse",
 					tool_name: "Write",
 					tool_input: {
-						file_path: "/home/user/.ssh/authorized_keys",
-						content: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQ...",
+						file_path: "/tmp/__sage_test_deny_file_e6c4a918__.txt",
+						content: "hello",
 					},
 				}
 			: {
 					tool_name: "Write",
 					tool_input: {
-						file_path: "/home/user/.ssh/authorized_keys",
-						content: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQ...",
+						file_path: "/tmp/__sage_test_deny_file_e6c4a918__.txt",
+						content: "hello",
 					},
 				};
 

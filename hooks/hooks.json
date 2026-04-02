@@ -7,7 +7,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/packages/claude-code/dist/pre-tool-use.cjs\"",
-            "timeout": 15,
+            "timeout": 8,
             "statusMessage": "Sage: Checking for threats..."
           }
         ]
@@ -20,7 +20,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/packages/claude-code/dist/post-tool-use.cjs\"",
-            "timeout": 5,
+            "timeout": 8,
             "statusMessage": "Sage: Recording approval..."
           }
         ]

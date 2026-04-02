@@ -39,6 +39,9 @@ importers:
       '@gendigital/sage-core':
         specifier: workspace:*
         version: link:../core
+      '@gendigital/sage-mcp':
+        specifier: workspace:*
+        version: link:../mcp
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.11
@@ -84,11 +87,14 @@ importers:
       '@gendigital/sage-core':
         specifier: workspace:*
         version: link:../core
+      '@gendigital/sage-mcp':
+        specifier: workspace:*
+        version: link:../mcp
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.11
       '@types/vscode':
-        specifier: ^1.97.0
+        specifier: ^1.105.0
         version: 1.109.0
       '@vscode/test-electron':
         specifier: ^2.5.2
@@ -96,6 +102,28 @@ importers:
       esbuild:
         specifier: ^0.25.0
         version: 0.25.12
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.0.18(@types/node@22.19.11)(yaml@2.8.2)
+
+  packages/mcp:
+    dependencies:
+      '@gendigital/sage-core':
+        specifier: workspace:*
+        version: link:../core
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.26.0
+        version: 1.26.0(zod@3.25.76)
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.11
       typescript:
         specifier: ^5.9.0
         version: 5.9.3

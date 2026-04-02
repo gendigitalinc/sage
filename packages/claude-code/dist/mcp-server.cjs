@@ -6870,14 +6870,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs = this.flowScalar(this.type);
+              const fs2 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map.items.push({ start, key: fs, sep: [] });
+                map.items.push({ start, key: fs2, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs);
+                this.stack.push(fs2);
               } else {
-                Object.assign(it, { key: fs, sep: [] });
+                Object.assign(it, { key: fs2, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -7005,13 +7005,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs = this.flowScalar(this.type);
+              const fs2 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs, sep: [] });
+                fc.items.push({ start: [], key: fs2, sep: [] });
               else if (it.sep)
-                this.stack.push(fs);
+                this.stack.push(fs2);
               else
-                Object.assign(it, { key: fs, sep: [] });
+                Object.assign(it, { key: fs2, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -9521,8 +9521,8 @@ var require_resolve = __commonJS({
       }
       return count;
     }
-    function getFullPath(resolver, id = "", normalize2) {
-      if (normalize2 !== false)
+    function getFullPath(resolver, id = "", normalize) {
+      if (normalize !== false)
         id = normalizeId(id);
       const p = resolver.parse(id);
       return _getFullPath(resolver, p);
@@ -10862,7 +10862,7 @@ var require_fast_uri = __commonJS({
     "use strict";
     var { normalizeIPv6, removeDotSegments, recomposeAuthority, normalizeComponentEncoding, isIPv4, nonSimpleDomain } = require_utils();
     var { SCHEMES, getSchemeHandler } = require_schemes();
-    function normalize2(uri, options) {
+    function normalize(uri, options) {
       if (typeof uri === "string") {
         uri = /** @type {T} */
         serialize(parse3(uri, options), options);
@@ -11098,7 +11098,7 @@ var require_fast_uri = __commonJS({
     }
     var fastUri = {
       SCHEMES,
-      normalize: normalize2,
+      normalize,
       resolve: resolve2,
       resolveComponent,
       equal,
@@ -14075,12 +14075,12 @@ var require_dist2 = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs, exportName) {
+    function addFormats(ajv, list, fs2, exportName) {
       var _a;
       var _b;
       (_a = (_b = ajv.opts.code).formats) !== null && _a !== void 0 ? _a : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs[f]);
+        ajv.addFormat(f, fs2[f]);
     }
     module2.exports = exports2 = formatsPlugin;
     Object.defineProperty(exports2, "__esModule", { value: true });
@@ -15263,7 +15263,7 @@ var require_atomic_sleep = __commonJS({
 var require_sonic_boom = __commonJS({
   "../../node_modules/.pnpm/sonic-boom@4.2.1/node_modules/sonic-boom/index.js"(exports2, module2) {
     "use strict";
-    var fs = require("fs");
+    var fs2 = require("fs");
     var EventEmitter = require("events");
     var inherits = require("util").inherits;
     var path = require("path");
@@ -15320,27 +15320,27 @@ var require_sonic_boom = __commonJS({
       const mode = sonic.mode;
       if (sonic.sync) {
         try {
-          if (sonic.mkdir) fs.mkdirSync(path.dirname(file), { recursive: true });
-          const fd = fs.openSync(file, flags, mode);
+          if (sonic.mkdir) fs2.mkdirSync(path.dirname(file), { recursive: true });
+          const fd = fs2.openSync(file, flags, mode);
           fileOpened(null, fd);
         } catch (err) {
           fileOpened(err);
           throw err;
         }
       } else if (sonic.mkdir) {
-        fs.mkdir(path.dirname(file), { recursive: true }, (err) => {
+        fs2.mkdir(path.dirname(file), { recursive: true }, (err) => {
           if (err) return fileOpened(err);
-          fs.open(file, flags, mode, fileOpened);
+          fs2.open(file, flags, mode, fileOpened);
         });
       } else {
-        fs.open(file, flags, mode, fileOpened);
+        fs2.open(file, flags, mode, fileOpened);
       }
     }
     function SonicBoom(opts) {
       if (!(this instanceof SonicBoom)) {
         return new SonicBoom(opts);
       }
-      let { fd, dest, minLength, maxLength, maxWrite, periodicFlush, sync, append = true, mkdir: mkdir2, retryEAGAIN, fsync, contentMode, mode } = opts || {};
+      let { fd, dest, minLength, maxLength, maxWrite, periodicFlush, sync, append = true, mkdir: mkdir3, retryEAGAIN, fsync, contentMode, mode } = opts || {};
       fd = fd || dest;
       this._len = 0;
       this.fd = -1;
@@ -15365,7 +15365,7 @@ var require_sonic_boom = __commonJS({
       this.append = append || false;
       this.mode = mode;
       this.retryEAGAIN = retryEAGAIN || (() => true);
-      this.mkdir = mkdir2 || false;
+      this.mkdir = mkdir3 || false;
       let fsWriteSync;
       let fsWrite;
       if (contentMode === kContentModeBuffer) {
@@ -15374,8 +15374,8 @@ var require_sonic_boom = __commonJS({
         this.flush = flushBuffer;
         this.flushSync = flushBufferSync;
         this._actualWrite = actualWriteBuffer;
-        fsWriteSync = () => fs.writeSync(this.fd, this._writingBuf);
-        fsWrite = () => fs.write(this.fd, this._writingBuf, this.release);
+        fsWriteSync = () => fs2.writeSync(this.fd, this._writingBuf);
+        fsWrite = () => fs2.write(this.fd, this._writingBuf, this.release);
       } else if (contentMode === void 0 || contentMode === kContentModeUtf8) {
         this._writingBuf = "";
         this.write = write;
@@ -15384,15 +15384,15 @@ var require_sonic_boom = __commonJS({
         this._actualWrite = actualWrite;
         fsWriteSync = () => {
           if (Buffer.isBuffer(this._writingBuf)) {
-            return fs.writeSync(this.fd, this._writingBuf);
+            return fs2.writeSync(this.fd, this._writingBuf);
           }
-          return fs.writeSync(this.fd, this._writingBuf, "utf8");
+          return fs2.writeSync(this.fd, this._writingBuf, "utf8");
         };
         fsWrite = () => {
           if (Buffer.isBuffer(this._writingBuf)) {
-            return fs.write(this.fd, this._writingBuf, this.release);
+            return fs2.write(this.fd, this._writingBuf, this.release);
           }
-          return fs.write(this.fd, this._writingBuf, "utf8", this.release);
+          return fs2.write(this.fd, this._writingBuf, "utf8", this.release);
         };
       } else {
         throw new Error(`SonicBoom supports "${kContentModeUtf8}" and "${kContentModeBuffer}", but passed ${contentMode}`);
@@ -15449,7 +15449,7 @@ var require_sonic_boom = __commonJS({
           }
         }
         if (this._fsync) {
-          fs.fsyncSync(this.fd);
+          fs2.fsyncSync(this.fd);
         }
         const len = this._len;
         if (this._reopening) {
@@ -15563,7 +15563,7 @@ var require_sonic_boom = __commonJS({
       const onDrain = () => {
         if (!this._fsync) {
           try {
-            fs.fsync(this.fd, (err) => {
+            fs2.fsync(this.fd, (err) => {
               this._flushPending = false;
               cb(err);
             });
@@ -15665,7 +15665,7 @@ var require_sonic_boom = __commonJS({
       const fd = this.fd;
       this.once("ready", () => {
         if (fd !== this.fd) {
-          fs.close(fd, (err) => {
+          fs2.close(fd, (err) => {
             if (err) {
               return this.emit("error", err);
             }
@@ -15714,7 +15714,7 @@ var require_sonic_boom = __commonJS({
           buf = this._bufs[0];
         }
         try {
-          const n = Buffer.isBuffer(buf) ? fs.writeSync(this.fd, buf) : fs.writeSync(this.fd, buf, "utf8");
+          const n = Buffer.isBuffer(buf) ? fs2.writeSync(this.fd, buf) : fs2.writeSync(this.fd, buf, "utf8");
           const releasedBufObj = releaseWritingBuf(buf, this._len, n);
           buf = releasedBufObj.writingBuf;
           this._len = releasedBufObj.len;
@@ -15730,7 +15730,7 @@ var require_sonic_boom = __commonJS({
         }
       }
       try {
-        fs.fsyncSync(this.fd);
+        fs2.fsyncSync(this.fd);
       } catch {
       }
     }
@@ -15751,7 +15751,7 @@ var require_sonic_boom = __commonJS({
           buf = mergeBuf(this._bufs[0], this._lens[0]);
         }
         try {
-          const n = fs.writeSync(this.fd, buf);
+          const n = fs2.writeSync(this.fd, buf);
           buf = buf.subarray(n);
           this._len = Math.max(this._len - n, 0);
           if (buf.length <= 0) {
@@ -15779,13 +15779,13 @@ var require_sonic_boom = __commonJS({
       this._writingBuf = this._writingBuf.length ? this._writingBuf : this._bufs.shift() || "";
       if (this.sync) {
         try {
-          const written = Buffer.isBuffer(this._writingBuf) ? fs.writeSync(this.fd, this._writingBuf) : fs.writeSync(this.fd, this._writingBuf, "utf8");
+          const written = Buffer.isBuffer(this._writingBuf) ? fs2.writeSync(this.fd, this._writingBuf) : fs2.writeSync(this.fd, this._writingBuf, "utf8");
           release(null, written);
         } catch (err) {
           release(err);
         }
       } else {
-        fs.write(this.fd, this._writingBuf, release);
+        fs2.write(this.fd, this._writingBuf, release);
       }
     }
     function actualWriteBuffer() {
@@ -15794,7 +15794,7 @@ var require_sonic_boom = __commonJS({
       this._writingBuf = this._writingBuf.length ? this._writingBuf : mergeBuf(this._bufs.shift(), this._lens.shift());
       if (this.sync) {
         try {
-          const written = fs.writeSync(this.fd, this._writingBuf);
+          const written = fs2.writeSync(this.fd, this._writingBuf);
           release(null, written);
         } catch (err) {
           release(err);
@@ -15803,7 +15803,7 @@ var require_sonic_boom = __commonJS({
         if (kCopyBuffer) {
           this._writingBuf = Buffer.from(this._writingBuf);
         }
-        fs.write(this.fd, this._writingBuf, release);
+        fs2.write(this.fd, this._writingBuf, release);
       }
     }
     function actualClose(sonic) {
@@ -15819,12 +15819,12 @@ var require_sonic_boom = __commonJS({
       sonic._lens = [];
       assert2(typeof sonic.fd === "number", `sonic.fd must be a number, got ${typeof sonic.fd}`);
       try {
-        fs.fsync(sonic.fd, closeWrapped);
+        fs2.fsync(sonic.fd, closeWrapped);
       } catch {
       }
       function closeWrapped() {
         if (sonic.fd !== 1 && sonic.fd !== 2) {
-          fs.close(sonic.fd, done);
+          fs2.close(sonic.fd, done);
         } else {
           done();
         }
@@ -16081,7 +16081,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter } = require("events");
     var { Worker } = require("worker_threads");
-    var { join: join7 } = require("path");
+    var { join: join6 } = require("path");
     var { pathToFileURL } = require("url");
     var { wait } = require_wait();
     var {
@@ -16117,7 +16117,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join7(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join6(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         trackUnmanagedFds: false,
@@ -16503,7 +16503,7 @@ var require_transport = __commonJS({
     "use strict";
     var { createRequire } = require("module");
     var getCallers = require_caller();
-    var { join: join7, isAbsolute: isAbsolute2, sep: sep2 } = require("node:path");
+    var { join: join6, isAbsolute: isAbsolute2, sep: sep2 } = require("node:path");
     var sleep = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
     var ThreadStream = require_thread_stream();
@@ -16566,7 +16566,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join7(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join6(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -16584,7 +16584,7 @@ var require_transport = __commonJS({
           });
         });
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join7(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join6(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -16606,7 +16606,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join7(__dirname, "..", "file.js");
+          return join6(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -16705,7 +16705,7 @@ var require_tools = __commonJS({
         }
       }
     }
-    function asString(str) {
+    function asString2(str) {
       let result = "";
       let last = 0;
       let found = false;
@@ -16776,13 +16776,13 @@ var require_tools = __commonJS({
               if (stringifier) value = stringifier(value);
               break;
             case "string":
-              value = (stringifier || asString)(value);
+              value = (stringifier || asString2)(value);
               break;
             default:
               value = (stringifier || stringify2)(value, stringifySafe);
           }
           if (value === void 0) continue;
-          const strKey = asString(key);
+          const strKey = asString2(key);
           propStr += "," + strKey + ":" + value;
         }
       }
@@ -16803,7 +16803,7 @@ var require_tools = __commonJS({
             msgStr = ',"' + messageKey + '":' + value;
             break;
           case "string":
-            value = (stringifier || asString)(value);
+            value = (stringifier || asString2)(value);
             msgStr = ',"' + messageKey + '":' + value;
             break;
           default:
@@ -17595,7 +17595,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join7 = ",";
+            let join6 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -17609,7 +17609,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join7 = `,
+                join6 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -17617,13 +17617,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join7;
+                res += join6;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join7}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join6}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -17644,7 +17644,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join7 = `,
+              join6 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -17658,13 +17658,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join7;
+                separator = join6;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join7;
+              separator = join6;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -17705,7 +17705,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join7 = ",";
+            let join6 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -17718,7 +17718,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join7 = `,
+                join6 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -17726,13 +17726,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join7;
+                res += join6;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join7}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join6}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -17745,7 +17745,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join7 = `,
+              join6 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -17754,7 +17754,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join7;
+                separator = join6;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -17812,20 +17812,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join8 = `,
+              const join7 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join8;
+                res2 += join7;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join8}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join7}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -17841,16 +17841,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join7 = `,
+            const join6 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join7, maximumBreadth);
+              res += stringifyTypedArray(value, join6, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join7;
+              separator = join6;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -17861,13 +17861,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join7;
+                separator = join6;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join7;
+              separator = join6;
             }
             if (separator !== "") {
               res = `
@@ -18268,11 +18268,11 @@ var require_pino = __commonJS({
       depthLimit: 5,
       edgeLimit: 100
     };
-    var normalize2 = createArgsNormalizer(defaultOptions2);
+    var normalize = createArgsNormalizer(defaultOptions2);
     var serializers = Object.assign(/* @__PURE__ */ Object.create(null), stdSerializers);
     function pino2(...args) {
       const instance = {};
-      const { opts, stream } = normalize2(instance, caller(), ...args);
+      const { opts, stream } = normalize(instance, caller(), ...args);
       if (opts.level && typeof opts.level === "string" && DEFAULT_LEVELS[opts.level.toLowerCase()] !== void 0) opts.level = opts.level.toLowerCase();
       const {
         redact,
@@ -18394,32 +18394,25 @@ var require_pino = __commonJS({
 });
 
 // ../core/dist/config.js
-var import_node_os = require("node:os");
-var import_node_path2 = require("node:path");
+var import_node_path = require("node:path");
 
 // ../core/dist/file-utils.js
-var import_node_crypto = require("node:crypto");
+var fs = __toESM(require("node:fs"), 1);
 var fsPromises = __toESM(require("node:fs/promises"), 1);
-var import_node_path = require("node:path");
+var import_node_os = require("node:os");
 var name1 = "read";
 var name2 = "File";
 function getFileContent(path, encoding = "utf-8") {
   return fsPromises[name1 + name2](path, encoding);
 }
-async function atomicWriteJson(path, data) {
-  await fsPromises.mkdir((0, import_node_path.dirname)(path), { recursive: true });
-  const tmp = `${path}.${(0, import_node_crypto.randomBytes)(6).toString("hex")}.tmp`;
-  try {
-    await fsPromises.writeFile(tmp, `${JSON.stringify(data, null, 2)}
-`, { mode: 384 });
-    await fsPromises.rename(tmp, path);
-  } catch (err) {
-    try {
-      await fsPromises.unlink(tmp);
-    } catch {
-    }
-    throw err;
-  }
+function getFileContentSync(path, encoding = "utf-8") {
+  return fs[`${name1 + name2}Sync`](path, encoding);
+}
+function getProcEnv() {
+  return process["env"];
+}
+function getHomeDir() {
+  return getProcEnv().HOME || (0, import_node_os.homedir)();
 }
 
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/external.js
@@ -22484,6 +22477,7 @@ var SeveritySchema = external_exports.enum(["critical", "high", "medium", "low"]
 var ActionSchema = external_exports.enum(["block", "require_approval", "log"]);
 var ThreatSchema = external_exports.object({
   id: external_exports.string(),
+  version: external_exports.number().int().optional(),
   category: external_exports.string(),
   severity: SeveritySchema,
   confidence: external_exports.number(),
@@ -22532,6 +22526,21 @@ var PackageCheckConfigSchema = external_exports.object({
 var AmsiCheckConfigSchema = external_exports.object({
   enabled: external_exports.boolean().default(true)
 });
+var ExceptionDecisionSchema = external_exports.enum(["allow", "deny"]);
+var ExceptionMatchSchema = external_exports.enum(["executable", "domain", "path", "plugin", "regex"]);
+var ExceptionRuleSchema = external_exports.object({
+  id: external_exports.string().optional(),
+  decision: ExceptionDecisionSchema,
+  match: ExceptionMatchSchema,
+  pattern: external_exports.string(),
+  reason: external_exports.string().optional()
+});
+var ExceptionsFileSchema = external_exports.object({
+  rules: external_exports.array(ExceptionRuleSchema).default([])
+});
+var ExceptionsConfigSchema = external_exports.object({
+  path: external_exports.string().default("~/.sage/exceptions.json")
+});
 var ConfigSchema = external_exports.object({
   url_check: UrlCheckConfigSchema.default({}),
   file_check: FileCheckConfigSchema.default({}),
@@ -22540,10 +22549,19 @@ var ConfigSchema = external_exports.object({
   heuristics_enabled: external_exports.boolean().default(true),
   cache: CacheConfigSchema.default({}),
   allowlist: AllowlistConfigSchema.default({}),
+  exceptions: ExceptionsConfigSchema.default({}),
   logging: LoggingConfigSchema.default({}),
   sensitivity: SensitivitySchema.default("balanced"),
   disabled_threats: external_exports.array(external_exports.string()).default([])
 });
+var HookTypeSchema = external_exports.enum([
+  "PreToolUse",
+  "PostToolUse",
+  "SessionStart",
+  "GatewayStart",
+  "BeforeAgentStart",
+  "MessagesTransform"
+]);
 
 // ../core/dist/config.js
 var SAGE_DIR = "~/.sage";
@@ -22551,30 +22569,34 @@ function resolvedSageDir() {
   return resolvePath(SAGE_DIR);
 }
 function defaultConfigPath() {
-  return (0, import_node_path2.join)(resolvedSageDir(), "config.json");
+  return (0, import_node_path.join)(resolvedSageDir(), "config.json");
 }
 function defaultCachePath() {
-  return (0, import_node_path2.join)(resolvedSageDir(), "cache.json");
+  return (0, import_node_path.join)(resolvedSageDir(), "cache.json");
 }
 function defaultAllowlistPath() {
-  return (0, import_node_path2.join)(resolvedSageDir(), "allowlist.json");
+  return (0, import_node_path.join)(resolvedSageDir(), "allowlist.json");
+}
+function defaultExceptionsPath() {
+  return (0, import_node_path.join)(resolvedSageDir(), "exceptions.json");
 }
 function defaultAuditPath() {
-  return (0, import_node_path2.join)(resolvedSageDir(), "audit.jsonl");
+  return (0, import_node_path.join)(resolvedSageDir(), "audit.jsonl");
 }
 function resolvePath(pathStr) {
   if (pathStr.startsWith("~/") || pathStr === "~") {
-    return (0, import_node_path2.join)((0, import_node_os.homedir)(), pathStr.slice(1));
+    const home = getHomeDir();
+    return (0, import_node_path.join)(home, pathStr.slice(1));
   }
   return pathStr;
 }
 function isWithinDirectory(baseDir, targetPath) {
-  const rel = (0, import_node_path2.relative)(baseDir, targetPath);
+  const rel = (0, import_node_path.relative)(baseDir, targetPath);
   if (rel === "")
     return true;
-  if ((0, import_node_path2.isAbsolute)(rel))
+  if ((0, import_node_path.isAbsolute)(rel))
     return false;
-  return rel !== ".." && !rel.startsWith(`..${import_node_path2.sep}`);
+  return rel !== ".." && !rel.startsWith(`..${import_node_path.sep}`);
 }
 function normalizeStateFilePath(configuredPath, fallbackPath, field, logger2) {
   const sageDir = resolvedSageDir();
@@ -22587,7 +22609,7 @@ function normalizeStateFilePath(configuredPath, fallbackPath, field, logger2) {
     return fallbackPath;
   }
   const expanded = resolvePath(trimmed);
-  const resolved = (0, import_node_path2.isAbsolute)(expanded) ? (0, import_node_path2.resolve)(expanded) : (0, import_node_path2.resolve)(sageDir, expanded);
+  const resolved = (0, import_node_path.isAbsolute)(expanded) ? (0, import_node_path.resolve)(expanded) : (0, import_node_path.resolve)(sageDir, expanded);
   if (isWithinDirectory(sageDir, resolved)) {
     if (resolved === sageDir) {
       logger2.warn(`Config ${field}.path must point to a file; using default`, {
@@ -22607,6 +22629,7 @@ function normalizeStateFilePath(configuredPath, fallbackPath, field, logger2) {
 function sanitizeConfigPaths(config2, logger2) {
   const cachePath = defaultCachePath();
   const allowlistPath = defaultAllowlistPath();
+  const exceptionsPath = defaultExceptionsPath();
   const auditPath = defaultAuditPath();
   return {
     ...config2,
@@ -22617,6 +22640,10 @@ function sanitizeConfigPaths(config2, logger2) {
     allowlist: {
       ...config2.allowlist,
       path: normalizeStateFilePath(config2.allowlist.path, allowlistPath, "allowlist", logger2)
+    },
+    exceptions: {
+      ...config2.exceptions,
+      path: normalizeStateFilePath(config2.exceptions.path, exceptionsPath, "exceptions", logger2)
     },
     logging: {
       ...config2.logging,
@@ -22651,139 +22678,29 @@ async function loadConfig(configPath, logger2 = nullLogger) {
   }
 }
 
-// ../core/dist/url-utils.js
-var import_node_crypto2 = require("node:crypto");
-var import_node_os2 = require("node:os");
-var import_node_path3 = require("node:path");
-function normalizeUrl(raw) {
-  try {
-    const u = new URL(raw);
-    u.hash = "";
-    u.searchParams.sort();
-    return u.toString();
-  } catch {
-    return raw.toLowerCase();
-  }
-}
-function hashCommand(command) {
-  return (0, import_node_crypto2.createHash)("sha256").update(command).digest("hex");
-}
-function normalizeFilePath(raw) {
-  const expanded = raw.startsWith("~/") || raw === "~" ? `${(0, import_node_os2.homedir)()}${raw.slice(1)}` : raw;
-  return (0, import_node_path3.normalize)(expanded);
-}
-
-// ../core/dist/allowlist.js
-function emptyAllowlist() {
-  return { urls: {}, commands: {}, filePaths: {} };
-}
-function addEntry(record2, key, reason, originalVerdict) {
-  record2[key] = { addedAt: (/* @__PURE__ */ new Date()).toISOString(), reason, originalVerdict };
-}
-function removeEntry(record2, key) {
-  if (key in record2) {
-    delete record2[key];
-    return true;
-  }
-  return false;
-}
-function parseEntries(raw) {
-  const entries = {};
-  for (const [key, entryData] of Object.entries(raw)) {
-    if (typeof entryData !== "object" || entryData === null)
-      continue;
-    const data = entryData;
-    if (typeof data.added_at === "string" && typeof data.reason === "string" && typeof data.original_verdict === "string") {
-      entries[key] = {
-        addedAt: data.added_at,
-        reason: data.reason,
-        originalVerdict: data.original_verdict
-      };
-    }
-  }
-  return entries;
-}
-async function loadAllowlist(config2, logger2 = nullLogger) {
-  const path = resolvePath(config2.path);
-  let raw;
-  try {
-    raw = await getFileContent(path);
-  } catch {
-    return emptyAllowlist();
-  }
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch (e) {
-    logger2.warn(`Failed to load allowlist from ${path}`, { error: String(e) });
-    return emptyAllowlist();
-  }
-  if (typeof data !== "object" || data === null || Array.isArray(data)) {
-    logger2.warn(`Allowlist file ${path} does not contain a JSON object`);
-    return emptyAllowlist();
-  }
-  const record2 = data;
-  const rawUrls = parseEntries(record2.urls ?? {});
-  const urls = {};
-  for (const [key, entry] of Object.entries(rawUrls)) {
-    urls[normalizeUrl(key)] = entry;
-  }
-  const rawFilePaths = parseEntries(record2.file_paths ?? {});
-  const filePaths = {};
-  for (const [key, entry] of Object.entries(rawFilePaths)) {
-    filePaths[normalizeFilePath(key)] = entry;
-  }
-  return {
-    urls,
-    commands: parseEntries(record2.commands ?? {}),
-    filePaths
-  };
-}
-async function saveAllowlist(allowlist, config2, logger2 = nullLogger) {
-  const path = resolvePath(config2.path);
-  const serializeEntries = (entries) => Object.fromEntries(Object.entries(entries).map(([key, entry]) => [
-    key,
-    {
-      added_at: entry.addedAt,
-      reason: entry.reason,
-      original_verdict: entry.originalVerdict
-    }
-  ]));
-  const data = {
-    urls: serializeEntries(allowlist.urls),
-    commands: serializeEntries(allowlist.commands),
-    file_paths: serializeEntries(allowlist.filePaths)
-  };
-  try {
-    await atomicWriteJson(path, data);
-    return true;
-  } catch (e) {
-    logger2.warn(`Failed to save allowlist to ${path}`, { error: String(e) });
-    return false;
-  }
-}
-function addUrl(allowlist, url, reason, originalVerdict) {
-  addEntry(allowlist.urls, normalizeUrl(url), reason, originalVerdict);
-}
-function addCommand(allowlist, command, reason, originalVerdict) {
-  addEntry(allowlist.commands, hashCommand(command), reason, originalVerdict);
-}
-function addFilePath(allowlist, filePath, reason, originalVerdict) {
-  addEntry(allowlist.filePaths, normalizeFilePath(filePath), reason, originalVerdict);
-}
-function removeFilePath(allowlist, filePath) {
-  return removeEntry(allowlist.filePaths, normalizeFilePath(filePath));
-}
-function removeUrl(allowlist, url) {
-  return removeEntry(allowlist.urls, normalizeUrl(url));
-}
-function removeCommand(allowlist, commandHash) {
-  return removeEntry(allowlist.commands, commandHash);
-}
-
 // ../core/dist/approval-store.js
 var PENDING_STALE_MS = 60 * 60 * 1e3;
 var APPROVED_TTL_MS = 10 * 60 * 1e3;
+
+// ../core/dist/audit-log.js
+async function getRecentEntries(config2, limit = 100) {
+  const path = resolvePath(config2.path);
+  try {
+    const content = await getFileContent(path);
+    const lines = content.trim().split("\n");
+    const recent = lines.slice(-limit);
+    const entries = [];
+    for (const line of recent) {
+      try {
+        entries.push(JSON.parse(line));
+      } catch {
+      }
+    }
+    return entries;
+  } catch {
+    return [];
+  }
+}
 
 // ../core/dist/clients/amsi-spawn.js
 var chldproc1 = "node:child_";
@@ -22911,16 +22828,15 @@ ${AMSI_CSHARP_TYPE}
 `;
 
 // ../core/dist/version.js
-var import_node_fs = require("node:fs");
-var import_node_path4 = require("node:path");
+var import_node_path2 = require("node:path");
 var import_node_url = require("node:url");
 var import_meta = {};
 function resolveVersion() {
   if (true)
-    return "0.6.0";
+    return "0.7.0";
   try {
-    const pkgPath = (0, import_node_path4.join)((0, import_node_path4.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
-    const pkg = JSON.parse((0, import_node_fs.readFileSync)(pkgPath, "utf-8"));
+    const pkgPath = (0, import_node_path2.join)((0, import_node_path2.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
+    const pkg = JSON.parse(getFileContentSync(pkgPath));
     if (typeof pkg.version === "string")
       return pkg.version;
   } catch {
@@ -22929,30 +22845,112 @@ function resolveVersion() {
 }
 var VERSION = resolveVersion();
 
-// ../core/dist/extractors.js
-var MAX_CONTENT_SIZE = 64 * 1024;
+// ../core/dist/clients/url-check.js
+var SERVICE_NAME = "sage";
+function getProviderTld() {
+  return "com";
+}
+function getProviderName() {
+  return "avast";
+}
+function getSubdomain() {
+  return "svc";
+}
+function buildDomain() {
+  return [getSubdomain(), getProviderName(), getProviderTld()].join(".");
+}
+function resolveEndpoint(path) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `https://${SERVICE_NAME}-proxy.${buildDomain()}${normalizedPath}`;
+}
 
 // ../core/dist/trusted-domains.js
 var import_yaml = __toESM(require_dist(), 1);
 
+// ../core/dist/extractors.js
+var MAX_CONTENT_SIZE = 64 * 1024;
+
 // ../core/dist/threat-loader.js
 var import_yaml2 = __toESM(require_dist(), 1);
 
+// ../core/dist/installation-id.js
+var import_node_crypto = require("node:crypto");
+var import_promises = require("node:fs/promises");
+var import_node_path3 = require("node:path");
+async function getInstallationId(sageDirPath) {
+  const sageDir = sageDirPath ?? resolvePath("~/.sage");
+  const idPath = (0, import_node_path3.join)(sageDir, "installation-id");
+  let fileExists = false;
+  try {
+    const existing = await getFileContent(idPath, "utf-8");
+    const trimmed = existing.trim();
+    if (trimmed.length > 0)
+      return trimmed;
+    fileExists = true;
+  } catch {
+  }
+  try {
+    const id = (0, import_node_crypto.randomUUID)();
+    await (0, import_promises.mkdir)(sageDir, { recursive: true, mode: 448 });
+    await (0, import_promises.writeFile)(idPath, id, { encoding: "utf-8", mode: 384, flag: fileExists ? "w" : "wx" });
+    return id;
+  } catch (err) {
+    if (err.code === "EEXIST") {
+      try {
+        const existing = await getFileContent(idPath, "utf-8");
+        return existing.trim() || void 0;
+      } catch {
+        return void 0;
+      }
+    }
+    return void 0;
+  }
+}
+
 // ../core/dist/plugin-scan-cache.js
-var import_node_os3 = require("node:os");
-var import_node_path5 = require("node:path");
-var DEFAULT_CACHE_PATH = (0, import_node_path5.join)((0, import_node_os3.homedir)(), ".sage", "plugin_scan_cache.json");
+var import_node_path4 = require("node:path");
+var DEFAULT_CACHE_PATH = (0, import_node_path4.join)(getHomeDir(), ".sage", "plugin_scan_cache.json");
 
 // ../core/dist/plugin-scanner.js
-var import_node_os4 = require("node:os");
-var import_node_path6 = require("node:path");
-var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path6.join)((0, import_node_os4.homedir)(), ".claude", "plugins", "installed_plugins.json");
+var import_node_path5 = require("node:path");
+var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path5.join)(getHomeDir(), ".claude", "plugins", "installed_plugins.json");
 var MAX_FILE_SIZE = 512 * 1024;
 var STR_ARG = `(?:"((?:[^"\\\\]|\\\\.)*)"|'((?:[^'\\\\]|\\\\.)*)'|\`([^\`]*)\`)`;
 var JS_EXEC_RE = new RegExp(`\\bexec(?:File)?(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
 var JS_SPAWN_RE = new RegExp(`\\bspawn(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
 var JS_EXECA_RE = new RegExp(`\\bexeca\\s*\\(\\s*${STR_ARG}`, "g");
 var JS_BUN_SHELL_RE = new RegExp(`\\bBun\\.shell\\s*\\(\\s*${STR_ARG}`, "g");
+
+// ../core/dist/sage-proxy.js
+function mapSageProxyOs(platform) {
+  switch (platform) {
+    case "win32":
+      return "WINDOWS";
+    case "darwin":
+      return "MACOS";
+    case "linux":
+      return "LINUX";
+    default:
+      return platform;
+  }
+}
+function mapSageProxyArchitecture(arch) {
+  return arch.toUpperCase();
+}
+function buildSageProxyEnvelope(args) {
+  return {
+    identity: { uuid: args.iid },
+    product: { version_app: args.versionApp },
+    platform: {
+      os: args.platformOs ?? mapSageProxyOs(process.platform),
+      architecture: args.platformArchitecture ?? mapSageProxyArchitecture(process.arch)
+    },
+    agent: {
+      agent_runtime: args.agentRuntime,
+      agent_runtime_version: args.agentRuntimeVersion
+    }
+  };
+}
 
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v4/core/core.js
 var NEVER2 = Object.freeze({
@@ -32962,204 +32960,347 @@ var StdioServerTransport = class {
   }
 };
 
-// src/mcp-server.ts
-var import_pino = __toESM(require_pino(), 1);
+// ../mcp/dist/tools/false-positive.js
+var import_node_crypto2 = require("node:crypto");
+var import_node_os2 = require("node:os");
 
-// src/approval-tracker.ts
-var import_promises = require("node:fs/promises");
-var import_node_path7 = require("node:path");
-var PENDING_STALE_MS2 = 60 * 60 * 1e3;
-var CONSUMED_TTL_MS = 10 * 60 * 1e3;
-var STALE_FILE_MS = 2 * 60 * 60 * 1e3;
-function resolvedSageDir2() {
-  return resolvePath(SAGE_DIR);
-}
-async function loadJson(path) {
-  try {
-    const raw = await getFileContent(resolvePath(path));
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-async function saveOrDelete(path, data) {
-  const resolved = resolvePath(path);
-  if (Object.keys(data).length === 0) {
-    try {
-      await (0, import_promises.unlink)(resolved);
-    } catch {
-    }
-  } else {
-    await atomicWriteJson(resolved, data);
-  }
-}
-function pruneExpiredConsumed(store) {
-  const now = Date.now();
-  const result = {};
-  for (const [key, entry] of Object.entries(store)) {
-    if (new Date(entry.expiresAt).getTime() > now) {
-      result[key] = entry;
-    }
-  }
-  return result;
-}
-function consumedKey(artifactType, artifact) {
-  return `${artifactType}:${artifact}`;
-}
-async function listSessionFiles(prefix) {
-  try {
-    const entries = await (0, import_promises.readdir)(resolvedSageDir2());
-    return entries.filter((f) => f.startsWith(prefix) && f.endsWith(".json"));
-  } catch {
-    return [];
-  }
-}
-async function findConsumedApprovalAcrossSessions(artifactType, artifact, _logger = nullLogger) {
-  const files = await listSessionFiles("consumed-approvals-");
-  const key = consumedKey(artifactType, artifact);
-  const dir = resolvedSageDir2();
-  for (const file of files) {
-    try {
-      const path = (0, import_node_path7.join)(dir, file);
-      let store = await loadJson(path) ?? {};
-      store = pruneExpiredConsumed(store);
-      await saveOrDelete(path, store);
-      const entry = store[key];
-      if (entry) return entry;
-    } catch {
-    }
-  }
-  return null;
-}
-async function removeConsumedApprovalAcrossSessions(artifactType, artifact, _logger = nullLogger) {
-  const files = await listSessionFiles("consumed-approvals-");
-  const key = consumedKey(artifactType, artifact);
-  const dir = resolvedSageDir2();
-  for (const file of files) {
-    try {
-      const path = (0, import_node_path7.join)(dir, file);
-      let store = await loadJson(path) ?? {};
-      store = pruneExpiredConsumed(store);
-      if (key in store) {
-        delete store[key];
-        await saveOrDelete(path, store);
-      }
-    } catch {
-    }
-  }
-}
-
-// src/format.ts
-function artifactTypeLabel(type) {
-  if (type === "url") return "URL";
-  if (type === "command") return "command";
-  if (type === "file_path") return "file path";
-  return type;
-}
-
-// src/mcp-server.ts
-var logger = (0, import_pino.default)({ level: "warn" }, import_pino.default.destination(2));
-var server = new McpServer({
-  name: "sage",
-  version: "0.6.0"
-});
-var ARTIFACT_TYPE = external_exports.enum(["url", "command", "file_path"]).describe("Type of artifact: url, command, or file_path");
+// ../mcp/dist/tools/utils.js
 function textResult(text, isError) {
   const result = {
     content: [{ type: "text", text }]
   };
-  if (isError) result.isError = true;
+  if (isError)
+    result.isError = true;
   return result;
 }
-function displayValue(type, value) {
-  if (type === "url") return normalizeUrl(value);
-  if (type === "command") return `command hash ${hashCommand(value).slice(0, 12)}...`;
-  return normalizeFilePath(value);
+
+// ../mcp/dist/tools/false-positive.js
+function asString(v) {
+  return typeof v === "string" ? v : void 0;
 }
-server.registerTool(
-  "sage_allowlist_add",
-  {
-    title: "Sage: Add to Allowlist",
-    description: "Permanently allow a specific URL, command, or file path that was previously flagged by Sage. Requires the user to have recently approved this exact artifact through Sage's security dialog.",
-    inputSchema: external_exports.object({
-      type: ARTIFACT_TYPE,
-      value: external_exports.string().describe("The exact URL, command, or file path to allowlist"),
-      reason: external_exports.string().optional().describe("Why this is being allowlisted")
-    })
-  },
-  async ({ type, value, reason }) => {
-    try {
-      const consumed = await findConsumedApprovalAcrossSessions(type, value, logger);
-      if (!consumed) {
-        return textResult(
-          "Cannot add to allowlist: no recent user approval found for this artifact. The user must first encounter and approve this action through Sage's security dialog, then you can permanently allowlist it.",
-          true
-        );
-      }
-      const config2 = await loadConfig(void 0, logger);
-      const allowlist = await loadAllowlist(config2.allowlist, logger);
-      const entryReason = reason ?? `Approved by user (threat: ${consumed.threatId})`;
-      if (type === "url") {
-        addUrl(allowlist, value, entryReason, "ask");
-      } else if (type === "command") {
-        addCommand(allowlist, value, entryReason, "ask");
-      } else {
-        addFilePath(allowlist, value, entryReason, "ask");
-      }
-      await saveAllowlist(allowlist, config2.allowlist, logger);
-      await removeConsumedApprovalAcrossSessions(type, value, logger);
-      const label = artifactTypeLabel(type);
-      return textResult(
-        `Added ${label} to Sage allowlist: ${displayValue(type, value)}. This ${label} will no longer trigger security alerts.`
-      );
-    } catch (e) {
-      return textResult(`Failed to add to allowlist: ${e}`, true);
-    }
+function asStringArray(v) {
+  if (!Array.isArray(v))
+    return void 0;
+  const out = [];
+  for (const item of v) {
+    if (typeof item === "string")
+      out.push(item);
   }
-);
-server.registerTool(
-  "sage_allowlist_remove",
-  {
-    title: "Sage: Remove from Allowlist",
-    description: "Remove a URL, command, or file path from the Sage allowlist, restoring security checks for it.",
-    inputSchema: external_exports.object({
-      type: ARTIFACT_TYPE,
-      value: external_exports.string().describe(
-        "The URL or file path to remove, or for commands: the command text or its SHA-256 hash"
-      )
-    })
-  },
-  async ({ type, value }) => {
+  return out;
+}
+function scrubHomePath(value) {
+  const home = (0, import_node_os2.homedir)();
+  if (!home)
+    return value;
+  const normalizedHome = home.replace(/\\/g, "/").replace(/\/+$/, "");
+  const normalizedValue = value.replace(/\\/g, "/");
+  if (!normalizedHome)
+    return value;
+  if (normalizedValue === normalizedHome)
+    return "~";
+  if (normalizedValue.startsWith(`${normalizedHome}/`)) {
+    return `~/${normalizedValue.slice(normalizedHome.length + 1)}`;
+  }
+  return value;
+}
+function isRuntimeVerdictEntry(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v))
+    return false;
+  return v.type === "runtime_verdict";
+}
+function getConversationId(entry) {
+  return asString(entry.conversation_id) ?? asString(entry.session_id);
+}
+function getEntryId(entry) {
+  return asString(entry.entry_id);
+}
+function asHookType(value) {
+  const s = asString(value);
+  if (s === "PreToolUse" || s === "PostToolUse" || s === "SessionStart" || s === "GatewayStart" || s === "BeforeAgentStart" || s === "MessagesTransform") {
+    return s;
+  }
+  return void 0;
+}
+async function postMultipart(endpoint, payload, timeoutSeconds) {
+  const timeoutMs = Math.max(1, Math.floor(timeoutSeconds * 1e3));
+  const form = new FormData();
+  form.append("type", "fp");
+  form.append("metadata", JSON.stringify(payload));
+  const res = await fetch(endpoint, {
+    method: "POST",
+    body: form,
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+  const bodyText = await res.text().catch(() => "");
+  return { ok: res.ok, status: res.status, bodyText };
+}
+var ListInputSchema = external_exports.object({
+  conversation_id: external_exports.string().optional().describe("Conversation id to filter audit entries; if omitted, uses the most recent one."),
+  limit: external_exports.number().int().min(1).max(5e3).optional().describe("Max entries to scan and return.")
+});
+var ReportInputSchema = external_exports.object({
+  conversation_id: external_exports.string().optional().describe("Conversation id to filter audit entries; if omitted, uses the most recent one."),
+  description: external_exports.string().min(1).describe("Short description of what is a false positive."),
+  reasoning: external_exports.string().min(1).describe("Reasoning for why this should be treated as a false positive."),
+  agent_runtime_version: external_exports.string().optional().describe("Optional agent runtime version override (Cursor/VS Code/Claude version). If omitted, uses env SAGE_AGENT_RUNTIME_VERSION or 'unknown'."),
+  entry_ids: external_exports.array(external_exports.string()).optional().describe("Optional list of audit entry ids to report."),
+  dry_run: external_exports.boolean().optional().describe("If true, do not POST; just show the payload.")
+});
+function parseAuditSignals(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw))
+    return {};
+  const obj = raw;
+  const heuristicsRaw = obj.heuristics;
+  const urlChecksRaw = obj.url_checks;
+  const fileChecksRaw = obj.file_checks;
+  const packageChecksRaw = obj.package_checks;
+  const heuristics = Array.isArray(heuristicsRaw) ? heuristicsRaw.map((h) => {
+    if (!h || typeof h !== "object" || Array.isArray(h))
+      return null;
+    const rec = h;
+    const rule_id = asString(rec.rule_id);
+    const rule_version = typeof rec.rule_version === "number" ? Math.trunc(rec.rule_version) : void 0;
+    if (!rule_id)
+      return null;
+    return { rule_id, rule_version };
+  }).filter(Boolean) : void 0;
+  const url_checks = Array.isArray(urlChecksRaw) ? urlChecksRaw.map((u) => {
+    if (!u || typeof u !== "object" || Array.isArray(u))
+      return null;
+    const rec = u;
+    const detection_name = asString(rec.detection_name);
+    const url = asString(rec.url);
+    if (!detection_name || !url)
+      return null;
+    return { detection_name, url };
+  }).filter(Boolean) : void 0;
+  const file_checks = Array.isArray(fileChecksRaw) ? fileChecksRaw.map((f) => {
+    if (!f || typeof f !== "object" || Array.isArray(f))
+      return null;
+    const rec = f;
+    const detection_name = asString(rec.detection_name);
+    const file_sha256 = asString(rec.file_sha256);
+    if (!detection_name || !file_sha256)
+      return null;
+    return { detection_name, file_sha256 };
+  }).filter(Boolean) : void 0;
+  const package_checks = Array.isArray(packageChecksRaw) ? packageChecksRaw.map((p) => {
+    if (!p || typeof p !== "object" || Array.isArray(p))
+      return null;
+    const rec = p;
+    const detection_name = asString(rec.detection_name);
+    const package_name = asString(rec.package_name);
+    const package_version = asString(rec.package_version);
+    const package_registry = asString(rec.package_registry);
+    if (!detection_name || !package_name || !package_registry)
+      return null;
+    return { detection_name, package_name, package_version, package_registry };
+  }).filter(Boolean) : void 0;
+  return {
+    heuristics: heuristics && heuristics.length > 0 ? heuristics : void 0,
+    url_checks: url_checks && url_checks.length > 0 ? url_checks : void 0,
+    file_checks: file_checks && file_checks.length > 0 ? file_checks : void 0,
+    package_checks: package_checks && package_checks.length > 0 ? package_checks : void 0
+  };
+}
+function registerFalsePositiveTools(server, opts) {
+  const logger2 = opts.logger;
+  const versionApp = opts.versionApp;
+  server.registerTool("sage_list_audit_entries", {
+    title: "Sage: List Audit Entries",
+    description: "List recent Sage audit log entries, optionally scoped to a conversation id. Useful for selecting entry_ids to report as false positives.",
+    inputSchema: ListInputSchema
+  }, async ({ conversation_id, limit }) => {
     try {
-      const config2 = await loadConfig(void 0, logger);
-      const allowlist = await loadAllowlist(config2.allowlist, logger);
-      let removed;
-      if (type === "url") {
-        removed = removeUrl(allowlist, value);
-      } else if (type === "command") {
-        removed = removeCommand(allowlist, value);
-        if (!removed) {
-          removed = removeCommand(allowlist, hashCommand(value));
+      const config2 = await loadConfig(void 0, logger2);
+      const scanLimit = limit ?? 500;
+      const entries = await getRecentEntries(config2.logging, scanLimit);
+      const runtime = entries.filter(isRuntimeVerdictEntry);
+      const inferredConversationId = conversation_id ?? getConversationId(runtime.slice().reverse().find((e) => !!getConversationId(e)) ?? {});
+      if (!inferredConversationId) {
+        return textResult("No runtime_verdict entries found in the audit log.", true);
+      }
+      const filtered = runtime.filter((e) => getConversationId(e) === inferredConversationId);
+      const out = filtered.map((e) => ({
+        entry_id: getEntryId(e),
+        timestamp: asString(e.timestamp),
+        conversation_id: inferredConversationId,
+        agent_runtime: asString(e.agent_runtime),
+        tool_name: asString(e.tool_name),
+        tool_input_summary: asString(e.tool_input_summary),
+        verdict: asString(e.verdict),
+        severity: asString(e.severity),
+        source: asString(e.source),
+        user_override: e.user_override,
+        signals: parseAuditSignals(e.signals)
+      }));
+      return textResult(JSON.stringify({ conversation_id: inferredConversationId, entries: out }, null, 2));
+    } catch (e) {
+      return textResult(`Failed to read audit log: ${e}`, true);
+    }
+  });
+  server.registerTool("sage_report_false_positive", {
+    title: "Sage: Report False Positive",
+    description: "Report Sage audit log entries as false positives to the backend, scoped to the current conversation.",
+    inputSchema: ReportInputSchema
+  }, async ({ conversation_id, description, reasoning, agent_runtime_version, entry_ids, dry_run }) => {
+    try {
+      const config2 = await loadConfig(void 0, logger2);
+      const endpoint = resolveEndpoint("/v2/fp-report");
+      const timeoutSeconds = Number(process.env.SAGE_FALSE_POSITIVE_TIMEOUT_SECONDS) || 5;
+      const scanLimit = 2e3;
+      const entries = await getRecentEntries(config2.logging, scanLimit);
+      const runtime = entries.filter(isRuntimeVerdictEntry);
+      const inferredConversationId = conversation_id ?? getConversationId(runtime.slice().reverse().find((e) => !!getConversationId(e)) ?? {});
+      if (!inferredConversationId) {
+        return textResult("No runtime_verdict entries found in the audit log.", true);
+      }
+      let filtered = runtime.filter((e) => getConversationId(e) === inferredConversationId);
+      if (entry_ids && entry_ids.length > 0) {
+        const wanted = new Set(entry_ids);
+        filtered = filtered.filter((e) => {
+          const id = getEntryId(e);
+          return id ? wanted.has(id) : false;
+        });
+      }
+      if (filtered.length === 0) {
+        if (entry_ids && entry_ids.length > 0) {
+          return textResult("No matching audit entries found for the provided entry_ids in this conversation. Run sage_list_audit_entries first.", true);
         }
-      } else {
-        removed = removeFilePath(allowlist, value);
+        return textResult("No runtime_verdict entries found for this conversation to report.", true);
       }
-      const label = artifactTypeLabel(type);
-      if (!removed) {
-        return textResult(`${label} not found in the allowlist.`);
+      const iid = await getInstallationId().catch(() => void 0);
+      if (!iid) {
+        return textResult("Failed to retrieve installation id; FP reporting requires a working Sage install.", true);
       }
-      await saveAllowlist(allowlist, config2.allowlist, logger);
-      return textResult(
-        `Removed ${label} from Sage allowlist. Security checks will apply to this ${label} again.`
-      );
+      const runtimeVersion = agent_runtime_version ?? process.env.SAGE_AGENT_RUNTIME_VERSION ?? "unknown";
+      const comment = `${description}
+
+${reasoning}`;
+      const reports = filtered.map((e) => {
+        const entry_id = getEntryId(e);
+        const timestamp = asString(e.timestamp) ?? (/* @__PURE__ */ new Date()).toISOString();
+        const agent_runtime = asString(e.agent_runtime) ?? "unknown";
+        const tool_type = asString(e.tool_name) ?? "Unknown";
+        const verdict = asString(e.verdict) ?? "deny";
+        const user_action = e.user_override === true ? "allowed" : "blocked";
+        const hook_type = asHookType(e.hook_type) ?? "PreToolUse";
+        const artifacts = asStringArray(e.artifacts) ?? [];
+        const signals = parseAuditSignals(e.signals);
+        const urlFromArtifacts = artifacts.find((a) => typeof a === "string" && /^https?:\/\//i.test(a));
+        const commandFromSummary = asString(e.tool_input_summary) ?? "";
+        const content = {};
+        if (tool_type === "Bash") {
+          content.command = scrubHomePath(commandFromSummary);
+        }
+        if (tool_type === "Write" || tool_type === "Edit" || tool_type === "Read" || tool_type === "Delete") {
+          content.file_path = scrubHomePath(commandFromSummary);
+        }
+        if (tool_type === "WebFetch" && urlFromArtifacts) {
+          content.url = urlFromArtifacts;
+        }
+        if (signals.url_checks && signals.url_checks.length === 1) {
+          content.url = signals.url_checks[0]?.url;
+        }
+        if (signals.package_checks && signals.package_checks.length === 1) {
+          const p = signals.package_checks[0];
+          content.package_name = p?.package_name;
+          content.package_version = p?.package_version;
+          content.package_registry = p?.package_registry;
+        }
+        const bestEffortSignals = {};
+        if (signals.heuristics)
+          bestEffortSignals.heuristics = signals.heuristics;
+        if (signals.url_checks)
+          bestEffortSignals.url_checks = signals.url_checks;
+        if (signals.file_checks)
+          bestEffortSignals.file_checks = signals.file_checks;
+        if (signals.package_checks)
+          bestEffortSignals.package_checks = signals.package_checks;
+        const reportPayload = {
+          ...buildSageProxyEnvelope({
+            iid,
+            versionApp,
+            agentRuntime: agent_runtime,
+            agentRuntimeVersion: runtimeVersion
+          }),
+          block_event: {
+            hook_type,
+            tool_type,
+            verdict,
+            user_action,
+            timestamp,
+            ...Object.keys(bestEffortSignals).length > 0 ? { signals: bestEffortSignals } : {},
+            content
+          },
+          comment,
+          event_id: entry_id ?? (0, import_node_crypto2.randomUUID)()
+        };
+        return { entry_id, payload: reportPayload };
+      }).filter((r) => r.payload);
+      if (dry_run) {
+        return textResult(JSON.stringify({ endpoint, reports }, null, 2));
+      }
+      const results = [];
+      for (const report of reports) {
+        const res = await postMultipart(endpoint, report.payload, timeoutSeconds);
+        let report_id;
+        try {
+          const parsed = JSON.parse(res.bodyText);
+          if (typeof parsed.report_id === "string") {
+            report_id = parsed.report_id;
+          }
+        } catch {
+        }
+        results.push({
+          entry_id: report.entry_id,
+          ok: res.ok,
+          status: res.status,
+          bodyText: res.bodyText,
+          report_id
+        });
+      }
+      const failed = results.filter((r) => !r.ok);
+      if (failed.length > 0) {
+        const summary = {
+          reported: results.length,
+          failed: failed.length,
+          failures: failed.slice(0, 5)
+        };
+        return textResult(`Some reports failed to submit. Summary:
+${JSON.stringify(summary, null, 2)}`, true);
+      }
+      return textResult(`Reported ${filtered.length} audit entr${filtered.length === 1 ? "y" : "ies"} for conversation_id=${inferredConversationId}.`);
     } catch (e) {
-      return textResult(`Failed to remove from allowlist: ${e}`, true);
+      return textResult(`Failed to report false positive: ${e}`, true);
     }
-  }
-);
-async function main() {
+  });
+}
+
+// ../mcp/dist/server.js
+function createSageMcpServer(options) {
+  const logger2 = options.logger ?? nullLogger;
+  const server = new McpServer({
+    name: options.name ?? "sage",
+    version: options.version
+  });
+  registerFalsePositiveTools(server, { logger: logger2, versionApp: options.version });
+  return server;
+}
+async function runSageMcpServerStdio(options) {
+  const server = createSageMcpServer(options);
   const transport = new StdioServerTransport();
   await server.connect(transport);
+}
+
+// src/mcp-server.ts
+var import_pino = __toESM(require_pino(), 1);
+var logger = (0, import_pino.default)({ level: "warn" }, import_pino.default.destination(2));
+async function main() {
+  await runSageMcpServerStdio({
+    version: "0.7.0",
+    logger
+  });
 }
 main().catch((e) => {
   logger.error("MCP server failed", { error: String(e) });

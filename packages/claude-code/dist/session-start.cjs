@@ -6870,14 +6870,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs = this.flowScalar(this.type);
+              const fs2 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map.items.push({ start, key: fs, sep: [] });
+                map.items.push({ start, key: fs2, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs);
+                this.stack.push(fs2);
               } else {
-                Object.assign(it, { key: fs, sep: [] });
+                Object.assign(it, { key: fs2, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -7005,13 +7005,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs = this.flowScalar(this.type);
+              const fs2 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs, sep: [] });
+                fc.items.push({ start: [], key: fs2, sep: [] });
               else if (it.sep)
-                this.stack.push(fs);
+                this.stack.push(fs2);
               else
-                Object.assign(it, { key: fs, sep: [] });
+                Object.assign(it, { key: fs2, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -8494,7 +8494,7 @@ var require_atomic_sleep = __commonJS({
 var require_sonic_boom = __commonJS({
   "../../node_modules/.pnpm/sonic-boom@4.2.1/node_modules/sonic-boom/index.js"(exports2, module2) {
     "use strict";
-    var fs = require("fs");
+    var fs2 = require("fs");
     var EventEmitter = require("events");
     var inherits = require("util").inherits;
     var path = require("path");
@@ -8551,20 +8551,20 @@ var require_sonic_boom = __commonJS({
       const mode = sonic.mode;
       if (sonic.sync) {
         try {
-          if (sonic.mkdir) fs.mkdirSync(path.dirname(file), { recursive: true });
-          const fd = fs.openSync(file, flags, mode);
+          if (sonic.mkdir) fs2.mkdirSync(path.dirname(file), { recursive: true });
+          const fd = fs2.openSync(file, flags, mode);
           fileOpened(null, fd);
         } catch (err) {
           fileOpened(err);
           throw err;
         }
       } else if (sonic.mkdir) {
-        fs.mkdir(path.dirname(file), { recursive: true }, (err) => {
+        fs2.mkdir(path.dirname(file), { recursive: true }, (err) => {
           if (err) return fileOpened(err);
-          fs.open(file, flags, mode, fileOpened);
+          fs2.open(file, flags, mode, fileOpened);
         });
       } else {
-        fs.open(file, flags, mode, fileOpened);
+        fs2.open(file, flags, mode, fileOpened);
       }
     }
     function SonicBoom(opts) {
@@ -8605,8 +8605,8 @@ var require_sonic_boom = __commonJS({
         this.flush = flushBuffer;
         this.flushSync = flushBufferSync;
         this._actualWrite = actualWriteBuffer;
-        fsWriteSync = () => fs.writeSync(this.fd, this._writingBuf);
-        fsWrite = () => fs.write(this.fd, this._writingBuf, this.release);
+        fsWriteSync = () => fs2.writeSync(this.fd, this._writingBuf);
+        fsWrite = () => fs2.write(this.fd, this._writingBuf, this.release);
       } else if (contentMode === void 0 || contentMode === kContentModeUtf8) {
         this._writingBuf = "";
         this.write = write;
@@ -8615,15 +8615,15 @@ var require_sonic_boom = __commonJS({
         this._actualWrite = actualWrite;
         fsWriteSync = () => {
           if (Buffer.isBuffer(this._writingBuf)) {
-            return fs.writeSync(this.fd, this._writingBuf);
+            return fs2.writeSync(this.fd, this._writingBuf);
           }
-          return fs.writeSync(this.fd, this._writingBuf, "utf8");
+          return fs2.writeSync(this.fd, this._writingBuf, "utf8");
         };
         fsWrite = () => {
           if (Buffer.isBuffer(this._writingBuf)) {
-            return fs.write(this.fd, this._writingBuf, this.release);
+            return fs2.write(this.fd, this._writingBuf, this.release);
           }
-          return fs.write(this.fd, this._writingBuf, "utf8", this.release);
+          return fs2.write(this.fd, this._writingBuf, "utf8", this.release);
         };
       } else {
         throw new Error(`SonicBoom supports "${kContentModeUtf8}" and "${kContentModeBuffer}", but passed ${contentMode}`);
@@ -8680,7 +8680,7 @@ var require_sonic_boom = __commonJS({
           }
         }
         if (this._fsync) {
-          fs.fsyncSync(this.fd);
+          fs2.fsyncSync(this.fd);
         }
         const len = this._len;
         if (this._reopening) {
@@ -8794,7 +8794,7 @@ var require_sonic_boom = __commonJS({
       const onDrain = () => {
         if (!this._fsync) {
           try {
-            fs.fsync(this.fd, (err) => {
+            fs2.fsync(this.fd, (err) => {
               this._flushPending = false;
               cb(err);
             });
@@ -8896,7 +8896,7 @@ var require_sonic_boom = __commonJS({
       const fd = this.fd;
       this.once("ready", () => {
         if (fd !== this.fd) {
-          fs.close(fd, (err) => {
+          fs2.close(fd, (err) => {
             if (err) {
               return this.emit("error", err);
             }
@@ -8945,7 +8945,7 @@ var require_sonic_boom = __commonJS({
           buf = this._bufs[0];
         }
         try {
-          const n = Buffer.isBuffer(buf) ? fs.writeSync(this.fd, buf) : fs.writeSync(this.fd, buf, "utf8");
+          const n = Buffer.isBuffer(buf) ? fs2.writeSync(this.fd, buf) : fs2.writeSync(this.fd, buf, "utf8");
           const releasedBufObj = releaseWritingBuf(buf, this._len, n);
           buf = releasedBufObj.writingBuf;
           this._len = releasedBufObj.len;
@@ -8961,7 +8961,7 @@ var require_sonic_boom = __commonJS({
         }
       }
       try {
-        fs.fsyncSync(this.fd);
+        fs2.fsyncSync(this.fd);
       } catch {
       }
     }
@@ -8982,7 +8982,7 @@ var require_sonic_boom = __commonJS({
           buf = mergeBuf(this._bufs[0], this._lens[0]);
         }
         try {
-          const n = fs.writeSync(this.fd, buf);
+          const n = fs2.writeSync(this.fd, buf);
           buf = buf.subarray(n);
           this._len = Math.max(this._len - n, 0);
           if (buf.length <= 0) {
@@ -9005,36 +9005,36 @@ var require_sonic_boom = __commonJS({
       actualClose(this);
     };
     function actualWrite() {
-      const release2 = this.release;
+      const release = this.release;
       this._writing = true;
       this._writingBuf = this._writingBuf.length ? this._writingBuf : this._bufs.shift() || "";
       if (this.sync) {
         try {
-          const written = Buffer.isBuffer(this._writingBuf) ? fs.writeSync(this.fd, this._writingBuf) : fs.writeSync(this.fd, this._writingBuf, "utf8");
-          release2(null, written);
+          const written = Buffer.isBuffer(this._writingBuf) ? fs2.writeSync(this.fd, this._writingBuf) : fs2.writeSync(this.fd, this._writingBuf, "utf8");
+          release(null, written);
         } catch (err) {
-          release2(err);
+          release(err);
         }
       } else {
-        fs.write(this.fd, this._writingBuf, release2);
+        fs2.write(this.fd, this._writingBuf, release);
       }
     }
     function actualWriteBuffer() {
-      const release2 = this.release;
+      const release = this.release;
       this._writing = true;
       this._writingBuf = this._writingBuf.length ? this._writingBuf : mergeBuf(this._bufs.shift(), this._lens.shift());
       if (this.sync) {
         try {
-          const written = fs.writeSync(this.fd, this._writingBuf);
-          release2(null, written);
+          const written = fs2.writeSync(this.fd, this._writingBuf);
+          release(null, written);
         } catch (err) {
-          release2(err);
+          release(err);
         }
       } else {
         if (kCopyBuffer) {
           this._writingBuf = Buffer.from(this._writingBuf);
         }
-        fs.write(this.fd, this._writingBuf, release2);
+        fs2.write(this.fd, this._writingBuf, release);
       }
     }
     function actualClose(sonic) {
@@ -9050,12 +9050,12 @@ var require_sonic_boom = __commonJS({
       sonic._lens = [];
       assert(typeof sonic.fd === "number", `sonic.fd must be a number, got ${typeof sonic.fd}`);
       try {
-        fs.fsync(sonic.fd, closeWrapped);
+        fs2.fsync(sonic.fd, closeWrapped);
       } catch {
       }
       function closeWrapped() {
         if (sonic.fd !== 1 && sonic.fd !== 2) {
-          fs.close(sonic.fd, done);
+          fs2.close(sonic.fd, done);
         } else {
           done();
         }
@@ -9312,7 +9312,7 @@ var require_thread_stream = __commonJS({
     var { version } = require_package();
     var { EventEmitter } = require("events");
     var { Worker } = require("worker_threads");
-    var { join: join12 } = require("path");
+    var { join: join13 } = require("path");
     var { pathToFileURL } = require("url");
     var { wait } = require_wait();
     var {
@@ -9348,7 +9348,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join12(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join13(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         trackUnmanagedFds: false,
@@ -9734,7 +9734,7 @@ var require_transport = __commonJS({
     "use strict";
     var { createRequire } = require("module");
     var getCallers = require_caller();
-    var { join: join12, isAbsolute: isAbsolute2, sep: sep2 } = require("node:path");
+    var { join: join13, isAbsolute: isAbsolute2, sep: sep2 } = require("node:path");
     var sleep = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
     var ThreadStream = require_thread_stream();
@@ -9797,7 +9797,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join12(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join13(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -9815,7 +9815,7 @@ var require_transport = __commonJS({
           });
         });
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join12(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join13(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -9837,7 +9837,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join12(__dirname, "..", "file.js");
+          return join13(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -10826,7 +10826,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join12 = ",";
+            let join13 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -10840,7 +10840,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join12 = `,
+                join13 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -10848,13 +10848,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join12;
+                res += join13;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join12}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join13}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -10875,7 +10875,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join12 = `,
+              join13 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -10889,13 +10889,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join12;
+                separator = join13;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join12;
+              separator = join13;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -10936,7 +10936,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join12 = ",";
+            let join13 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -10949,7 +10949,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join12 = `,
+                join13 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -10957,13 +10957,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join12;
+                res += join13;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join12}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join13}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -10976,7 +10976,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join12 = `,
+              join13 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -10985,7 +10985,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join12;
+                separator = join13;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -11043,20 +11043,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join13 = `,
+              const join14 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join13;
+                res2 += join14;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join13}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join14}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -11072,16 +11072,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join12 = `,
+            const join13 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join12, maximumBreadth);
+              res += stringifyTypedArray(value, join13, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join12;
+              separator = join13;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -11092,13 +11092,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join12;
+                separator = join13;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join12;
+              separator = join13;
             }
             if (separator !== "") {
               res = `
@@ -11625,24 +11625,35 @@ var require_pino = __commonJS({
 });
 
 // src/session-start.ts
-var import_node_fs2 = require("node:fs");
-var import_node_path12 = require("node:path");
+var import_node_fs = require("node:fs");
+var import_promises9 = require("node:fs/promises");
+var import_node_path13 = require("node:path");
 
 // ../core/dist/config.js
-var import_node_os = require("node:os");
 var import_node_path2 = require("node:path");
 
 // ../core/dist/file-utils.js
 var import_node_crypto = require("node:crypto");
+var fs = __toESM(require("node:fs"), 1);
 var fsPromises = __toESM(require("node:fs/promises"), 1);
+var import_node_os = require("node:os");
 var import_node_path = require("node:path");
 var name1 = "read";
 var name2 = "File";
 function getFileContent(path, encoding = "utf-8") {
   return fsPromises[name1 + name2](path, encoding);
 }
+function getFileContentSync(path, encoding = "utf-8") {
+  return fs[`${name1 + name2}Sync`](path, encoding);
+}
 function getFileContentRaw(path) {
   return fsPromises[name1 + name2](path);
+}
+function getProcEnv() {
+  return process["env"];
+}
+function getHomeDir() {
+  return getProcEnv().HOME || (0, import_node_os.homedir)();
 }
 async function atomicWriteJson(path, data) {
   await fsPromises.mkdir((0, import_node_path.dirname)(path), { recursive: true });
@@ -15741,6 +15752,7 @@ var SeveritySchema = external_exports.enum(["critical", "high", "medium", "low"]
 var ActionSchema = external_exports.enum(["block", "require_approval", "log"]);
 var ThreatSchema = external_exports.object({
   id: external_exports.string(),
+  version: external_exports.number().int().optional(),
   category: external_exports.string(),
   severity: SeveritySchema,
   confidence: external_exports.number(),
@@ -15789,6 +15801,21 @@ var PackageCheckConfigSchema = external_exports.object({
 var AmsiCheckConfigSchema = external_exports.object({
   enabled: external_exports.boolean().default(true)
 });
+var ExceptionDecisionSchema = external_exports.enum(["allow", "deny"]);
+var ExceptionMatchSchema = external_exports.enum(["executable", "domain", "path", "plugin", "regex"]);
+var ExceptionRuleSchema = external_exports.object({
+  id: external_exports.string().optional(),
+  decision: ExceptionDecisionSchema,
+  match: ExceptionMatchSchema,
+  pattern: external_exports.string(),
+  reason: external_exports.string().optional()
+});
+var ExceptionsFileSchema = external_exports.object({
+  rules: external_exports.array(ExceptionRuleSchema).default([])
+});
+var ExceptionsConfigSchema = external_exports.object({
+  path: external_exports.string().default("~/.sage/exceptions.json")
+});
 var ConfigSchema = external_exports.object({
   url_check: UrlCheckConfigSchema.default({}),
   file_check: FileCheckConfigSchema.default({}),
@@ -15797,10 +15824,19 @@ var ConfigSchema = external_exports.object({
   heuristics_enabled: external_exports.boolean().default(true),
   cache: CacheConfigSchema.default({}),
   allowlist: AllowlistConfigSchema.default({}),
+  exceptions: ExceptionsConfigSchema.default({}),
   logging: LoggingConfigSchema.default({}),
   sensitivity: SensitivitySchema.default("balanced"),
   disabled_threats: external_exports.array(external_exports.string()).default([])
 });
+var HookTypeSchema = external_exports.enum([
+  "PreToolUse",
+  "PostToolUse",
+  "SessionStart",
+  "GatewayStart",
+  "BeforeAgentStart",
+  "MessagesTransform"
+]);
 
 // ../core/dist/config.js
 var SAGE_DIR = "~/.sage";
@@ -15816,12 +15852,16 @@ function defaultCachePath() {
 function defaultAllowlistPath() {
   return (0, import_node_path2.join)(resolvedSageDir(), "allowlist.json");
 }
+function defaultExceptionsPath() {
+  return (0, import_node_path2.join)(resolvedSageDir(), "exceptions.json");
+}
 function defaultAuditPath() {
   return (0, import_node_path2.join)(resolvedSageDir(), "audit.jsonl");
 }
 function resolvePath(pathStr) {
   if (pathStr.startsWith("~/") || pathStr === "~") {
-    return (0, import_node_path2.join)((0, import_node_os.homedir)(), pathStr.slice(1));
+    const home = getHomeDir();
+    return (0, import_node_path2.join)(home, pathStr.slice(1));
   }
   return pathStr;
 }
@@ -15864,6 +15904,7 @@ function normalizeStateFilePath(configuredPath, fallbackPath, field, logger2) {
 function sanitizeConfigPaths(config, logger2) {
   const cachePath = defaultCachePath();
   const allowlistPath = defaultAllowlistPath();
+  const exceptionsPath = defaultExceptionsPath();
   const auditPath = defaultAuditPath();
   return {
     ...config,
@@ -15874,6 +15915,10 @@ function sanitizeConfigPaths(config, logger2) {
     allowlist: {
       ...config.allowlist,
       path: normalizeStateFilePath(config.allowlist.path, allowlistPath, "allowlist", logger2)
+    },
+    exceptions: {
+      ...config.exceptions,
+      path: normalizeStateFilePath(config.exceptions.path, exceptionsPath, "exceptions", logger2)
     },
     logging: {
       ...config.logging,
@@ -16092,16 +16137,15 @@ ${AMSI_CSHARP_TYPE}
 `;
 
 // ../core/dist/version.js
-var import_node_fs = require("node:fs");
 var import_node_path4 = require("node:path");
 var import_node_url = require("node:url");
 var import_meta = {};
 function resolveVersion() {
   if (true)
-    return "0.6.0";
+    return "0.7.0";
   try {
     const pkgPath = (0, import_node_path4.join)((0, import_node_path4.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
-    const pkg = JSON.parse((0, import_node_fs.readFileSync)(pkgPath, "utf-8"));
+    const pkg = JSON.parse(getFileContentSync(pkgPath));
     if (typeof pkg.version === "string")
       return pkg.version;
   } catch {
@@ -16328,9 +16372,13 @@ var UrlCheckClient = class {
       const result = answer.result ?? {};
       const success = result.success ?? {};
       const classification = success.classification ?? {};
+      const detectionInfos = classification["detection-infos"] ?? [];
       const classResult = classification.result ?? {};
       const flags = success.flags ?? [];
       const malicious = classResult.malicious;
+      const detections = detectionInfos.filter((info) => typeof info.name === "string").map((info) => {
+        return info.name;
+      });
       const findings = malicious ? (malicious.findings ?? []).map((f) => ({
         severityName: f["severity-name"] ?? "unknown",
         typeName: f["type-name"] ?? "unknown"
@@ -16338,6 +16386,7 @@ var UrlCheckClient = class {
       return {
         url,
         isMalicious: Boolean(malicious),
+        detections,
         findings,
         flags
       };
@@ -16348,22 +16397,8 @@ var UrlCheckClient = class {
   }
 };
 
-// ../core/dist/extractors.js
-var URL_PATTERN = /https?:\/\/[^\s"')<>[\]{}]+/g;
-var TRAILING_PUNCT = /[.,;:!?]+$/;
-var MAX_CONTENT_SIZE = 64 * 1024;
-function extractUrls(text) {
-  const seen = /* @__PURE__ */ new Set();
-  const urls = [];
-  for (const match of text.matchAll(URL_PATTERN)) {
-    const url = match[0].replace(TRAILING_PUNCT, "");
-    if (!seen.has(url)) {
-      seen.add(url);
-      urls.push(url);
-    }
-  }
-  return urls;
-}
+// ../core/dist/exceptions.js
+var import_node_crypto2 = require("node:crypto");
 
 // ../core/dist/trusted-domains.js
 var import_promises2 = require("node:fs/promises");
@@ -16439,6 +16474,164 @@ function isTrustedDomain(domain, trusted) {
   return false;
 }
 
+// ../core/dist/exceptions.js
+var MAX_RULES_WARNING = 100;
+function computeRuleId(decision, match, pattern) {
+  const hash = (0, import_node_crypto2.createHash)("sha256").update(`${decision}:${match}:${pattern}`).digest("hex");
+  return hash.slice(0, 8);
+}
+async function loadExceptions(config, logger2 = nullLogger) {
+  const path = resolvePath(config.path);
+  let raw;
+  try {
+    raw = await getFileContent(path);
+  } catch {
+    return [];
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (e) {
+    logger2.warn(`Failed to parse exceptions from ${path}`, { error: String(e) });
+    return [];
+  }
+  let parsed;
+  try {
+    parsed = ExceptionsFileSchema.parse(data);
+  } catch (e) {
+    logger2.warn(`Exceptions validation failed for ${path}`, { error: String(e) });
+    return [];
+  }
+  if (parsed.rules.length > MAX_RULES_WARNING) {
+    logger2.warn(`Exceptions file has ${parsed.rules.length} rules (>${MAX_RULES_WARNING})`, {
+      path
+    });
+  }
+  const seen = /* @__PURE__ */ new Map();
+  let needsWrite = false;
+  for (const rule of parsed.rules) {
+    const expectedId = computeRuleId(rule.decision, rule.match, rule.pattern);
+    if (rule.id !== expectedId) {
+      needsWrite = true;
+    }
+    if (seen.has(expectedId)) {
+      needsWrite = true;
+      continue;
+    }
+    const normalized = {
+      id: expectedId,
+      decision: rule.decision,
+      match: rule.match,
+      pattern: rule.pattern,
+      ...rule.reason !== void 0 ? { reason: rule.reason } : {}
+    };
+    seen.set(expectedId, normalized);
+  }
+  const rules = [...seen.values()];
+  if (needsWrite) {
+    try {
+      await atomicWriteJson(path, {
+        rules: rules.map((r) => ({
+          id: r.id,
+          decision: r.decision,
+          match: r.match,
+          pattern: r.pattern,
+          ...r.reason !== void 0 ? { reason: r.reason } : {}
+        }))
+      });
+    } catch (e) {
+      logger2.warn(`Failed to write normalized exceptions to ${path}`, { error: String(e) });
+    }
+  }
+  for (const rule of rules) {
+    if (rule.match === "regex") {
+      try {
+        new RegExp(rule.pattern);
+      } catch (e) {
+        logger2.warn(`Invalid regex in exception rule ${rule.id}: ${rule.pattern}`, {
+          error: String(e)
+        });
+      }
+    }
+  }
+  return rules;
+}
+function matchesPlugin(pattern, pluginKey) {
+  const hasWildcard = pattern.includes("*");
+  if (hasWildcard) {
+    return globMatch(pattern, pluginKey);
+  }
+  if (pluginKey === pattern)
+    return true;
+  if (pluginKey.startsWith(pattern) && pluginKey[pattern.length] === "@")
+    return true;
+  return false;
+}
+function globMatch(pattern, value) {
+  const normPattern = pattern.replace(/\\/g, "/");
+  const normValue = value.replace(/\\/g, "/");
+  const regexStr = globToRegex(normPattern);
+  try {
+    const re = new RegExp(`^${regexStr}$`);
+    return re.test(normValue);
+  } catch {
+    return false;
+  }
+}
+function globToRegex(pattern) {
+  let result = "";
+  let i = 0;
+  while (i < pattern.length) {
+    const ch = pattern[i];
+    if (ch === void 0)
+      break;
+    if (ch === "*" && pattern[i + 1] === "*") {
+      result += ".*";
+      i += 2;
+      if (i < pattern.length && pattern[i] === "/")
+        i++;
+    } else if (ch === "*") {
+      result += "[^/]*";
+      i++;
+    } else if (ch === "?") {
+      result += "[^/]";
+      i++;
+    } else {
+      result += escapeRegex(ch);
+      i++;
+    }
+  }
+  return result;
+}
+function escapeRegex(char) {
+  return char.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function findPluginDenyException(rules, pluginKey) {
+  const found = rules.find((r) => r.decision === "deny" && r.match === "plugin" && matchesPlugin(r.pattern, pluginKey));
+  return found ?? null;
+}
+function findPluginAllowException(rules, pluginKey) {
+  const found = rules.find((r) => r.decision === "allow" && r.match === "plugin" && matchesPlugin(r.pattern, pluginKey));
+  return found ?? null;
+}
+
+// ../core/dist/extractors.js
+var URL_PATTERN = /https?:\/\/[^\s"')<>[\]{}]+/g;
+var TRAILING_PUNCT = /[.,;:!?]+$/;
+var MAX_CONTENT_SIZE = 64 * 1024;
+function extractUrls(text) {
+  const seen = /* @__PURE__ */ new Set();
+  const urls = [];
+  for (const match of text.matchAll(URL_PATTERN)) {
+    const url = match[0].replace(TRAILING_PUNCT, "");
+    if (!seen.has(url)) {
+      seen.add(url);
+      urls.push(url);
+    }
+  }
+  return urls;
+}
+
 // ../core/dist/heuristics.js
 var TRUSTED_DOMAIN_SUPPRESSIBLE = /* @__PURE__ */ new Set([
   "CLT-CMD-001",
@@ -16502,9 +16695,58 @@ var HeuristicsEngine = class {
   }
 };
 
+// ../core/dist/statusline.js
+var fsPromises2 = __toESM(require("node:fs/promises"), 1);
+var import_node_path6 = require("node:path");
+var STATUS_PREFIX = "statusline-";
+var STATUS_SUFFIX = ".txt";
+function sanitizeSessionId(sessionId) {
+  return sessionId.replace(/[^a-zA-Z0-9-]/g, "_");
+}
+function statusFilePath(sessionId) {
+  return (0, import_node_path6.join)(resolvePath(SAGE_DIR), `${STATUS_PREFIX}${sanitizeSessionId(sessionId)}${STATUS_SUFFIX}`);
+}
+function emptyStatus() {
+  return {
+    denied: 0,
+    flagged: 0,
+    lastCategory: null,
+    lastReason: null,
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+async function initSessionStatus(sessionId) {
+  const path = statusFilePath(sessionId);
+  try {
+    await fsPromises2.access(path);
+  } catch {
+    await atomicWriteJson(path, emptyStatus());
+  }
+}
+async function pruneSessionStatusFiles(maxAgeMs = 24 * 60 * 60 * 1e3) {
+  const dir = resolvePath(SAGE_DIR);
+  try {
+    const entries = await fsPromises2.readdir(dir);
+    const now = Date.now();
+    for (const entry of entries) {
+      if (!entry.startsWith(STATUS_PREFIX) || !entry.endsWith(STATUS_SUFFIX))
+        continue;
+      try {
+        const fullPath = (0, import_node_path6.join)(dir, entry);
+        const s = await fsPromises2.stat(fullPath);
+        if (now - s.mtimeMs > maxAgeMs) {
+          await fsPromises2.unlink(fullPath);
+        }
+      } catch {
+      }
+    }
+  } catch {
+  }
+}
+
 // ../core/dist/threat-loader.js
 var import_promises3 = require("node:fs/promises");
-var import_node_path6 = require("node:path");
+var import_node_path7 = require("node:path");
 var import_yaml2 = __toESM(require_dist(), 1);
 var REQUIRED_FIELDS = /* @__PURE__ */ new Set([
   "id",
@@ -16542,7 +16784,7 @@ async function loadThreats(threatDir, logger2 = nullLogger) {
     return threats;
   }
   for (const filename of files) {
-    const filePath = (0, import_node_path6.join)(threatDir, filename);
+    const filePath = (0, import_node_path7.join)(threatDir, filename);
     let content;
     try {
       content = await getFileContent(filePath);
@@ -16591,6 +16833,7 @@ async function loadThreats(threatDir, logger2 = nullLogger) {
       const matchOn = new Set(Array.isArray(rawMatchOn) ? rawMatchOn : [rawMatchOn]);
       threats.push({
         id: record.id,
+        version: typeof record.version === "number" ? record.version : void 0,
         category: record.category,
         severity: record.severity,
         confidence: Number(record.confidence),
@@ -16683,12 +16926,12 @@ function formatMigrationNotice() {
 }
 
 // ../core/dist/installation-id.js
-var import_node_crypto2 = require("node:crypto");
+var import_node_crypto3 = require("node:crypto");
 var import_promises4 = require("node:fs/promises");
-var import_node_path7 = require("node:path");
+var import_node_path8 = require("node:path");
 async function getInstallationId(sageDirPath) {
   const sageDir = sageDirPath ?? resolvePath("~/.sage");
-  const idPath = (0, import_node_path7.join)(sageDir, "installation-id");
+  const idPath = (0, import_node_path8.join)(sageDir, "installation-id");
   let fileExists = false;
   try {
     const existing = await getFileContent(idPath, "utf-8");
@@ -16699,7 +16942,7 @@ async function getInstallationId(sageDirPath) {
   } catch {
   }
   try {
-    const id = (0, import_node_crypto2.randomUUID)();
+    const id = (0, import_node_crypto3.randomUUID)();
     await (0, import_promises4.mkdir)(sageDir, { recursive: true, mode: 448 });
     await (0, import_promises4.writeFile)(idPath, id, { encoding: "utf-8", mode: 384, flag: fileExists ? "w" : "wx" });
     return id;
@@ -16718,15 +16961,15 @@ async function getInstallationId(sageDirPath) {
 
 // ../core/dist/marketplace-migration.js
 var import_promises5 = require("node:fs/promises");
-var import_node_path8 = require("node:path");
+var import_node_path9 = require("node:path");
 async function needsMarketplaceMigration(marketplacesPath) {
   try {
-    const filePath = marketplacesPath ?? (0, import_node_path8.join)(resolvePath("~/.claude"), "plugins", "known_marketplaces.json");
+    const filePath = marketplacesPath ?? (0, import_node_path9.join)(resolvePath("~/.claude"), "plugins", "known_marketplaces.json");
     const raw = await (0, import_promises5.readFile)(filePath, "utf-8");
     const data = JSON.parse(raw);
-    if (!Array.isArray(data))
+    if (typeof data !== "object" || data === null || Array.isArray(data))
       return false;
-    return data.some((entry) => {
+    return Object.values(data).some((entry) => {
       if (typeof entry !== "object" || entry === null)
         return false;
       const rec = entry;
@@ -16742,17 +16985,16 @@ async function needsMarketplaceMigration(marketplacesPath) {
 }
 
 // ../core/dist/plugin-scan-cache.js
-var import_node_crypto3 = require("node:crypto");
+var import_node_crypto4 = require("node:crypto");
 var import_promises6 = require("node:fs/promises");
-var import_node_os2 = require("node:os");
-var import_node_path9 = require("node:path");
-var DEFAULT_CACHE_PATH = (0, import_node_path9.join)((0, import_node_os2.homedir)(), ".sage", "plugin_scan_cache.json");
+var import_node_path10 = require("node:path");
+var DEFAULT_CACHE_PATH = (0, import_node_path10.join)(getHomeDir(), ".sage", "plugin_scan_cache.json");
 var CACHE_TTL_DAYS = 7;
 function cacheKey(pluginKey, version, lastUpdated) {
   return `${pluginKey}:${version}:${lastUpdated}`;
 }
 async function computeConfigHash(sageVersion, ...dirs) {
-  const h = (0, import_node_crypto3.createHash)("sha256");
+  const h = (0, import_node_crypto4.createHash)("sha256");
   if (sageVersion)
     h.update(sageVersion);
   for (const dir of dirs) {
@@ -16764,7 +17006,7 @@ async function computeConfigHash(sageVersion, ...dirs) {
     }
     for (const file of files) {
       try {
-        const content = await getFileContent((0, import_node_path9.join)(dir, file));
+        const content = await getFileContent((0, import_node_path10.join)(dir, file));
         h.update(content);
       } catch {
       }
@@ -16854,11 +17096,10 @@ function storeResult(cache, pluginKey, version, lastUpdated, findings) {
 }
 
 // ../core/dist/plugin-scanner.js
-var import_node_crypto4 = require("node:crypto");
+var import_node_crypto5 = require("node:crypto");
 var import_promises7 = require("node:fs/promises");
-var import_node_os3 = require("node:os");
-var import_node_path10 = require("node:path");
-var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path10.join)((0, import_node_os3.homedir)(), ".claude", "plugins", "installed_plugins.json");
+var import_node_path11 = require("node:path");
+var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path11.join)(getHomeDir(), ".claude", "plugins", "installed_plugins.json");
 var SCANNABLE_EXTENSIONS = /* @__PURE__ */ new Set([
   ".py",
   ".js",
@@ -16920,7 +17161,7 @@ async function walkPluginFiles(installPath, logger2) {
       return;
     }
     if (stats.isFile()) {
-      if (SCANNABLE_EXTENSIONS.has((0, import_node_path10.extname)(dirOrFile).toLowerCase()) && stats.size <= MAX_FILE_SIZE) {
+      if (SCANNABLE_EXTENSIONS.has((0, import_node_path11.extname)(dirOrFile).toLowerCase()) && stats.size <= MAX_FILE_SIZE) {
         files.push(dirOrFile);
       }
       return;
@@ -16935,7 +17176,7 @@ async function walkPluginFiles(installPath, logger2) {
       for (const entry of entries) {
         if (SKIP_DIRS.has(entry))
           continue;
-        const fullPath = (0, import_node_path10.join)(dirOrFile, entry);
+        const fullPath = (0, import_node_path11.join)(dirOrFile, entry);
         await walk(fullPath);
       }
     }
@@ -17037,7 +17278,7 @@ function extractArtifactsFromFile(filePath, content) {
       continue;
     artifacts.push({ type: "url", value: url, context: `plugin_file:${fileName}` });
   }
-  const ext = (0, import_node_path10.extname)(filePath).toLowerCase();
+  const ext = (0, import_node_path11.extname)(filePath).toLowerCase();
   if ([".sh", ".bash", ".zsh", ".py"].includes(ext)) {
     for (const line of content.split("\n")) {
       const trimmed = line.trim();
@@ -17085,7 +17326,7 @@ async function scanPlugin(plugin, threats, options = {}) {
           confidence: match.threat.confidence,
           action: match.threat.action,
           artifact: match.artifact.slice(0, 200),
-          sourceFile: (0, import_node_path10.relative)(plugin.installPath, filePath)
+          sourceFile: (0, import_node_path11.relative)(plugin.installPath, filePath)
         });
       }
     }
@@ -17093,7 +17334,7 @@ async function scanPlugin(plugin, threats, options = {}) {
       allUrls.push(...extractUrls(content));
     }
     if (checkFileHashes) {
-      const sha256 = (0, import_node_crypto4.createHash)("sha256").update(rawBytes).digest("hex");
+      const sha256 = (0, import_node_crypto5.createHash)("sha256").update(rawBytes).digest("hex");
       const existing = hashToFiles.get(sha256);
       if (existing) {
         existing.push(filePath);
@@ -17140,7 +17381,7 @@ async function scanPlugin(plugin, threats, options = {}) {
               confidence: 1,
               action: "block",
               artifact: fr.sha256,
-              sourceFile: (0, import_node_path10.relative)(plugin.installPath, filePath)
+              sourceFile: (0, import_node_path11.relative)(plugin.installPath, filePath)
             });
           }
         }
@@ -17150,6 +17391,37 @@ async function scanPlugin(plugin, threats, options = {}) {
   })() : Promise.resolve();
   await Promise.all([urlCheckPromise, fileCheckPromise]);
   return result;
+}
+
+// ../core/dist/sage-proxy.js
+function mapSageProxyOs(platform) {
+  switch (platform) {
+    case "win32":
+      return "WINDOWS";
+    case "darwin":
+      return "MACOS";
+    case "linux":
+      return "LINUX";
+    default:
+      return platform;
+  }
+}
+function mapSageProxyArchitecture(arch) {
+  return arch.toUpperCase();
+}
+function buildSageProxyEnvelope(args) {
+  return {
+    identity: { uuid: args.iid },
+    product: { version_app: args.versionApp },
+    platform: {
+      os: args.platformOs ?? mapSageProxyOs(process.platform),
+      architecture: args.platformArchitecture ?? mapSageProxyArchitecture(process.arch)
+    },
+    agent: {
+      agent_runtime: args.agentRuntime,
+      agent_runtime_version: args.agentRuntimeVersion
+    }
+  };
 }
 
 // ../core/dist/session-start-scan.js
@@ -17190,11 +17462,39 @@ async function runSessionStartScan(context) {
   if (plugins.length === 0) {
     return [];
   }
+  let exceptions = [];
+  try {
+    const sageConfig = await loadConfig(context.configPath, logger2);
+    exceptions = await loadExceptions(sageConfig.exceptions, logger2);
+  } catch {
+  }
   const configHash = await computeConfigHash(context.sageVersion ?? "", context.threatsDir, context.allowlistsDir);
   const cache = await loadScanCache(configHash, context.scanCachePath, logger2);
   const resultsWithFindings = [];
   let cacheModified = false;
   for (const plugin of plugins) {
+    const denyMatch = findPluginDenyException(exceptions, plugin.key);
+    if (denyMatch) {
+      resultsWithFindings.push({
+        plugin,
+        findings: [
+          {
+            threatId: "EXCEPTION-DENY",
+            title: `Denied by exception: ${denyMatch.pattern}${denyMatch.reason ? ` \u2014 ${denyMatch.reason}` : ""}`,
+            severity: "critical",
+            confidence: 1,
+            action: "block",
+            artifact: plugin.key,
+            sourceFile: "~/.sage/exceptions.json"
+          }
+        ]
+      });
+      continue;
+    }
+    const allowMatch = findPluginAllowException(exceptions, plugin.key);
+    if (allowMatch) {
+      continue;
+    }
     const cached = getCached(cache, plugin.key, plugin.version, plugin.lastUpdated);
     if (cached && cached.findings.length === 0) {
       continue;
@@ -17232,7 +17532,6 @@ async function runSessionStartScan(context) {
 }
 
 // ../core/dist/version-check.js
-var import_node_os4 = require("node:os");
 var DEFAULT_TIMEOUT_MS = 5e3;
 function isNewerVersion(current, latest) {
   const parse = (v) => v.replace(/^v/, "").split(".").map((n) => Number.parseInt(n, 10) || 0);
@@ -17254,22 +17553,23 @@ async function checkForUpdate(currentVersion, logger2 = nullLogger, timeoutMs = 
     return null;
   }
   try {
-    const response = await fetch(resolveEndpoint("/v1/version-check"), {
+    if (!context.iid) {
+      logger2.debug("Skipping version check: missing installation id");
+      return null;
+    }
+    const response = await fetch(resolveEndpoint("/v2/version-check"), {
       method: "POST",
       signal: AbortSignal.timeout(timeoutMs),
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        sage_version: currentVersion,
-        agent_runtime: context?.agentRuntime,
-        agent_runtime_version: context?.agentRuntimeVersion,
-        os: process.platform,
-        os_version: (0, import_node_os4.release)(),
-        arch: process.arch,
-        iid: context?.iid
-      })
+      body: JSON.stringify(buildSageProxyEnvelope({
+        iid: context.iid,
+        versionApp: currentVersion,
+        agentRuntime: context.agentRuntime,
+        agentRuntimeVersion: context.agentRuntimeVersion ?? "unknown"
+      }))
     });
     if (!response.ok) {
       logger2.debug(`Version check HTTP ${response.status}`);
@@ -17311,11 +17611,16 @@ async function runSessionStart(ctx) {
       checkUrls: ctx.checkUrls,
       checkFileHashes: ctx.checkFileHashes
     }),
-    iidPromise.then((iid) => checkForUpdate(ctx.version, logger2, void 0, {
-      agentRuntime: ctx.agentRuntime,
-      agentRuntimeVersion: ctx.agentRuntimeVersion,
-      iid
-    })).catch(() => null)
+    iidPromise.then((iid) => {
+      if (!iid) {
+        return null;
+      }
+      return checkForUpdate(ctx.version, logger2, void 0, {
+        agentRuntime: ctx.agentRuntime,
+        agentRuntimeVersion: ctx.agentRuntimeVersion,
+        iid
+      });
+    }).catch(() => null)
   ]);
   return { scanResults, versionCheck };
 }
@@ -17343,7 +17648,7 @@ var import_pino = __toESM(require_pino(), 1);
 
 // src/approval-tracker.ts
 var import_promises8 = require("node:fs/promises");
-var import_node_path11 = require("node:path");
+var import_node_path12 = require("node:path");
 var PENDING_STALE_MS2 = 60 * 60 * 1e3;
 var CONSUMED_TTL_MS = 10 * 60 * 1e3;
 var STALE_FILE_MS = 2 * 60 * 60 * 1e3;
@@ -17399,10 +17704,10 @@ async function pruneStaleSessionFiles(logger2 = nullLogger) {
         continue;
       }
       try {
-        const fullPath = (0, import_node_path11.join)(dir, file);
+        const fullPath = (0, import_node_path12.join)(dir, file);
         const info = await (0, import_promises8.stat)(fullPath);
         if (now - info.mtimeMs < STALE_FILE_MS) continue;
-        const path = (0, import_node_path11.join)(dir, file);
+        const path = (0, import_node_path12.join)(dir, file);
         if (file.startsWith("pending-approvals-")) {
           let store = await loadJson(path) ?? {};
           store = pruneStalePending(store);
@@ -17423,11 +17728,11 @@ async function pruneStaleSessionFiles(logger2 = nullLogger) {
 // src/session-start.ts
 var logger = (0, import_pino.default)({ level: "warn" }, import_pino.default.destination(2));
 function getPluginRoot() {
-  return (0, import_node_path12.resolve)(__dirname, "..", "..", "..");
+  return (0, import_node_path13.resolve)(__dirname, "..", "..", "..");
 }
 function getPluginManifest(pluginRoot) {
   try {
-    const manifest = (0, import_node_fs2.readFileSync)((0, import_node_path12.join)(pluginRoot, ".claude-plugin", "plugin.json"), "utf-8");
+    const manifest = (0, import_node_fs.readFileSync)((0, import_node_path13.join)(pluginRoot, ".claude-plugin", "plugin.json"), "utf-8");
     const parsed = JSON.parse(manifest);
     return {
       name: parsed.name ?? null,
@@ -17437,12 +17742,74 @@ function getPluginManifest(pluginRoot) {
     return { name: null, version: "0.0.0" };
   }
 }
+var STATUSLINE_MARKER = "sage-statusline.cjs";
+function getSessionId() {
+  try {
+    const input = (0, import_node_fs.readFileSync)(0, "utf-8");
+    const parsed = JSON.parse(input);
+    return parsed.session_id ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+async function readSettingsJson(path) {
+  let raw;
+  try {
+    raw = await (0, import_promises9.readFile)(path, "utf8");
+  } catch {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed;
+    }
+  } catch {
+  }
+  return null;
+}
+async function configureStatusLine(pluginRoot) {
+  const home = process.env.HOME ?? "";
+  if (!home) return null;
+  const settingsPath = (0, import_node_path13.join)(home, ".claude", "settings.json");
+  const settings = await readSettingsJson(settingsPath);
+  if (settings === null) {
+    return `Sage: ${settingsPath} appears corrupt \u2014 skipping status line auto-configuration.`;
+  }
+  const statuslineCjs = (0, import_node_path13.join)(pluginRoot, "packages", "claude-code", "dist", "sage-statusline.cjs");
+  const command = `node "${statuslineCjs}"`;
+  const existing = settings.statusLine;
+  const existingCommand = existing && typeof existing.command === "string" ? existing.command : null;
+  if (existingCommand?.includes(STATUSLINE_MARKER)) {
+    if (existingCommand !== command) {
+      settings.statusLine = { type: "command", command };
+      await atomicWriteJson(settingsPath, settings);
+    }
+    return null;
+  }
+  if (existingCommand) {
+    return `Sage status line: You already have a custom status line. To add Sage status, include \`node "${statuslineCjs}"\` in your script or pipe its output alongside yours.`;
+  }
+  settings.statusLine = { type: "command", command };
+  await atomicWriteJson(settingsPath, settings);
+  return null;
+}
 async function main() {
+  const sessionId = getSessionId();
   await pruneStaleSessionFiles(logger);
+  pruneSessionStatusFiles().catch(() => {
+  });
+  initSessionStatus(sessionId).catch(() => {
+  });
   const pluginRoot = getPluginRoot();
-  const threatsDir = (0, import_node_path12.join)(pluginRoot, "threats");
-  const allowlistsDir = (0, import_node_path12.join)(pluginRoot, "allowlists");
+  const threatsDir = (0, import_node_path13.join)(pluginRoot, "threats");
+  const allowlistsDir = (0, import_node_path13.join)(pluginRoot, "allowlists");
   const manifest = getPluginManifest(pluginRoot);
+  let statusLineHint = null;
+  try {
+    statusLineHint = await configureStatusLine(pluginRoot);
+  } catch {
+  }
   let plugins = await discoverPlugins(void 0, logger);
   if (manifest.name) {
     const prefix = `${manifest.name}@`;
@@ -17458,8 +17825,12 @@ async function main() {
     "claude-code"
   );
   const migrationNeeded = await needsMarketplaceMigration();
-  const finalMsg = migrationNeeded ? `${statusMsg}
+  let finalMsg = migrationNeeded ? `${statusMsg}
 ${formatMigrationNotice()}` : statusMsg;
+  if (statusLineHint) {
+    finalMsg = `${finalMsg}
+${statusLineHint}`;
+  }
   process.stdout.write(`${JSON.stringify({ systemMessage: finalMsg })}
 `);
 }

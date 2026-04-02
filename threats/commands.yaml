@@ -111,7 +111,7 @@
   severity: critical
   confidence: 0.90
   action: block
-  pattern: "(curl|wget)\\s[^&]*&&\\s*chmod\\s+\\+x"
+  pattern: "(curl|wget)\\s[\\s\\S]*?(&&|;)\\s*chmod\\s+\\+x"
   match_on: command
   title: "Download and execute chain"
   expires_at: null

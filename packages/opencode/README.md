@@ -49,11 +49,6 @@ sage_approve({ actionId: "...", approved: true })
 
 4. Retry the original tool call
 
-Sage also provides:
-
-- `sage_allowlist_add` to permanently allow a URL/command/file path (requires recent approval)
-- `sage_allowlist_remove` to remove an allowlisted entry
-
 ## Session Startup Scanning
 
 Sage automatically scans all installed OpenCode plugins when a new session starts.
@@ -66,8 +61,7 @@ Sage automatically scans all installed OpenCode plugins when a new session start
 
 ### When Scanning Runs
 
-- **Trigger**: Once per session on `session.created` event
-- **Not on**: `session.updated` (to avoid repeated scans)
+- **Trigger**: Once per session on `session.updated` event (deduplicated by session ID)
 - **Performance**: Results are cached for fast subsequent sessions
 
 ### How Findings Are Shown

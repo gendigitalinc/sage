@@ -1,5 +1,21 @@
 # @gendigital/sage-opencode
 
+## 0.7.0
+
+### Minor Changes
+
+- Add per-session detection notifications: statusline file tracking in core, auto-configured Claude Code status line, IDE notifications in Cursor/VS Code extension, and TUI toasts in OpenCode. Fix OpenClaw E2E model default to match gateway API change.
+
+### Patch Changes
+
+- Switch E2E tests from dangerous-looking prompts to dummy canary rules that match benign marker strings, eliminating flaky model refusals.
+- Updated dependencies [6e5d727]
+- Updated dependencies [dd59f18]
+- Updated dependencies [a3d7167]
+- Updated dependencies [693ac93]
+- Updated dependencies [069166d]
+  - @gendigital/sage-core@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes

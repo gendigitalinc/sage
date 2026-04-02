@@ -31,7 +31,7 @@ function appendVerdictDetails(lines: string[], verdict: Verdict): void {
 
 /**
  * Format block/ask reason for PreToolUse verdicts.
- * For deny: details-only block (branding goes in permissionDecisionReason, this goes in systemMessage).
+ * For deny: details-only block (this goes in systemMessage; permissionDecisionReason is plain "Blocked by Sage").
  * For ask: full branded banner with separator (shown once in confirmation dialog).
  */
 export function formatBlockReason(verdict: Verdict): string {
@@ -40,7 +40,8 @@ export function formatBlockReason(verdict: Verdict): string {
 	const reasonText = verdict.reasons.length > 0 ? verdict.reasons[0] : verdict.category;
 
 	if (isDeny) {
-		const lines: string[] = [" "];
+		const header = `🛡️ Sage by Gen Digital: Threat Blocked`;
+		const lines: string[] = [header, separatorLine(SEPARATOR_WIDTH)];
 		lines.push(`${emoji} ${"Threat".padEnd(PAD)}${reasonText}`);
 		appendVerdictDetails(lines, verdict);
 		lines.push(kv("Action", "Blocked"));

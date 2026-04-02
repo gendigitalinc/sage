@@ -17,6 +17,7 @@ import {
 	nullLogger,
 	resolvePath,
 	SAGE_DIR,
+	sanitizeSessionId,
 } from "@gendigital/sage-core";
 
 const PENDING_STALE_MS = 60 * 60 * 1000; // 1 hour
@@ -46,10 +47,6 @@ export interface ConsumedApproval {
 
 type PendingStore = Record<string, PendingApproval>;
 type ConsumedStore = Record<string, ConsumedApproval>;
-
-function sanitizeSessionId(sessionId: string): string {
-	return sessionId.replace(/[^a-zA-Z0-9-]/g, "_");
-}
 
 function resolvedSageDir(): string {
 	return resolvePath(SAGE_DIR);

@@ -3,11 +3,12 @@
  * Appends JSON Lines entries to ~/.sage/audit.jsonl for forensics and debugging.
  */
 
+import { randomUUID } from "node:crypto";
 import { appendFile, mkdir, rename, stat, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
 import { resolvePath } from "./config.js";
 import { getFileContent } from "./file-utils.js";
-import type { LoggingConfig, Verdict } from "./types.js";
+import type { AgentRuntime, AuditSignals, HookType, LoggingConfig, Verdict } from "./types.js";
 
 const MAX_SUMMARY_LEN = 200;
 
@@ -79,6 +80,10 @@ export async function logVerdict(
 	toolInput: Record<string, unknown>,
 	verdict: Verdict,
 	userOverride = false,
+	conversationId?: string,
+	agentRuntime?: AgentRuntime,
+	hookType?: HookType,
+	signals?: AuditSignals,
 ): Promise<void> {
 	if (!config.enabled) return;
 
@@ -87,8 +92,12 @@ export async function logVerdict(
 
 	const entry = {
 		type: "runtime_verdict",
+		entry_id: randomUUID(),
 		timestamp: new Date().toISOString(),
 		session_id: sessionId,
+		conversation_id: conversationId ?? sessionId,
+		agent_runtime: agentRuntime,
+		hook_type: hookType,
 		tool_name: toolName,
 		tool_input_summary: toolInputSummary(toolName, toolInput),
 		artifacts: verdict.artifacts,
@@ -97,6 +106,7 @@ export async function logVerdict(
 		reasons: verdict.reasons,
 		source: verdict.source,
 		user_override: userOverride,
+		signals,
 	};
 
 	try {

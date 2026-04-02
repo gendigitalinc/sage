@@ -210,9 +210,8 @@ describe("formatBlockReason", () => {
 		expect(msg).toContain("URL check: malicious");
 		expect(msg).toContain("Blocked");
 		expect(msg).toContain("http://evil.com");
-		// Deny banner is details-only (branding in permissionDecisionReason)
-		expect(msg).not.toContain("Sage by Gen Digital");
-		expect(msg).not.toContain("━");
+		expect(msg).toContain("Sage by Gen Digital: Threat Blocked");
+		expect(msg).toContain("━");
 	});
 
 	it("renders ask verdict as Suspicious Activity with artifact", () => {

@@ -1,5 +1,18 @@
 # @gendigital/sage-claude-code
 
+## 0.7.0
+
+### Minor Changes
+
+- add shared MCP server package with false positive reporting and audit log tools
+- Add per-session detection notifications: statusline file tracking in core, auto-configured Claude Code status line, IDE notifications in Cursor/VS Code extension, and TUI toasts in OpenCode. Fix OpenClaw E2E model default to match gateway API change.
+
+### Patch Changes
+
+- lower the hook timeout and unify its value across different connectors
+- Switch E2E tests from dangerous-looking prompts to dummy canary rules that match benign marker strings, eliminating flaky model refusals.
+- Fix marketplace migration check for new `known_marketplaces.json` object format (previously assumed array)
+
 ## 0.6.0
 
 ### Minor Changes

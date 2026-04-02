@@ -4,6 +4,10 @@
 
 ### Cursor
 
+The recommended way is to [install](cursor:extension/Gen.sage-cursor) the official extension from the Cursor extension marketplace.
+
+Alternatively, you can build from source:
+
 ```bash
 pnpm install
 pnpm -C packages/extension run package:cursor:vsix
@@ -13,6 +17,10 @@ This produces `sage-cursor.vsix` in the repo root. Install it via `Extensions > 
 
 ### VS Code
 
+The recommended way is to [install](vscode:extension/Gen.sage-vscode) the official extension from the VS Code extension marketplace.
+
+Alternatively, you can build from source:
+
 ```bash
 pnpm install
 pnpm -C packages/extension run package:vscode:vsix
@@ -20,16 +28,23 @@ pnpm -C packages/extension run package:vscode:vsix
 
 This produces `sage-vscode.vsix` in the repo root. Install it via `Extensions > Install from VSIX`.
 
-> **Tip:** To build both VSIX packages at once, use `pnpm -C packages/extension run package:vsix`.
+> **Tip:** To build both VSIX packages from source at once, use `pnpm -C packages/extension run package:vsix`.
 
 ## Usage
 
 Open the command palette (`Ctrl+Shift+P`) and use:
 
+Sage auto-enables protection (managed hooks) on every startup. Running **Sage: Disable protection until restart** removes hooks for the current session only — they are reinstalled automatically when Cursor or VS Code restarts.
+
+### MCP server
+
+- **Cursor**: Sage enables/disables the `sage` MCP server automatically based on whether protection is enabled.
+- **VS Code**: you must start the `sage` MCP server manually using the command palette: `MCP: List Server` → `sage` → `Start server`.
+
 | Command | Description |
-|---------|-------------|
-| `Sage: Enable Protection` | Install managed hooks |
-| `Sage: Disable Protection` | Remove managed hooks |
+| --- | --- |
+| `Sage: Enable Protection` | Install managed hooks (and enable the Sage MCP server automatically in Cursor) |
+| `Sage: Disable protection until restart` | Remove managed hooks until the next restart (and disable the Sage MCP server automatically in Cursor) |
 | `Sage: Open Config` | Open `~/.sage/config.json` |
 | `Sage: Open Audit Log` | Open the audit log file |
 | `Sage: Show Hook Health` | Display hook status |
@@ -75,4 +90,4 @@ Extension hooks always exit with code `0`. The host reads the JSON response to d
 
 The extension bundles `threats/` and `allowlists/` from the repo root into `packages/extension/resources/` during build (via `sync-assets.mjs`). These are not checked into git.
 
-See [Building the Extension](../../doc/build_extension.md) for platform-specific build instructions.
+See the [Installation](#installation) section above for VSIX packaging commands.

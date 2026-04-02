@@ -41,6 +41,7 @@ export const ActionSchema = z.enum(["block", "require_approval", "log"]);
 
 export const ThreatSchema = z.object({
 	id: z.string(),
+	version: z.number().int().optional(),
 	category: z.string(),
 	severity: SeveritySchema,
 	confidence: z.number(),
@@ -58,6 +59,7 @@ export type ThreatData = z.infer<typeof ThreatSchema>;
 /** Loaded threat with compiled regex and normalized match_on. */
 export interface Threat {
 	id: string;
+	version?: number;
 	category: string;
 	severity: "critical" | "high" | "medium" | "low";
 	confidence: number;
@@ -88,6 +90,7 @@ export interface UrlCheckFinding {
 export interface UrlCheckResult {
 	url: string;
 	isMalicious: boolean;
+	detections: string[];
 	findings: UrlCheckFinding[];
 	flags: string[];
 }
@@ -120,6 +123,8 @@ export interface PackageCheckResult {
 	confidence: number;
 	details: string;
 	fileCheckSeverity?: string;
+	fileSha256?: string;
+	fileDetectionNames?: string[];
 	ageDays?: number;
 }
 
@@ -138,6 +143,29 @@ export interface SignalSources {
 	urlCheckResults: UrlCheckResult[];
 	packageCheckResults?: PackageCheckResult[];
 	amsiCheckResults?: AmsiCheckResult[];
+}
+
+// ── Audit signal metadata (for FP reporting) ────────────────────────
+
+export interface AuditSignals {
+	heuristics?: {
+		rule_id: string;
+		rule_version?: number;
+	}[];
+	url_checks?: {
+		detection_name: string;
+		url: string;
+	}[];
+	file_checks?: {
+		detection_name: string;
+		file_sha256: string;
+	}[];
+	package_checks?: {
+		detection_name: string;
+		package_name: string;
+		package_version?: string;
+		package_registry: string;
+	}[];
 }
 
 // ── Cache ───────────────────────────────────────────────────────────
@@ -212,6 +240,34 @@ export const AmsiCheckConfigSchema = z.object({
 });
 export type AmsiCheckConfig = z.infer<typeof AmsiCheckConfigSchema>;
 
+// ── Exceptions ─────────────────────────────────────────────────────
+
+export const ExceptionDecisionSchema = z.enum(["allow", "deny"]);
+export const ExceptionMatchSchema = z.enum(["executable", "domain", "path", "plugin", "regex"]);
+
+export const ExceptionRuleSchema = z.object({
+	id: z.string().optional(),
+	decision: ExceptionDecisionSchema,
+	match: ExceptionMatchSchema,
+	pattern: z.string(),
+	reason: z.string().optional(),
+});
+
+export const ExceptionsFileSchema = z.object({
+	rules: z.array(ExceptionRuleSchema).default([]),
+});
+
+export type ExceptionDecision = z.infer<typeof ExceptionDecisionSchema>;
+export type ExceptionMatch = z.infer<typeof ExceptionMatchSchema>;
+export type ExceptionRule = z.infer<typeof ExceptionRuleSchema> & { id: string };
+export type ExceptionsFile = z.infer<typeof ExceptionsFileSchema>;
+
+export const ExceptionsConfigSchema = z.object({
+	path: z.string().default("~/.sage/exceptions.json"),
+});
+
+export type ExceptionsConfig = z.infer<typeof ExceptionsConfigSchema>;
+
 export const ConfigSchema = z.object({
 	url_check: UrlCheckConfigSchema.default({}),
 	file_check: FileCheckConfigSchema.default({}),
@@ -220,6 +276,7 @@ export const ConfigSchema = z.object({
 	heuristics_enabled: z.boolean().default(true),
 	cache: CacheConfigSchema.default({}),
 	allowlist: AllowlistConfigSchema.default({}),
+	exceptions: ExceptionsConfigSchema.default({}),
 	logging: LoggingConfigSchema.default({}),
 	sensitivity: SensitivitySchema.default("balanced"),
 	disabled_threats: z.array(z.string()).default([]),
@@ -305,3 +362,16 @@ export interface PluginScanCache {
 // ── Agent runtime ──────────────────────────────────────────────────
 
 export type AgentRuntime = "claude-code" | "openclaw" | "opencode" | "cursor" | "vscode";
+
+// ── Hook types (FP reporting) ───────────────────────────────────────
+
+export const HookTypeSchema = z.enum([
+	"PreToolUse",
+	"PostToolUse",
+	"SessionStart",
+	"GatewayStart",
+	"BeforeAgentStart",
+	"MessagesTransform",
+]);
+
+export type HookType = z.infer<typeof HookTypeSchema>;

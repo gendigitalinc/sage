@@ -4,8 +4,8 @@
  */
 
 import { createHash } from "node:crypto";
-import { homedir } from "node:os";
 import { normalize } from "node:path";
+import { getHomeDir } from "./file-utils.js";
 
 /** Normalize URL for consistent keys: lowercase scheme+host, remove fragment, sort params. */
 export function normalizeUrl(raw: string): string {
@@ -28,6 +28,7 @@ export function hashCommand(command: string): string {
 
 /** Normalize file path for consistent allowlist keys: resolve ~, normalize . and .. */
 export function normalizeFilePath(raw: string): string {
-	const expanded = raw.startsWith("~/") || raw === "~" ? `${homedir()}${raw.slice(1)}` : raw;
+	const home = getHomeDir();
+	const expanded = raw.startsWith("~/") || raw === "~" ? `${home}${raw.slice(1)}` : raw;
 	return normalize(expanded);
 }

@@ -24,6 +24,13 @@ describe("UrlCheckClient", () => {
 						result: {
 							success: {
 								classification: {
+									"detection-infos": [
+										{
+											name: "URL:Blacklist|UREA43C8218975956A-0200|urlb",
+											finding: "malware",
+											source: "viruslab-unified",
+										},
+									],
 									result: {
 										malicious: {
 											findings: [
@@ -47,6 +54,7 @@ describe("UrlCheckClient", () => {
 		const results = await client.checkUrls(["http://malware.test"]);
 		expect(results).toHaveLength(1);
 		expect(results[0]?.isMalicious).toBe(true);
+		expect(results[0]?.detections).toStrictEqual(["URL:Blacklist|UREA43C8218975956A-0200|urlb"]);
 		expect(results[0]?.findings).toHaveLength(1);
 		expect(results[0]?.findings[0]?.severityName).toBe("malware");
 	});
@@ -76,6 +84,22 @@ describe("UrlCheckClient", () => {
 		expect(results).toHaveLength(1);
 		expect(results[0]?.isMalicious).toBe(false);
 		expect(results[0]?.findings).toHaveLength(0);
+	});
+
+	it("preserves query parameters when sending to API", async () => {
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({ answers: [] }),
+		});
+		globalThis.fetch = mockFetch;
+
+		const client = new UrlCheckClient();
+		await client.checkUrls(["http://safe.test?secret=token", "http://other.test/path?key=val"]);
+
+		expect(mockFetch).toHaveBeenCalledTimes(1);
+		const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+		expect(body.queries[0].key["url-like"]).toBe("http://safe.test?secret=token");
+		expect(body.queries[1].key["url-like"]).toBe("http://other.test/path?key=val");
 	});
 
 	it("parses flagged URL response", async () => {

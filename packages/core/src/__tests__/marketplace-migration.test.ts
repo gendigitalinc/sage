@@ -20,7 +20,9 @@ describe("needsMarketplaceMigration", () => {
 		const filePath = join(tmpDir, "known_marketplaces.json");
 		await writeFile(
 			filePath,
-			JSON.stringify([{ source: { url: "https://github.com/avast/sage.git" } }]),
+			JSON.stringify({
+				sage: { source: { source: "git", url: "https://github.com/avast/sage.git" } },
+			}),
 		);
 		expect(await needsMarketplaceMigration(filePath)).toBe(true);
 	});
@@ -29,7 +31,9 @@ describe("needsMarketplaceMigration", () => {
 		const filePath = join(tmpDir, "known_marketplaces.json");
 		await writeFile(
 			filePath,
-			JSON.stringify([{ source: { url: "https://github.com/gendigitalinc/sage.git" } }]),
+			JSON.stringify({
+				sage: { source: { source: "git", url: "https://github.com/gendigitalinc/sage.git" } },
+			}),
 		);
 		expect(await needsMarketplaceMigration(filePath)).toBe(false);
 	});
@@ -45,15 +49,24 @@ describe("needsMarketplaceMigration", () => {
 		expect(await needsMarketplaceMigration(filePath)).toBe(false);
 	});
 
-	it("returns false when file contains non-array JSON", async () => {
+	it("returns false for non-object JSON (e.g. a string)", async () => {
 		const filePath = join(tmpDir, "known_marketplaces.json");
-		await writeFile(filePath, JSON.stringify({ source: { url: "avast/sage" } }));
+		await writeFile(filePath, JSON.stringify("just a string"));
+		expect(await needsMarketplaceMigration(filePath)).toBe(false);
+	});
+
+	it("returns false for array JSON", async () => {
+		const filePath = join(tmpDir, "known_marketplaces.json");
+		await writeFile(
+			filePath,
+			JSON.stringify([{ source: { url: "https://github.com/avast/sage.git" } }]),
+		);
 		expect(await needsMarketplaceMigration(filePath)).toBe(false);
 	});
 
 	it("returns false when entries have no source field", async () => {
 		const filePath = join(tmpDir, "known_marketplaces.json");
-		await writeFile(filePath, JSON.stringify([{ name: "sage" }]));
+		await writeFile(filePath, JSON.stringify({ sage: { name: "sage" } }));
 		expect(await needsMarketplaceMigration(filePath)).toBe(false);
 	});
 });

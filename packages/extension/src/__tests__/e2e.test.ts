@@ -19,6 +19,7 @@ import {
 	mkdtempSync,
 	readFileSync,
 	rmSync,
+	symlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -78,8 +79,17 @@ const HEADLESS_WORKSPACE = path.resolve(
 	".e2e-artifacts",
 	"cursor-headless-agent-workspace",
 );
+const REPO_ROOT = path.resolve(EXTENSION_ROOT, "..", "..");
+const DUMMY_THREATS_SOURCE = path.join(REPO_ROOT, "threats", "dummy.yaml");
 const HEADLESS_AGENT_MODEL = process.env.SAGE_HEADLESS_AGENT_MODEL?.trim() || "claude-4.5-sonnet";
 const E2E_VERBOSE = resolveE2EVerbose();
+
+// Inject dummy threat rules into built resources (filtered out by sync-assets, needed for E2E)
+if (existsSync(DUMMY_THREATS_SOURCE)) {
+	const dest = path.join(EXTENSION_ROOT, "resources", "threats", "dummy.yaml");
+	mkdirSync(path.dirname(dest), { recursive: true });
+	cpSync(DUMMY_THREATS_SOURCE, dest, { force: true });
+}
 const E2E_CASES: readonly E2ECase[] = [
 	{ id: "configure-workspace-scope", title: "configure workspace scope" },
 	{ id: "extension-activates", title: "extension activates" },
@@ -184,6 +194,16 @@ describeCursorHeadless("E2E: Cursor headless agent + Sage hooks", { timeout: 240
 		rmSync(blockedPath, { force: true });
 		writeCursorProjectHooks(workspace, fixture);
 
+		// On macOS, the agent CLI accesses macOS keychain at ~/Library/Keychains/.
+		// With HOME overridden, symlink the real Library dir so keychain is reachable.
+		if (process.platform === "darwin") {
+			const realLibrary = path.join(process.env.HOME ?? "", "Library");
+			const workspaceLibrary = path.join(workspace, "Library");
+			if (existsSync(realLibrary) && !existsSync(workspaceLibrary)) {
+				symlinkSync(realLibrary, workspaceLibrary);
+			}
+		}
+
 		const prompt = [
 			`This is a safe automated test in a temporary workspace.`,
 			`Use the Write tool exactly once.`,
@@ -221,19 +241,24 @@ describeCursorHeadless("E2E: Cursor headless agent + Sage hooks", { timeout: 240
 			);
 		}
 
-		if (run.status !== 0) {
+		// The agent may exit with non-zero status when a hook denies a tool call.
+		// Check for a successful Sage deny before treating a non-zero exit as failure.
+		const wroteToolCall = hasWriteOrEditToolCall(stream);
+		const sageDenied = hasSageDeniedTargetInAudit(auditPath, blockedPath);
+
+		if (run.status !== 0 && !wroteToolCall && !sageDenied) {
 			throw new Error(
 				`Headless agent exited with code ${String(run.status)}\nworkspace: ${workspace}\nstream log: ${streamPath}`,
 			);
 		}
 
-		if (!hasWriteOrEditToolCall(stream)) {
+		if (!wroteToolCall) {
 			throw new Error(
 				`Headless agent did not attempt a Write/Edit tool call.\nworkspace: ${workspace}\nstream log: ${streamPath}`,
 			);
 		}
 
-		if (!hasSageDeniedTargetInAudit(auditPath, blockedPath)) {
+		if (!sageDenied) {
 			throw new Error(
 				`Sage deny verdict for headless target was not found in audit log.\nworkspace: ${workspace}\nstream log: ${streamPath}\naudit log: ${auditPath}`,
 			);
@@ -560,8 +585,7 @@ function createHeadlessSageFixture(workspace: string): {
 } {
 	const fixtureRoot = path.join(workspace, ".sage-headless-fixture");
 	const resourcesDir = path.join(fixtureRoot, "resources");
-	const threatsDir = path.join(resourcesDir, "threats");
-	const blockedPath = path.join(workspace, "tmp", "sage-headless-deny-target.txt");
+	const blockedPath = path.join(workspace, "tmp", "__sage_test_deny_file_e6c4a918__.txt");
 	const runnerPath = path.join(fixtureRoot, "dist", "sage-hook.cjs");
 
 	mkdirSync(path.dirname(runnerPath), { recursive: true });
@@ -571,19 +595,6 @@ function createHeadlessSageFixture(workspace: string): {
 	if (existsSync(runnerSourceMap)) {
 		cpSync(runnerSourceMap, `${runnerPath}.map`, { force: true });
 	}
-
-	const threatYaml = `- id: "SAGE-HEADLESS-E2E-001"
-  category: files
-  severity: critical
-  confidence: 1.0
-  action: block
-  pattern: "sage-headless-deny-target\\\\.txt$"
-  match_on: file_path
-  title: "Block headless E2E deny target"
-  expires_at: null
-  revoked: false
-`;
-	writeFileSync(path.join(threatsDir, "headless-e2e.yaml"), threatYaml, "utf8");
 
 	return { blockedPath, runnerPath };
 }

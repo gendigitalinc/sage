@@ -50,6 +50,10 @@ Requires Node.js >= 18 and pnpm >= 9.
 
 `pnpm test` runs unit and integration tests. E2E is excluded — run separately with `pnpm test:e2e` (all), `pnpm test:e2e:claude`, `pnpm test:e2e:openclaw`, `pnpm test:e2e:opencode`, `pnpm test:e2e:cursor`, or `pnpm test:e2e:vscode`.
 
+### Dummy Canary Rules
+
+E2E tests use dummy canary rules (`threats/dummy.yaml`) instead of real threat patterns. The canary rules match harmless, highly-specific marker strings (e.g. `__sage_test_deny_cmd_a75bf229__`) that would never appear in real usage. This avoids AI models self-refusing "dangerous-looking" prompts before Sage gets a chance to intercept them. Distribution packages exclude `dummy*.yaml` via `sync-assets` filters in each connector.
+
 **Claude Code E2E prerequisites:** `claude` CLI in PATH, valid `ANTHROPIC_API_KEY`, and Sage must **not** be installed via the Claude Code marketplace (duplicate-plugin conflict with `--plugin-dir`).
 
 ### Cursor / VS Code E2E Setup
@@ -194,7 +198,7 @@ This project uses [Changesets](https://github.com/changesets/changesets) with **
 
 ## Building the Extension
 
-See [Building the Extension](../doc/build_extension.md) for Cursor/VS Code VSIX packaging instructions.
+See the [Cursor / VS Code platform guide](platform-guides/cursor.md#installation) for VSIX packaging instructions.
 
 ---
 

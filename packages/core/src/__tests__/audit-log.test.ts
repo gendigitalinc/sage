@@ -2,7 +2,7 @@ import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getRecentEntries, logPluginScan, logVerdict } from "../audit-log.js";
-import type { LoggingConfig, Verdict } from "../types.js";
+import type { AuditSignals, LoggingConfig, Verdict } from "../types.js";
 import { makeTmpDir } from "./test-utils.js";
 
 function makeConfig(dir: string, overrides: Partial<LoggingConfig> = {}): LoggingConfig {
@@ -45,9 +45,53 @@ describe("logVerdict", () => {
 		const content = await readFile(config.path, "utf-8");
 		const entry = JSON.parse(content.trim());
 		expect(entry.type).toBe("runtime_verdict");
+		expect(typeof entry.entry_id).toBe("string");
 		expect(entry.verdict).toBe("deny");
 		expect(entry.tool_name).toBe("Bash");
 		expect(entry.session_id).toBe("session-1");
+		expect(entry.conversation_id).toBe("session-1");
+	});
+
+	it("persists structured signals when provided", async () => {
+		const config = makeConfig(dir);
+		const verdict = makeVerdict();
+		const signals: AuditSignals = {
+			heuristics: [{ rule_id: "CLT-CMD-006", rule_version: 3 }],
+			url_checks: [
+				{
+					detection_name: "URL|malicious|findings=critical:phish",
+					url: "https://example.com",
+				},
+			],
+			package_checks: [
+				{
+					detection_name: "PKG|suspicious_age|registry=npm|name=left-pad|age_days=1",
+					package_name: "left-pad",
+					package_version: "1.0.0",
+					package_registry: "npm",
+				},
+			],
+		};
+
+		await logVerdict(
+			config,
+			"session-1",
+			"Bash",
+			{ command: "bad cmd" },
+			verdict,
+			false,
+			undefined,
+			undefined,
+			"PreToolUse",
+			signals,
+		);
+
+		const content = await readFile(config.path, "utf-8");
+		const entry = JSON.parse(content.trim());
+		expect(entry.signals).toBeDefined();
+		expect(entry.signals.heuristics?.[0]?.rule_id).toBe("CLT-CMD-006");
+		expect(entry.signals.url_checks?.[0]?.url).toBe("https://example.com");
+		expect(entry.signals.package_checks?.[0]?.package_registry).toBe("npm");
 	});
 
 	it("skips allow verdict when log_clean is false", async () => {

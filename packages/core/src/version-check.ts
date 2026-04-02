@@ -4,8 +4,8 @@
  * Fail-open: returns null on any error so it never blocks startup.
  */
 
-import { release } from "node:os";
 import { resolveEndpoint } from "./clients/url-check.js";
+import { buildSageProxyEnvelope } from "./sage-proxy.js";
 import type { AgentRuntime, Logger } from "./types.js";
 import { nullLogger } from "./types.js";
 
@@ -15,7 +15,7 @@ const DEFAULT_TIMEOUT_MS = 5_000;
 export interface VersionCheckContext {
 	agentRuntime: AgentRuntime;
 	agentRuntimeVersion?: string;
-	iid?: string;
+	iid: string;
 }
 
 export interface VersionCheckResult {
@@ -56,30 +56,33 @@ export async function checkForUpdate(
 	currentVersion: string,
 	logger: Logger = nullLogger,
 	timeoutMs: number = DEFAULT_TIMEOUT_MS,
-	context?: VersionCheckContext,
+	context: VersionCheckContext,
 ): Promise<VersionCheckResult | null> {
 	if (currentVersion === "dev") {
 		logger.debug("Skipping version check for dev build");
 		return null;
 	}
-
 	try {
-		const response = await fetch(resolveEndpoint("/v1/version-check"), {
+		if (!context.iid) {
+			logger.debug("Skipping version check: missing installation id");
+			return null;
+		}
+
+		const response = await fetch(resolveEndpoint("/v2/version-check"), {
 			method: "POST",
 			signal: AbortSignal.timeout(timeoutMs),
 			headers: {
 				Accept: "application/json",
 				"Content-Type": "application/json",
 			},
-			body: JSON.stringify({
-				sage_version: currentVersion,
-				agent_runtime: context?.agentRuntime,
-				agent_runtime_version: context?.agentRuntimeVersion,
-				os: process.platform,
-				os_version: release(),
-				arch: process.arch,
-				iid: context?.iid,
-			}),
+			body: JSON.stringify(
+				buildSageProxyEnvelope({
+					iid: context.iid,
+					versionApp: currentVersion,
+					agentRuntime: context.agentRuntime,
+					agentRuntimeVersion: context.agentRuntimeVersion ?? "unknown",
+				}),
+			),
 		});
 
 		if (!response.ok) {

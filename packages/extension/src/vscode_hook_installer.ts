@@ -2,8 +2,8 @@ import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { HOOK_TIMEOUT_SECONDS } from "@gendigital/sage-core";
 import * as vscode from "vscode";
-
 import type {
 	ManagedHookHealth,
 	ManagedHookInstallOptions,
@@ -169,7 +169,7 @@ function upsertManagedHooks(existing: SettingsObject, command: string): Settings
 			{
 				type: "command",
 				command,
-				timeout: 30,
+				timeout: HOOK_TIMEOUT_SECONDS,
 				statusMessage: "Sage: Checking for threats...",
 			},
 		],

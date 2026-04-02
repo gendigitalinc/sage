@@ -115,9 +115,16 @@ export class UrlCheckClient {
 			const result = (answer.result ?? {}) as Record<string, unknown>;
 			const success = (result.success ?? {}) as Record<string, unknown>;
 			const classification = (success.classification ?? {}) as Record<string, unknown>;
+			const detectionInfos = (classification["detection-infos"] ?? []) as Record<string, unknown>[];
 			const classResult = (classification.result ?? {}) as Record<string, unknown>;
 			const flags = (success.flags ?? []) as string[];
 			const malicious = classResult.malicious as Record<string, unknown> | undefined;
+
+			const detections = detectionInfos
+				.filter((info) => typeof info.name === "string")
+				.map((info) => {
+					return info.name as string;
+				});
 
 			const findings: UrlCheckFinding[] = malicious
 				? ((malicious.findings ?? []) as Record<string, unknown>[]).map((f) => ({
@@ -129,6 +136,7 @@ export class UrlCheckClient {
 			return {
 				url,
 				isMalicious: Boolean(malicious),
+				detections,
 				findings,
 				flags,
 			};

@@ -86,7 +86,14 @@ export function createToolCallHandler(
 
 			const sessionId = ctx?.sessionKey ?? "unknown";
 			const { verdict, actionId } = await guardToolCall(
-				{ sessionId, toolName, toolInput: params, artifacts },
+				{
+					sessionId,
+					conversationId: sessionId,
+					agentRuntime: "openclaw",
+					toolName,
+					toolInput: params,
+					artifacts,
+				},
 				{ threatsDir, allowlistsDir, logger },
 				approvalStore,
 			);

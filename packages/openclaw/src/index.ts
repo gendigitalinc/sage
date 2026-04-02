@@ -1,11 +1,10 @@
 /**
  * Sage OpenClaw plugin entry point.
- * Registers before_tool_call handler, sage_approve tool, allowlist tools,
+ * Registers before_tool_call handler, sage_approve tool,
  * startup/session scan hooks, and before_agent_start handler.
  */
 
 import { ApprovalStore } from "@gendigital/sage-core";
-import { createAllowlistAddTool, createAllowlistRemoveTool } from "./allowlist-tools.js";
 import { getBundledDataDirs } from "./bundled-dirs.js";
 import { createSageApproveTool } from "./gate-tool.js";
 import { createLogger, type PluginLogger } from "./logger-adapter.js";
@@ -51,10 +50,6 @@ export default {
 			{ priority: 100 },
 		);
 		api.registerTool(createSageApproveTool(approvalStore) as unknown as Record<string, unknown>);
-		api.registerTool(
-			createAllowlistAddTool(approvalStore, logger) as unknown as Record<string, unknown>,
-		);
-		api.registerTool(createAllowlistRemoveTool(logger) as unknown as Record<string, unknown>);
 		api.on("gateway_start", createStartupScanHandler(logger, onFindings));
 		api.on("session_start", createSessionScanHandler(logger, onFindings));
 		api.on(

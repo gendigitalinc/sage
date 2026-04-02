@@ -29,9 +29,9 @@ export type { PackageMetadata } from "./clients/package-registry.js";
 // Registry client
 export { RegistryClient } from "./clients/package-registry.js";
 // URL check client
-export { UrlCheckClient } from "./clients/url-check.js";
+export { resolveEndpoint, UrlCheckClient } from "./clients/url-check.js";
 // Config
-export { loadConfig, resolvePath, SAGE_DIR } from "./config.js";
+export { HOOK_TIMEOUT_SECONDS, loadConfig, resolvePath, SAGE_DIR } from "./config.js";
 // Decision engine
 export { CONFIDENCE_THRESHOLD, DecisionEngine } from "./engine.js";
 // Runtime evaluator
@@ -41,6 +41,21 @@ export {
 	type ToolEvaluationContext,
 	type ToolEvaluationRequest,
 } from "./evaluator.js";
+// Exceptions
+export {
+	computeRuleId,
+	type DenyExceptionMatch,
+	findAllowException,
+	findDenyException,
+	findPluginAllowException,
+	findPluginDenyException,
+	loadExceptions,
+	matchesDomain,
+	matchesExecutable,
+	matchesPath,
+	matchesPlugin,
+	matchesRegex,
+} from "./exceptions.js";
 // Extractors
 export {
 	extractFromBash,
@@ -106,6 +121,14 @@ export {
 } from "./plugin-scan-cache.js";
 // Plugin scanner
 export { discoverPlugins, scanPlugin } from "./plugin-scanner.js";
+// Sage Proxy (shared envelope / env)
+export {
+	buildSageProxyEnvelope,
+	mapSageProxyArchitecture,
+	mapSageProxyOs,
+	type SageProxyEnvelope,
+	type SageProxyOs,
+} from "./sage-proxy.js";
 // Scan handler
 export { createScanHandler, runPluginScan, type ScanHandlerOptions } from "./scan-handler.js";
 // Session start orchestrator
@@ -122,6 +145,16 @@ export {
 	toAuditFindingData,
 	toFindingData,
 } from "./session-start-scan.js";
+// Session status (detection notifications)
+export {
+	formatStatusLine,
+	initSessionStatus,
+	pruneSessionStatusFiles,
+	readSessionStatus,
+	type SessionStatus,
+	sanitizeSessionId,
+	updateSessionStatus,
+} from "./statusline.js";
 // Threat loader
 export { loadThreats } from "./threat-loader.js";
 // Trusted domains
@@ -145,8 +178,14 @@ export type {
 	CacheStore,
 	Config,
 	Decision,
+	ExceptionDecision,
+	ExceptionMatch,
+	ExceptionRule,
+	ExceptionsConfig,
+	ExceptionsFile,
 	FileCheckConfig,
 	HeuristicMatch,
+	HookType,
 	Logger,
 	LoggingConfig,
 	PackageCheckConfig,
@@ -175,7 +214,13 @@ export {
 	CacheConfigSchema,
 	ConfigSchema,
 	DecisionSchema,
+	ExceptionDecisionSchema,
+	ExceptionMatchSchema,
+	ExceptionRuleSchema,
+	ExceptionsConfigSchema,
+	ExceptionsFileSchema,
 	FileCheckConfigSchema,
+	HookTypeSchema,
 	LoggingConfigSchema,
 	nullLogger,
 	PackageCheckConfigSchema,

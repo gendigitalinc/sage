@@ -31,14 +31,12 @@ function makeResponse(verdict: Verdict): Record<string, unknown> {
 	const banner = formatBlockReason(verdict);
 
 	if (verdict.decision === "deny") {
-		// For deny: short reason avoids Claude Code duplicating the banner.
-		// Full banner goes in systemMessage, shown separately in the UI.
 		return {
 			systemMessage: banner,
 			hookSpecificOutput: {
 				hookEventName: "PreToolUse",
 				permissionDecision: "deny",
-				permissionDecisionReason: "🛡️ Sage by Gen Digital: Threat Blocked",
+				permissionDecisionReason: "Blocked by Sage",
 			},
 		};
 	}
@@ -120,7 +118,15 @@ async function main(): Promise<void> {
 		return;
 	}
 	const verdict = await evaluateToolCall(
-		{ sessionId, toolName, toolInput, artifacts },
+		{
+			sessionId,
+			conversationId: sessionId,
+			agentRuntime: "claude-code",
+			hookType: "PreToolUse",
+			toolName,
+			toolInput,
+			artifacts,
+		},
 		{
 			threatsDir: join(pluginRoot, "threats"),
 			allowlistsDir: join(pluginRoot, "allowlists"),

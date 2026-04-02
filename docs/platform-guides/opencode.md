@@ -34,7 +34,7 @@ Project config (`.opencode/opencode.json`):
 Sage uses OpenCode plugin hooks:
 
 - `tool.execute.before` - extracts artifacts and runs the Sage evaluator
-- `tool` - registers Sage tools (`sage_approve`, `sage_allowlist_add`, `sage_allowlist_remove`)
+- `tool` - registers Sage tools (`sage_approve`)
 
 For `ask` verdicts, Sage blocks the tool call and returns an action ID in the error message.
 The agent should ask the user for explicit confirmation, then call `sage_approve`.
@@ -63,8 +63,6 @@ Unmapped tools pass through unchanged.
 ## Sage Tools
 
 - `sage_approve`: approve/reject a blocked action ID for this OpenCode session
-- `sage_allowlist_add`: permanently allowlist a URL/command/file path (requires recent approval)
-- `sage_allowlist_remove`: remove an allowlisted artifact
 
 ## Verify Installation
 

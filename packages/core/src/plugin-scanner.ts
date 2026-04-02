@@ -4,12 +4,11 @@
 
 import { createHash } from "node:crypto";
 import { readdir, stat } from "node:fs/promises";
-import { homedir } from "node:os";
 import { extname, join, relative } from "node:path";
 import { FileCheckClient } from "./clients/file-check.js";
 import { UrlCheckClient } from "./clients/url-check.js";
 import { extractUrls } from "./extractors.js";
-import { getFileContent, getFileContentRaw } from "./file-utils.js";
+import { getFileContent, getFileContentRaw, getHomeDir } from "./file-utils.js";
 import { HeuristicsEngine } from "./heuristics.js";
 import type {
 	Artifact,
@@ -21,7 +20,7 @@ import type {
 } from "./types.js";
 import { nullLogger } from "./types.js";
 
-const DEFAULT_PLUGINS_REGISTRY = join(homedir(), ".claude", "plugins", "installed_plugins.json");
+const DEFAULT_PLUGINS_REGISTRY = join(getHomeDir(), ".claude", "plugins", "installed_plugins.json");
 
 const SCANNABLE_EXTENSIONS = new Set([
 	".py",

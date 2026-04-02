@@ -91,6 +91,11 @@ describe("OpenCode integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 						// no-op
 					},
 				},
+				tui: {
+					showToast: async () => {
+						// no-op
+					},
+				},
 			},
 			project: { id: "test-project" },
 			directory: process.cwd(),
@@ -185,58 +190,10 @@ describe("OpenCode integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 		await expect(runBefore("chmod 777 ./run.sh", "c6")).resolves.toBeUndefined();
 	});
 
-	it("allowlist_add requires recent approval and persists allowlist behavior", async () => {
+	it("does not expose allowlist tools (deprecated)", () => {
 		const tools = hooks.tool ?? {};
-		const allowlistAdd = tools.sage_allowlist_add;
-		const approve = tools.sage_approve;
-		expect(allowlistAdd).toBeDefined();
-
-		const denied = await allowlistAdd?.execute(
-			{ type: "command", value: "chmod 777 ./perm.sh" },
-			makeContext(),
-		);
-		expect(denied).toContain("no recent user approval");
-
-		let actionId = "";
-		try {
-			await runBefore("chmod 777 ./perm.sh", "c7");
-		} catch (error) {
-			const message = String(error instanceof Error ? error.message : error);
-			actionId = message.match(/actionId: "([a-f0-9]+)"/)?.[1] ?? "";
-		}
-		expect(actionId).toBeTruthy();
-
-		await approve?.execute({ actionId, approved: true }, makeContext());
-		const added = await allowlistAdd?.execute(
-			{ type: "command", value: "chmod 777 ./perm.sh" },
-			makeContext(),
-		);
-		expect(added).toContain("Added command");
-
-		await expect(runBefore("chmod 777 ./perm.sh", "c8")).resolves.toBeUndefined();
-	});
-
-	it("allowlist_remove removes persisted allowlist entries", async () => {
-		const tools = hooks.tool ?? {};
-		const remove = tools.sage_allowlist_remove;
-		expect(remove).toBeDefined();
-
-		const removed = await remove?.execute(
-			{ type: "command", value: "chmod 777 ./perm.sh" },
-			makeContext(),
-		);
-		expect(removed).toContain("Removed command");
-
-		const notFound = await remove?.execute(
-			{ type: "command", value: "chmod 777 ./perm.sh" },
-			makeContext(),
-		);
-		expect(notFound).toContain("not found");
-	});
-
-	it("writes allowlist to configured path", async () => {
-		const raw = await readFile(allowlistPath, "utf8");
-		expect(raw).toContain("commands");
+		expect(tools.sage_allowlist_add).toBeUndefined();
+		expect(tools.sage_allowlist_remove).toBeUndefined();
 	});
 });
 
@@ -271,6 +228,11 @@ describe("OpenCode integration: Plugin scanning", { timeout: 30_000 }, () => {
 			client: {
 				app: {
 					log: async () => {
+						// no-op
+					},
+				},
+				tui: {
+					showToast: async () => {
 						// no-op
 					},
 				},

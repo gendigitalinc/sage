@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Sage PostToolUse hook entry point.
- * Detects user approvals of ask verdicts and records them for MCP allowlist flow.
+ * Detects user approvals of ask verdicts and records them.
  * Always exits 0 and returns valid JSON.
  */
 
@@ -39,7 +39,6 @@ async function main(): Promise<void> {
 
 	const entry = await consumePendingApproval(sessionId, toolUseId, logger);
 	if (!entry) {
-		// No pending approval for this tool call — most calls hit this path.
 		process.stdout.write("{}\n");
 		return;
 	}
@@ -48,13 +47,10 @@ async function main(): Promise<void> {
 		.map((a) => `${artifactTypeLabel(a.type)} '${a.value}'`)
 		.join(", ");
 
-	const typeSet = [...new Set(entry.artifacts.map((a) => artifactTypeLabel(a.type)))];
-	const typeStr = typeSet.join("/");
-
 	const response = {
 		hookSpecificOutput: {
 			hookEventName: "PostToolUse",
-			additionalContext: `Sage: The user approved a flagged action (threat ${entry.threatId}: ${entry.threatTitle}, artifacts: ${artifactList}). To permanently allow ${typeStr === "URL" ? "these URLs" : typeStr === "command" ? "these commands" : `these ${typeStr}s`} in the future, you can use the sage_allowlist_add MCP tool.`,
+			additionalContext: `Sage: The user approved a flagged action (threat ${entry.threatId}: ${entry.threatTitle}, artifacts: ${artifactList}). To permanently allow this in the future, the user can add an exception rule to ~/.sage/exceptions.json.`,
 		},
 	};
 

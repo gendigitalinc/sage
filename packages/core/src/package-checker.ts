@@ -131,6 +131,8 @@ export class PackageChecker {
 							confidence: 1.0,
 							details: `Malicious package '${pkg.name}' (${detections})`,
 							fileCheckSeverity: sev,
+							fileSha256: metadata.latestHash,
+							fileDetectionNames: fileResult.detectionNames,
 						};
 					}
 				}

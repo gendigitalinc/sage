@@ -31,6 +31,9 @@ Sage reads configuration from `~/.sage/config.json`. All fields are optional - d
   "allowlist": {
     "path": "~/.sage/allowlist.json"
   },
+  "exceptions": {
+    "path": "~/.sage/exceptions.json"
+  },
   "logging": {
     "enabled": true,
     "log_clean": false,
@@ -85,13 +88,21 @@ Boolean, default `true`. Set to `false` to disable all local pattern matching.
 | `ttl_clean_seconds` | `86400` | Cache TTL for clean verdicts (24 hours) |
 | `path` | `~/.sage/cache.json` | Cache file location (must remain under `~/.sage`) |
 
-### `allowlist`
+### `allowlist` (legacy, read-only)
 
 | Field | Default | Description |
 |-------|---------|-------------|
 | `path` | `~/.sage/allowlist.json` | Allowlist file location (must remain under `~/.sage`) |
 
-The allowlist stores user overrides for false positives. When Sage returns an `ask` verdict and the user proceeds, the artifact can be allowlisted for future sessions.
+The legacy allowlist stores exact-match overrides (SHA-256 hashes of commands, normalized URLs, normalized file paths). Existing entries are still honored, but new entries should be added via [exceptions](exceptions.md) instead.
+
+### `exceptions`
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `path` | `~/.sage/exceptions.json` | Exceptions file location (must remain under `~/.sage`) |
+
+Pattern-based allow/deny rules. See [Exceptions](exceptions.md) for the full format and match types.
 
 ### `logging`
 
@@ -127,7 +138,8 @@ Use this to permanently suppress specific rules that don't apply to your workflo
 |------|---------|
 | `~/.sage/config.json` | Configuration |
 | `~/.sage/cache.json` | Verdict cache |
-| `~/.sage/allowlist.json` | User allowlist |
+| `~/.sage/exceptions.json` | Exception rules (pattern-based allow/deny) |
+| `~/.sage/allowlist.json` | Legacy allowlist (read-only, exact-match) |
 | `~/.sage/audit.jsonl` | Audit log |
 | `~/.sage/installation-id` | Random UUID identifying this installation |
 | `~/.sage/pending-approvals.json` | Pending approval state (transient, managed by PreToolUse hook) |

@@ -109,6 +109,7 @@ export async function loadThreats(
 
 			threats.push({
 				id: record.id as string,
+				version: typeof record.version === "number" ? record.version : undefined,
 				category: record.category as string,
 				severity: record.severity as Threat["severity"],
 				confidence: Number(record.confidence),

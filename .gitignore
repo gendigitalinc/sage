@@ -7,6 +7,7 @@ packages/claude-code/dist/*
 !packages/claude-code/dist/post-tool-use.cjs
 !packages/claude-code/dist/session-start.cjs
 !packages/claude-code/dist/mcp-server.cjs
+!packages/claude-code/dist/sage-statusline.cjs
 packages/extension/resources/
 packages/extension/.vsce/
 *.vsix
@@ -40,6 +41,7 @@ packages/opencode/resources/
 
 # Gitleaks config (contains internal infrastructure names)
 .gitleaks.toml
+
 
 .pnpm-store
 

@@ -33,6 +33,13 @@ async function build() {
 		outfile: "dist/sage-hook.cjs",
 		external: ["koffi"],
 	});
+
+	await esbuild.build({
+		...shared,
+		entryPoints: ["src/mcp-server.ts"],
+		outfile: "dist/mcp-server.cjs",
+		external: ["koffi"],
+	});
 }
 
 build().then(

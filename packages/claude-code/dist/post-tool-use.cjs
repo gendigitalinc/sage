@@ -1205,7 +1205,7 @@ var require_atomic_sleep = __commonJS({
 var require_sonic_boom = __commonJS({
   "../../node_modules/.pnpm/sonic-boom@4.2.1/node_modules/sonic-boom/index.js"(exports2, module2) {
     "use strict";
-    var fs = require("fs");
+    var fs2 = require("fs");
     var EventEmitter = require("events");
     var inherits = require("util").inherits;
     var path = require("path");
@@ -1262,20 +1262,20 @@ var require_sonic_boom = __commonJS({
       const mode = sonic.mode;
       if (sonic.sync) {
         try {
-          if (sonic.mkdir) fs.mkdirSync(path.dirname(file), { recursive: true });
-          const fd = fs.openSync(file, flags, mode);
+          if (sonic.mkdir) fs2.mkdirSync(path.dirname(file), { recursive: true });
+          const fd = fs2.openSync(file, flags, mode);
           fileOpened(null, fd);
         } catch (err) {
           fileOpened(err);
           throw err;
         }
       } else if (sonic.mkdir) {
-        fs.mkdir(path.dirname(file), { recursive: true }, (err) => {
+        fs2.mkdir(path.dirname(file), { recursive: true }, (err) => {
           if (err) return fileOpened(err);
-          fs.open(file, flags, mode, fileOpened);
+          fs2.open(file, flags, mode, fileOpened);
         });
       } else {
-        fs.open(file, flags, mode, fileOpened);
+        fs2.open(file, flags, mode, fileOpened);
       }
     }
     function SonicBoom(opts) {
@@ -1316,8 +1316,8 @@ var require_sonic_boom = __commonJS({
         this.flush = flushBuffer;
         this.flushSync = flushBufferSync;
         this._actualWrite = actualWriteBuffer;
-        fsWriteSync = () => fs.writeSync(this.fd, this._writingBuf);
-        fsWrite = () => fs.write(this.fd, this._writingBuf, this.release);
+        fsWriteSync = () => fs2.writeSync(this.fd, this._writingBuf);
+        fsWrite = () => fs2.write(this.fd, this._writingBuf, this.release);
       } else if (contentMode === void 0 || contentMode === kContentModeUtf8) {
         this._writingBuf = "";
         this.write = write;
@@ -1326,15 +1326,15 @@ var require_sonic_boom = __commonJS({
         this._actualWrite = actualWrite;
         fsWriteSync = () => {
           if (Buffer.isBuffer(this._writingBuf)) {
-            return fs.writeSync(this.fd, this._writingBuf);
+            return fs2.writeSync(this.fd, this._writingBuf);
           }
-          return fs.writeSync(this.fd, this._writingBuf, "utf8");
+          return fs2.writeSync(this.fd, this._writingBuf, "utf8");
         };
         fsWrite = () => {
           if (Buffer.isBuffer(this._writingBuf)) {
-            return fs.write(this.fd, this._writingBuf, this.release);
+            return fs2.write(this.fd, this._writingBuf, this.release);
           }
-          return fs.write(this.fd, this._writingBuf, "utf8", this.release);
+          return fs2.write(this.fd, this._writingBuf, "utf8", this.release);
         };
       } else {
         throw new Error(`SonicBoom supports "${kContentModeUtf8}" and "${kContentModeBuffer}", but passed ${contentMode}`);
@@ -1391,7 +1391,7 @@ var require_sonic_boom = __commonJS({
           }
         }
         if (this._fsync) {
-          fs.fsyncSync(this.fd);
+          fs2.fsyncSync(this.fd);
         }
         const len = this._len;
         if (this._reopening) {
@@ -1505,7 +1505,7 @@ var require_sonic_boom = __commonJS({
       const onDrain = () => {
         if (!this._fsync) {
           try {
-            fs.fsync(this.fd, (err) => {
+            fs2.fsync(this.fd, (err) => {
               this._flushPending = false;
               cb(err);
             });
@@ -1607,7 +1607,7 @@ var require_sonic_boom = __commonJS({
       const fd = this.fd;
       this.once("ready", () => {
         if (fd !== this.fd) {
-          fs.close(fd, (err) => {
+          fs2.close(fd, (err) => {
             if (err) {
               return this.emit("error", err);
             }
@@ -1656,7 +1656,7 @@ var require_sonic_boom = __commonJS({
           buf = this._bufs[0];
         }
         try {
-          const n = Buffer.isBuffer(buf) ? fs.writeSync(this.fd, buf) : fs.writeSync(this.fd, buf, "utf8");
+          const n = Buffer.isBuffer(buf) ? fs2.writeSync(this.fd, buf) : fs2.writeSync(this.fd, buf, "utf8");
           const releasedBufObj = releaseWritingBuf(buf, this._len, n);
           buf = releasedBufObj.writingBuf;
           this._len = releasedBufObj.len;
@@ -1672,7 +1672,7 @@ var require_sonic_boom = __commonJS({
         }
       }
       try {
-        fs.fsyncSync(this.fd);
+        fs2.fsyncSync(this.fd);
       } catch {
       }
     }
@@ -1693,7 +1693,7 @@ var require_sonic_boom = __commonJS({
           buf = mergeBuf(this._bufs[0], this._lens[0]);
         }
         try {
-          const n = fs.writeSync(this.fd, buf);
+          const n = fs2.writeSync(this.fd, buf);
           buf = buf.subarray(n);
           this._len = Math.max(this._len - n, 0);
           if (buf.length <= 0) {
@@ -1721,13 +1721,13 @@ var require_sonic_boom = __commonJS({
       this._writingBuf = this._writingBuf.length ? this._writingBuf : this._bufs.shift() || "";
       if (this.sync) {
         try {
-          const written = Buffer.isBuffer(this._writingBuf) ? fs.writeSync(this.fd, this._writingBuf) : fs.writeSync(this.fd, this._writingBuf, "utf8");
+          const written = Buffer.isBuffer(this._writingBuf) ? fs2.writeSync(this.fd, this._writingBuf) : fs2.writeSync(this.fd, this._writingBuf, "utf8");
           release(null, written);
         } catch (err) {
           release(err);
         }
       } else {
-        fs.write(this.fd, this._writingBuf, release);
+        fs2.write(this.fd, this._writingBuf, release);
       }
     }
     function actualWriteBuffer() {
@@ -1736,7 +1736,7 @@ var require_sonic_boom = __commonJS({
       this._writingBuf = this._writingBuf.length ? this._writingBuf : mergeBuf(this._bufs.shift(), this._lens.shift());
       if (this.sync) {
         try {
-          const written = fs.writeSync(this.fd, this._writingBuf);
+          const written = fs2.writeSync(this.fd, this._writingBuf);
           release(null, written);
         } catch (err) {
           release(err);
@@ -1745,7 +1745,7 @@ var require_sonic_boom = __commonJS({
         if (kCopyBuffer) {
           this._writingBuf = Buffer.from(this._writingBuf);
         }
-        fs.write(this.fd, this._writingBuf, release);
+        fs2.write(this.fd, this._writingBuf, release);
       }
     }
     function actualClose(sonic) {
@@ -1761,12 +1761,12 @@ var require_sonic_boom = __commonJS({
       sonic._lens = [];
       assert(typeof sonic.fd === "number", `sonic.fd must be a number, got ${typeof sonic.fd}`);
       try {
-        fs.fsync(sonic.fd, closeWrapped);
+        fs2.fsync(sonic.fd, closeWrapped);
       } catch {
       }
       function closeWrapped() {
         if (sonic.fd !== 1 && sonic.fd !== 2) {
-          fs.close(sonic.fd, done);
+          fs2.close(sonic.fd, done);
         } else {
           done();
         }
@@ -11175,14 +11175,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs = this.flowScalar(this.type);
+              const fs2 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map.items.push({ start, key: fs, sep: [] });
+                map.items.push({ start, key: fs2, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs);
+                this.stack.push(fs2);
               } else {
-                Object.assign(it, { key: fs, sep: [] });
+                Object.assign(it, { key: fs2, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -11310,13 +11310,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs = this.flowScalar(this.type);
+              const fs2 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs, sep: [] });
+                fc.items.push({ start: [], key: fs2, sep: [] });
               else if (it.sep)
-                this.stack.push(fs);
+                this.stack.push(fs2);
               else
-                Object.assign(it, { key: fs, sep: [] });
+                Object.assign(it, { key: fs2, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -11625,7 +11625,7 @@ var require_dist = __commonJS({
 });
 
 // src/post-tool-use.ts
-var import_node_fs2 = require("node:fs");
+var import_node_fs = require("node:fs");
 var import_pino = __toESM(require_pino(), 1);
 
 // src/approval-tracker.ts
@@ -11633,17 +11633,27 @@ var import_promises = require("node:fs/promises");
 var import_node_path6 = require("node:path");
 
 // ../core/dist/config.js
-var import_node_os = require("node:os");
 var import_node_path2 = require("node:path");
 
 // ../core/dist/file-utils.js
 var import_node_crypto = require("node:crypto");
+var fs = __toESM(require("node:fs"), 1);
 var fsPromises = __toESM(require("node:fs/promises"), 1);
+var import_node_os = require("node:os");
 var import_node_path = require("node:path");
 var name1 = "read";
 var name2 = "File";
 function getFileContent(path, encoding = "utf-8") {
   return fsPromises[name1 + name2](path, encoding);
+}
+function getFileContentSync(path, encoding = "utf-8") {
+  return fs[`${name1 + name2}Sync`](path, encoding);
+}
+function getProcEnv() {
+  return process["env"];
+}
+function getHomeDir() {
+  return getProcEnv().HOME || (0, import_node_os.homedir)();
 }
 async function atomicWriteJson(path, data) {
   await fsPromises.mkdir((0, import_node_path.dirname)(path), { recursive: true });
@@ -15723,6 +15733,7 @@ var SeveritySchema = external_exports.enum(["critical", "high", "medium", "low"]
 var ActionSchema = external_exports.enum(["block", "require_approval", "log"]);
 var ThreatSchema = external_exports.object({
   id: external_exports.string(),
+  version: external_exports.number().int().optional(),
   category: external_exports.string(),
   severity: SeveritySchema,
   confidence: external_exports.number(),
@@ -15771,6 +15782,21 @@ var PackageCheckConfigSchema = external_exports.object({
 var AmsiCheckConfigSchema = external_exports.object({
   enabled: external_exports.boolean().default(true)
 });
+var ExceptionDecisionSchema = external_exports.enum(["allow", "deny"]);
+var ExceptionMatchSchema = external_exports.enum(["executable", "domain", "path", "plugin", "regex"]);
+var ExceptionRuleSchema = external_exports.object({
+  id: external_exports.string().optional(),
+  decision: ExceptionDecisionSchema,
+  match: ExceptionMatchSchema,
+  pattern: external_exports.string(),
+  reason: external_exports.string().optional()
+});
+var ExceptionsFileSchema = external_exports.object({
+  rules: external_exports.array(ExceptionRuleSchema).default([])
+});
+var ExceptionsConfigSchema = external_exports.object({
+  path: external_exports.string().default("~/.sage/exceptions.json")
+});
 var ConfigSchema = external_exports.object({
   url_check: UrlCheckConfigSchema.default({}),
   file_check: FileCheckConfigSchema.default({}),
@@ -15779,16 +15805,26 @@ var ConfigSchema = external_exports.object({
   heuristics_enabled: external_exports.boolean().default(true),
   cache: CacheConfigSchema.default({}),
   allowlist: AllowlistConfigSchema.default({}),
+  exceptions: ExceptionsConfigSchema.default({}),
   logging: LoggingConfigSchema.default({}),
   sensitivity: SensitivitySchema.default("balanced"),
   disabled_threats: external_exports.array(external_exports.string()).default([])
 });
+var HookTypeSchema = external_exports.enum([
+  "PreToolUse",
+  "PostToolUse",
+  "SessionStart",
+  "GatewayStart",
+  "BeforeAgentStart",
+  "MessagesTransform"
+]);
 
 // ../core/dist/config.js
 var SAGE_DIR = "~/.sage";
 function resolvePath(pathStr) {
   if (pathStr.startsWith("~/") || pathStr === "~") {
-    return (0, import_node_path2.join)((0, import_node_os.homedir)(), pathStr.slice(1));
+    const home = getHomeDir();
+    return (0, import_node_path2.join)(home, pathStr.slice(1));
   }
   return pathStr;
 }
@@ -15923,16 +15959,15 @@ ${AMSI_CSHARP_TYPE}
 `;
 
 // ../core/dist/version.js
-var import_node_fs = require("node:fs");
 var import_node_path3 = require("node:path");
 var import_node_url = require("node:url");
 var import_meta = {};
 function resolveVersion() {
   if (true)
-    return "0.6.0";
+    return "0.7.0";
   try {
     const pkgPath = (0, import_node_path3.join)((0, import_node_path3.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
-    const pkg = JSON.parse((0, import_node_fs.readFileSync)(pkgPath, "utf-8"));
+    const pkg = JSON.parse(getFileContentSync(pkgPath));
     if (typeof pkg.version === "string")
       return pkg.version;
   } catch {
@@ -15941,24 +15976,27 @@ function resolveVersion() {
 }
 var VERSION = resolveVersion();
 
+// ../core/dist/trusted-domains.js
+var import_yaml = __toESM(require_dist(), 1);
+
 // ../core/dist/extractors.js
 var MAX_CONTENT_SIZE = 64 * 1024;
 
-// ../core/dist/trusted-domains.js
-var import_yaml = __toESM(require_dist(), 1);
+// ../core/dist/statusline.js
+function sanitizeSessionId(sessionId) {
+  return sessionId.replace(/[^a-zA-Z0-9-]/g, "_");
+}
 
 // ../core/dist/threat-loader.js
 var import_yaml2 = __toESM(require_dist(), 1);
 
 // ../core/dist/plugin-scan-cache.js
-var import_node_os2 = require("node:os");
 var import_node_path4 = require("node:path");
-var DEFAULT_CACHE_PATH = (0, import_node_path4.join)((0, import_node_os2.homedir)(), ".sage", "plugin_scan_cache.json");
+var DEFAULT_CACHE_PATH = (0, import_node_path4.join)(getHomeDir(), ".sage", "plugin_scan_cache.json");
 
 // ../core/dist/plugin-scanner.js
-var import_node_os3 = require("node:os");
 var import_node_path5 = require("node:path");
-var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path5.join)((0, import_node_os3.homedir)(), ".claude", "plugins", "installed_plugins.json");
+var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path5.join)(getHomeDir(), ".claude", "plugins", "installed_plugins.json");
 var MAX_FILE_SIZE = 512 * 1024;
 var STR_ARG = `(?:"((?:[^"\\\\]|\\\\.)*)"|'((?:[^'\\\\]|\\\\.)*)'|\`([^\`]*)\`)`;
 var JS_EXEC_RE = new RegExp(`\\bexec(?:File)?(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
@@ -15970,9 +16008,6 @@ var JS_BUN_SHELL_RE = new RegExp(`\\bBun\\.shell\\s*\\(\\s*${STR_ARG}`, "g");
 var PENDING_STALE_MS2 = 60 * 60 * 1e3;
 var CONSUMED_TTL_MS = 10 * 60 * 1e3;
 var STALE_FILE_MS = 2 * 60 * 60 * 1e3;
-function sanitizeSessionId(sessionId) {
-  return sessionId.replace(/[^a-zA-Z0-9-]/g, "_");
-}
 function resolvedSageDir() {
   return resolvePath(SAGE_DIR);
 }
@@ -16067,7 +16102,7 @@ var logger = (0, import_pino.default)({ level: "warn" }, import_pino.default.des
 async function main() {
   let rawInput;
   try {
-    rawInput = (0, import_node_fs2.readFileSync)(0, "utf-8");
+    rawInput = (0, import_node_fs.readFileSync)(0, "utf-8");
   } catch {
     process.stdout.write("{}\n");
     return;
@@ -16091,12 +16126,10 @@ async function main() {
     return;
   }
   const artifactList = entry.artifacts.map((a) => `${artifactTypeLabel(a.type)} '${a.value}'`).join(", ");
-  const typeSet = [...new Set(entry.artifacts.map((a) => artifactTypeLabel(a.type)))];
-  const typeStr = typeSet.join("/");
   const response = {
     hookSpecificOutput: {
       hookEventName: "PostToolUse",
-      additionalContext: `Sage: The user approved a flagged action (threat ${entry.threatId}: ${entry.threatTitle}, artifacts: ${artifactList}). To permanently allow ${typeStr === "URL" ? "these URLs" : typeStr === "command" ? "these commands" : `these ${typeStr}s`} in the future, you can use the sage_allowlist_add MCP tool.`
+      additionalContext: `Sage: The user approved a flagged action (threat ${entry.threatId}: ${entry.threatTitle}, artifacts: ${artifactList}). To permanently allow this in the future, the user can add an exception rule to ~/.sage/exceptions.json.`
     }
   };
   process.stdout.write(`${JSON.stringify(response)}

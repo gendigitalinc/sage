@@ -13,10 +13,10 @@ export async function needsMarketplaceMigration(marketplacesPath?: string): Prom
 		const filePath =
 			marketplacesPath ?? join(resolvePath("~/.claude"), "plugins", "known_marketplaces.json");
 		const raw = await readFile(filePath, "utf-8");
-		const data = JSON.parse(raw) as unknown[];
-		if (!Array.isArray(data)) return false;
+		const data = JSON.parse(raw) as unknown;
+		if (typeof data !== "object" || data === null || Array.isArray(data)) return false;
 
-		return data.some((entry) => {
+		return Object.values(data).some((entry) => {
 			if (typeof entry !== "object" || entry === null) return false;
 			const rec = entry as Record<string, unknown>;
 			const source = rec.source as Record<string, unknown> | undefined;

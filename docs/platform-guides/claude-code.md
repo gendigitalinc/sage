@@ -24,6 +24,13 @@ Sage registers two hooks in `hooks/hooks.json`:
 
 Both hooks execute Node.js scripts from `packages/claude-code/dist/` and communicate via stdin/stdout JSON.
 
+## MCP Tools
+
+Sage also registers an MCP server (configured in `.claude-plugin/plugin.json`) which exposes tools including:
+
+- `sage_report_false_positive` — report audit log entries as false positives (scoped by conversation id)
+- `sage_list_audit_entries` — list recent audit entries for selecting `entry_id`s
+
 ## Hook Input
 
 ```json

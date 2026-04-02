@@ -10,6 +10,7 @@ import { AmsiClient, isAmsiSupported } from "./clients/amsi.js";
 import { UrlCheckClient } from "./clients/url-check.js";
 import { loadConfig } from "./config.js";
 import { DecisionEngine } from "./engine.js";
+import { findAllowException, findDenyException, loadExceptions } from "./exceptions.js";
 import { HeuristicsEngine } from "./heuristics.js";
 import { PackageChecker } from "./package-checker.js";
 import {
@@ -17,13 +18,17 @@ import {
 	extractPackagesFromManifest,
 	type ParsedPackage,
 } from "./package-extractor.js";
+import { updateSessionStatus } from "./statusline.js";
 import { loadThreats } from "./threat-loader.js";
 import { loadTrustedDomains } from "./trusted-domains.js";
 import type {
+	AgentRuntime,
 	AmsiCheckResult,
 	Artifact,
+	AuditSignals,
 	CachedVerdict,
 	Config,
+	HookType,
 	Logger,
 	PackageCheckResult,
 	UrlCheckResult,
@@ -34,6 +39,9 @@ import { VERSION } from "./version.js";
 
 export interface ToolEvaluationRequest {
 	sessionId: string;
+	conversationId?: string;
+	agentRuntime?: AgentRuntime;
+	hookType?: HookType;
 	toolName: string;
 	toolInput: Record<string, unknown>;
 	artifacts: Artifact[];
@@ -70,22 +78,89 @@ export async function evaluateToolCall(
 		return allowVerdict("no_artifacts");
 	}
 
+	// 1. Deny exceptions first (user-defined blacklist)
 	try {
-		const allowlist = await loadAllowlist(config.allowlist, logger);
-		if (isAllowlisted(allowlist, request.artifacts)) {
-			const verdict = allowVerdict("allowlisted");
-			await logVerdict(
-				config.logging,
-				request.sessionId,
-				request.toolName,
-				request.toolInput,
-				verdict,
-				true,
-			);
+		const exceptions = await loadExceptions(config.exceptions, logger);
+		const denyMatch = findDenyException(exceptions, request.artifacts);
+		if (denyMatch) {
+			const verdict: Verdict = {
+				decision: "deny",
+				category: "exception",
+				confidence: 1.0,
+				severity: "critical",
+				source: "exception",
+				artifacts: [denyMatch.artifact.value],
+				matchedThreatId: null,
+				reasons: [
+					`Deny exception: ${denyMatch.rule.match} pattern '${denyMatch.rule.pattern}'${denyMatch.rule.reason ? ` — ${denyMatch.rule.reason}` : ""}`,
+				],
+			};
+			try {
+				await logVerdict(
+					config.logging,
+					request.sessionId,
+					request.toolName,
+					request.toolInput,
+					verdict,
+					false,
+					request.conversationId,
+					request.agentRuntime,
+					request.hookType,
+					undefined,
+				);
+			} catch {
+				// Fail open.
+			}
 			return verdict;
 		}
+
+		// 2. Legacy exact-match allowlist (unchanged)
+		try {
+			const allowlist = await loadAllowlist(config.allowlist, logger);
+			if (isAllowlisted(allowlist, request.artifacts)) {
+				const allowV = allowVerdict("allowlisted");
+				await logVerdict(
+					config.logging,
+					request.sessionId,
+					request.toolName,
+					request.toolInput,
+					allowV,
+					true,
+					request.conversationId,
+					request.agentRuntime,
+					request.hookType,
+					undefined,
+				);
+				return allowV;
+			}
+		} catch {
+			// Fail open if allowlist loading fails.
+		}
+
+		// 3. Allow exceptions (pattern-based, with match-type-aware semantics)
+		const allowMatch = findAllowException(exceptions, request.artifacts);
+		if (allowMatch) {
+			const allowV = allowVerdict("exception");
+			try {
+				await logVerdict(
+					config.logging,
+					request.sessionId,
+					request.toolName,
+					request.toolInput,
+					allowV,
+					true,
+					request.conversationId,
+					request.agentRuntime,
+					request.hookType,
+					undefined,
+				);
+			} catch {
+				// Fail open.
+			}
+			return allowV;
+		}
 	} catch {
-		// Fail open if allowlist loading fails.
+		// Fail open if exceptions loading fails.
 	}
 
 	let cache: VerdictCache | null = null;
@@ -198,6 +273,59 @@ export async function evaluateToolCall(
 
 	await cacheUrlResults(urlCheckResults, cache);
 
+	function formatPackageDetectionName(p: PackageCheckResult): string {
+		const base = `PKG|${p.verdict}|registry=${p.registry}|name=${p.packageName}`;
+		if (p.verdict === "suspicious_age") {
+			const ageDays = typeof p.ageDays === "number" ? Math.floor(p.ageDays) : undefined;
+			return ageDays !== undefined ? `${base}|age_days=${ageDays}` : base;
+		}
+		if (p.verdict === "malicious") {
+			const det = (p.fileDetectionNames ?? []).filter((d) => typeof d === "string" && d.length > 0);
+			return det.length > 0 ? `${base}|det=${det.join(",")}` : base;
+		}
+		return base;
+	}
+
+	const auditSignals: AuditSignals = {};
+	if (heuristicMatches.length > 0) {
+		auditSignals.heuristics = heuristicMatches.map((m) => ({
+			rule_id: m.threat.id,
+			rule_version: typeof m.threat.version === "number" ? m.threat.version : undefined,
+		}));
+	}
+	if (urlCheckResults.length > 0) {
+		const relevant = urlCheckResults.filter((r) => r.isMalicious || r.flags.length > 0);
+		if (relevant.length > 0) {
+			auditSignals.url_checks = relevant.flatMap((r) => {
+				return r.detections.map((d) => ({
+					detection_name: d,
+					url: r.url,
+				}));
+			});
+		}
+	}
+	if (packageCheckResults.length > 0) {
+		const relevant = packageCheckResults.filter((p) => p.verdict !== "clean");
+		if (relevant.length > 0) {
+			auditSignals.package_checks = relevant.map((p) => ({
+				detection_name: formatPackageDetectionName(p),
+				package_name: p.packageName,
+				package_version: undefined,
+				package_registry: p.registry,
+			}));
+		}
+
+		const fileRelevant = relevant.filter(
+			(p) => !!p.fileSha256 && (p.fileDetectionNames?.length ?? 0) > 0,
+		);
+		if (fileRelevant.length > 0) {
+			auditSignals.file_checks = fileRelevant.map((p) => ({
+				detection_name: (p.fileDetectionNames ?? []).join(","),
+				file_sha256: p.fileSha256 as string,
+			}));
+		}
+	}
+
 	try {
 		await logVerdict(
 			config.logging,
@@ -205,9 +333,22 @@ export async function evaluateToolCall(
 			request.toolName,
 			request.toolInput,
 			verdict,
+			false,
+			request.conversationId,
+			request.agentRuntime,
+			request.hookType,
+			Object.keys(auditSignals).length > 0 ? auditSignals : undefined,
 		);
 	} catch {
 		// Fail open.
+	}
+
+	if (verdict.decision !== "allow") {
+		try {
+			await updateSessionStatus(request.sessionId, verdict);
+		} catch {
+			// Fail open — never block verdict delivery.
+		}
 	}
 
 	return verdict;

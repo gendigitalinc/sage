@@ -4,9 +4,8 @@
 
 import { createHash } from "node:crypto";
 import { readdir } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { atomicWriteJson, getFileContent } from "./file-utils.js";
+import { atomicWriteJson, getFileContent, getHomeDir } from "./file-utils.js";
 import type {
 	CachedPluginScanResult,
 	Logger,
@@ -15,7 +14,7 @@ import type {
 } from "./types.js";
 import { nullLogger } from "./types.js";
 
-const DEFAULT_CACHE_PATH = join(homedir(), ".sage", "plugin_scan_cache.json");
+const DEFAULT_CACHE_PATH = join(getHomeDir(), ".sage", "plugin_scan_cache.json");
 const CACHE_TTL_DAYS = 7;
 
 export function cacheKey(pluginKey: string, version: string, lastUpdated: string): string {

@@ -8,11 +8,16 @@ import {
 import { SageVerdictBlockError, SageVerdictError } from "./error.js";
 import { extractFromOpenCodeTool } from "./extractors.js";
 
+export interface ToolHandlerOptions {
+	showToast?: (msg: string, variant: "info" | "success" | "warning" | "error") => void;
+}
+
 export function createToolHandlers(
 	logger: Logger,
 	approvalStore: ApprovalStore,
 	threatsDir: string,
 	allowlistsDir: string,
+	options?: ToolHandlerOptions,
 ) {
 	const beforeToolUse = async (
 		input: { tool: string; sessionID: string; callID: string },
@@ -31,6 +36,8 @@ export function createToolHandlers(
 			const { verdict, actionId } = await guardToolCall(
 				{
 					sessionId: input.sessionID,
+					conversationId: input.sessionID,
+					agentRuntime: "opencode",
 					toolName: input.tool,
 					toolInput: args,
 					artifacts,
@@ -45,6 +52,16 @@ export function createToolHandlers(
 
 			if (verdict.decision === "allow") {
 				return;
+			}
+
+			try {
+				const toastMsg =
+					verdict.decision === "deny"
+						? `Sage blocked: ${verdict.reasons[0] ?? "Threat detected"} (${verdict.category})`
+						: `Sage flagged: ${verdict.reasons[0] ?? "Action flagged"} (${verdict.category})`;
+				options?.showToast?.(toastMsg, verdict.severity === "critical" ? "error" : "warning");
+			} catch {
+				// Toast failure is non-critical — never prevent enforcement
 			}
 
 			if (verdict.decision === "deny") {

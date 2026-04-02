@@ -3,13 +3,15 @@
  * Loads settings from ~/.sage/config.json with full defaults fallback.
  */
 
-import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { getFileContent } from "./file-utils.js";
+import { getFileContent, getHomeDir } from "./file-utils.js";
 import type { Config, Logger } from "./types.js";
 import { ConfigSchema, nullLogger } from "./types.js";
 
 export const SAGE_DIR = "~/.sage";
+
+/** Hook timeout in seconds, shared across all connector hook installers. */
+export const HOOK_TIMEOUT_SECONDS = 8;
 
 function resolvedSageDir(): string {
 	return resolvePath(SAGE_DIR);
@@ -27,14 +29,19 @@ function defaultAllowlistPath(): string {
 	return join(resolvedSageDir(), "allowlist.json");
 }
 
+function defaultExceptionsPath(): string {
+	return join(resolvedSageDir(), "exceptions.json");
+}
+
 function defaultAuditPath(): string {
 	return join(resolvedSageDir(), "audit.jsonl");
 }
 
-/** Expand ~ to the user's home directory. */
+/** Expand ~ to the user's home directory. Prefers HOME env over os.homedir(). */
 export function resolvePath(pathStr: string): string {
 	if (pathStr.startsWith("~/") || pathStr === "~") {
-		return join(homedir(), pathStr.slice(1));
+		const home = getHomeDir();
+		return join(home, pathStr.slice(1));
 	}
 	return pathStr;
 }
@@ -49,7 +56,7 @@ function isWithinDirectory(baseDir: string, targetPath: string): boolean {
 function normalizeStateFilePath(
 	configuredPath: string,
 	fallbackPath: string,
-	field: "cache" | "allowlist" | "logging",
+	field: "cache" | "allowlist" | "exceptions" | "logging",
 	logger: Logger,
 ): string {
 	const sageDir = resolvedSageDir();
@@ -85,6 +92,7 @@ function normalizeStateFilePath(
 function sanitizeConfigPaths(config: Config, logger: Logger): Config {
 	const cachePath = defaultCachePath();
 	const allowlistPath = defaultAllowlistPath();
+	const exceptionsPath = defaultExceptionsPath();
 	const auditPath = defaultAuditPath();
 	return {
 		...config,
@@ -95,6 +103,10 @@ function sanitizeConfigPaths(config: Config, logger: Logger): Config {
 		allowlist: {
 			...config.allowlist,
 			path: normalizeStateFilePath(config.allowlist.path, allowlistPath, "allowlist", logger),
+		},
+		exceptions: {
+			...config.exceptions,
+			path: normalizeStateFilePath(config.exceptions.path, exceptionsPath, "exceptions", logger),
 		},
 		logging: {
 			...config.logging,

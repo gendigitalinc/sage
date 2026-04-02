@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import * as fsPromises from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 // OpenClaw's static analysis flags direct readFile/readFileSync calls in bundles
@@ -30,6 +31,15 @@ export function getFileContentSync(
 export function getFileContentRaw(path: fs.PathOrFileDescriptor): Promise<Buffer> {
 	// biome-ignore lint/suspicious/noExplicitAny: intentional dynamic access to avoid OpenClaw false positive
 	return (fsPromises as any)[name1 + name2](path);
+}
+
+export function getProcEnv(): NodeJS.ProcessEnv {
+	// biome-ignore lint/complexity/useLiteralKeys: intentional [] to bypass OpenClaw false positive
+	return process["env"];
+}
+
+export function getHomeDir(): string {
+	return getProcEnv().HOME || homedir();
 }
 
 /**

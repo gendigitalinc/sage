@@ -57,3 +57,12 @@ You are working in an environment protected by Sage, a security plugin. Be mindf
 ## Sage Flagged Actions
 
 When Sage flags a tool call (as opposed to blocking it outright), you **must** present the details to the user and wait for their explicit approval before calling `sage_approve`. Never auto-approve a flagged action on your own — the user must decide.
+
+## False Positive Reporting
+
+If the user believes a Sage detection is incorrect (a wrong block, mistaken flag, or false alarm), you can report it using the MCP tools provided by Sage:
+
+1. **`sage_list_audit_entries`** — Lists recent Sage audit log entries for the current conversation. Use this to find the `entry_id`s of the detections the user considers incorrect.
+2. **`sage_report_false_positive`** — Submits a false positive report to the Sage backend. Requires a `description` (what was wrongly detected) and `reasoning` (why it is a false positive). Optionally accepts `entry_ids` to scope the report to specific entries.
+
+When the user says a detection was wrong, a false positive, or asks to report/dispute a Sage verdict, use these tools to help them.

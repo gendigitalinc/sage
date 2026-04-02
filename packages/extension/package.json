@@ -2,7 +2,7 @@
   "name": "sage-cursor",
   "displayName": "Gen Sage",
   "description": "Safety for Agents — protects AI agent tool calls against dangerous commands, malicious URLs, and harmful file writes.",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "publisher": "Gen",
   "icon": "sage-icon.png",
@@ -12,21 +12,25 @@
   },
   "license": "Apache-2.0",
   "engines": {
-    "vscode": "^1.97.0"
+    "vscode": "^1.105.0"
   },
   "categories": [
     "Other"
   ],
   "activationEvents": [
+    "onStartupFinished",
     "onCommand:sage.enableProtection",
     "onCommand:sage.disableProtection",
     "onCommand:sage.openConfig",
+    "onCommand:sage.openExceptions",
     "onCommand:sage.openAuditLog",
     "onCommand:sage.showHookHealth"
   ],
   "files": [
     "dist/cursor_extension.js",
     "dist/cursor_extension.js.map",
+    "dist/mcp-server.cjs",
+    "dist/mcp-server.cjs.map",
     "dist/sage-hook.cjs",
     "dist/sage-hook.cjs.map",
     "resources/**",
@@ -44,11 +48,15 @@
       },
       {
         "command": "sage.disableProtection",
-        "title": "Sage: Disable protection"
+        "title": "Sage: Disable protection until restart"
       },
       {
         "command": "sage.openConfig",
         "title": "Sage: Open config"
+      },
+      {
+        "command": "sage.openExceptions",
+        "title": "Sage: Open exceptions"
       },
       {
         "command": "sage.openAuditLog",
@@ -57,6 +65,12 @@
       {
         "command": "sage.showHookHealth",
         "title": "Sage: Show hook health"
+      }
+    ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "sage.mcp-servers",
+        "label": "Gen Sage"
       }
     ],
     "configuration": {
@@ -81,10 +95,10 @@
     }
   },
   "scripts": {
-    "build": "pnpm -C ../core build && npm run clean && npm run sync:assets && node esbuild.config.cjs",
+    "build": "pnpm -C ../core build && pnpm -C ../mcp build && npm run clean && npm run sync:assets && node esbuild.config.cjs",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('resources',{recursive:true,force:true});require('node:fs').rmSync('.vsce',{recursive:true,force:true})\"",
     "sync:assets": "node scripts/sync-assets.mjs",
-    "pretest": "pnpm -C ../core build && npm run sync:assets && node esbuild.config.cjs",
+    "pretest": "pnpm -C ../core build && pnpm -C ../mcp build && npm run sync:assets && node esbuild.config.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "package:cursor:vsix": "npm run build && pnpm dlx @vscode/vsce package -o ../../sage-cursor.vsix --no-dependencies --allow-package-secrets github --allow-package-secrets slack",
@@ -93,11 +107,12 @@
   },
   "devDependencies": {
     "@gendigital/sage-core": "workspace:*",
+    "@gendigital/sage-mcp": "workspace:*",
     "@types/node": "^22.0.0",
-    "@types/vscode": "^1.97.0",
+    "@types/vscode": "^1.105.0",
     "@vscode/test-electron": "^2.5.2",
     "esbuild": "^0.25.0",
-    "typescript": "^5.9.0",
+    "typescript": "^5.9.3",
     "vitest": "^4.0.0"
   }
 }

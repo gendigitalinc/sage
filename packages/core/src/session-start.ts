@@ -55,13 +55,17 @@ export async function runSessionStart(ctx: SessionStartContext): Promise<Session
 			checkFileHashes: ctx.checkFileHashes,
 		}),
 		iidPromise
-			.then((iid) =>
-				checkForUpdate(ctx.version, logger, undefined, {
+			.then((iid) => {
+				if (!iid) {
+					return null;
+				}
+
+				return checkForUpdate(ctx.version, logger, undefined, {
 					agentRuntime: ctx.agentRuntime,
 					agentRuntimeVersion: ctx.agentRuntimeVersion,
 					iid,
-				}),
-			)
+				});
+			})
 			.catch(() => null),
 	]);
 

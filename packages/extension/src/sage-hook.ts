@@ -2,6 +2,7 @@
 
 import { join, resolve } from "node:path";
 import {
+	type AgentRuntime,
 	type Artifact,
 	evaluateToolCall,
 	extractFromBash,
@@ -11,6 +12,7 @@ import {
 	extractFromWebFetch,
 	extractFromWrite,
 	extractUrls,
+	type HookType,
 	type Verdict,
 } from "@gendigital/sage-core";
 
@@ -23,6 +25,9 @@ type HookMode = "cursor" | "vscode";
 
 interface NormalizedHookCall {
 	sessionId: string;
+	conversationId: string;
+	agentRuntime: AgentRuntime;
+	hookType: HookType;
 	toolName: string;
 	toolInput: Record<string, unknown>;
 	artifacts: Artifact[];
@@ -90,6 +95,9 @@ async function evaluateNormalizedCall(call: NormalizedHookCall): Promise<Verdict
 	return evaluateToolCall(
 		{
 			sessionId: call.sessionId,
+			conversationId: call.conversationId,
+			agentRuntime: call.agentRuntime,
+			hookType: call.hookType,
 			toolName: call.toolName,
 			toolInput: call.toolInput,
 			artifacts: call.artifacts,
@@ -132,12 +140,14 @@ function normalizeCursorCall(
 	}
 
 	const input = payload as Record<string, unknown>;
-	const sessionId =
+	const conversationId =
 		asString(input.conversation_id) ??
 		asString(input.conversationId) ??
 		asString(input.session_id) ??
 		asString(input.sessionId) ??
 		"cursor";
+	const sessionId =
+		asString(input.session_id) ?? asString(input.sessionId) ?? conversationId ?? "cursor";
 
 	if (eventName === "beforeShellExecution") {
 		const command = asString(input.command) ?? "";
@@ -147,6 +157,9 @@ function normalizeCursorCall(
 		};
 		return {
 			sessionId,
+			conversationId,
+			agentRuntime: "cursor",
+			hookType: "PreToolUse",
 			toolName: "Bash",
 			toolInput,
 			artifacts: command ? extractFromBash(command) : [],
@@ -163,6 +176,9 @@ function normalizeCursorCall(
 		};
 		return {
 			sessionId,
+			conversationId,
+			agentRuntime: "cursor",
+			hookType: "PreToolUse",
 			toolName: "Read",
 			toolInput,
 			artifacts: extractFromRead(toolInput),
@@ -180,6 +196,9 @@ function normalizeCursorCall(
 		};
 		return {
 			sessionId,
+			conversationId,
+			agentRuntime: "cursor",
+			hookType: "PreToolUse",
 			toolName: "MCP",
 			toolInput,
 			artifacts: extractFromMcp(toolInput),
@@ -191,6 +210,9 @@ function normalizeCursorCall(
 	const toolInput = normalizeFileToolInput(toolName, rawToolInput);
 	return {
 		sessionId,
+		conversationId,
+		agentRuntime: "cursor",
+		hookType: "PreToolUse",
 		toolName: mapCursorToolToClaudeTool(toolName),
 		toolInput,
 		artifacts: extractFromCursorTool(toolName, toolInput),
@@ -210,15 +232,20 @@ function normalizeVsCodeCall(payload: unknown): NormalizedHookCall | undefined {
 
 	const rawToolInput = parseUnknownObject(input.tool_input);
 	const toolInput = normalizeFileToolInput(toolName, rawToolInput);
-	const sessionId =
-		asString(input.session_id) ??
-		asString(input.sessionId) ??
+	const conversationId =
 		asString(input.conversation_id) ??
 		asString(input.conversationId) ??
+		asString(input.session_id) ??
+		asString(input.sessionId) ??
 		"vscode";
+	const sessionId =
+		asString(input.session_id) ?? asString(input.sessionId) ?? conversationId ?? "vscode";
 
 	return {
 		sessionId,
+		conversationId,
+		agentRuntime: "vscode",
+		hookType: "PreToolUse",
 		toolName,
 		toolInput,
 		artifacts: extractFromVsCodeTool(toolName, toolInput),

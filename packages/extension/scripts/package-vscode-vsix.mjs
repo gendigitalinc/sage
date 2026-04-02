@@ -37,6 +37,8 @@ function buildVsCodeManifest(base) {
 	manifest.files = [
 		"dist/vscode_extension.js",
 		"dist/vscode_extension.js.map",
+		"dist/mcp-server.cjs",
+		"dist/mcp-server.cjs.map",
 		"dist/sage-hook.cjs",
 		"dist/sage-hook.cjs.map",
 		"resources/**",

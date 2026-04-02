@@ -23,7 +23,7 @@
   severity: high
   confidence: 0.85
   action: require_approval
-  pattern: "\\.sage[\\\\/](allowlist|config)\\.json"
+  pattern: "\\.sage[\\\\/](allowlist|config|exceptions|pending-exceptions)\\.json"
   match_on: file_path
   title: "Access Sage configuration files"
   expires_at: null

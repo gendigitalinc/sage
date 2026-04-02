@@ -59,7 +59,7 @@ In-process plugin using `api.on('before_tool_call')`. Includes:
 
 VS Code API extension with platform-specific installers:
 
-- **`shared_extension.ts`** - Registers commands: enable/disable protection, open config, show hook health
+- **`shared_extension.ts`** - Registers commands: enable protection, disable until restart, open config, show hook health
 - **`cursor_hook_installer.ts`** / **`vscode_hook_installer.ts`** - Install managed hooks into Cursor or VS Code
 
 ## Data Flow

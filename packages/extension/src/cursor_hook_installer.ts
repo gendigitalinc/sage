@@ -2,8 +2,8 @@ import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { HOOK_TIMEOUT_SECONDS } from "@gendigital/sage-core";
 import * as vscode from "vscode";
-
 import type {
 	ManagedHookHealth,
 	ManagedHookInstallOptions,
@@ -173,20 +173,20 @@ function upsertManagedHooks(existing: CursorHooksFile, command: string): CursorH
 
 	hooks.beforeShellExecution = appendManaged(hooks.beforeShellExecution, {
 		command,
-		timeout: 30,
+		timeout: HOOK_TIMEOUT_SECONDS,
 	});
 	hooks.preToolUse = appendManaged(hooks.preToolUse, {
 		matcher: "Write|Delete|Edit|WebFetch",
 		command,
-		timeout: 30,
+		timeout: HOOK_TIMEOUT_SECONDS,
 	});
 	hooks.beforeMCPExecution = appendManaged(hooks.beforeMCPExecution, {
 		command,
-		timeout: 30,
+		timeout: HOOK_TIMEOUT_SECONDS,
 	});
 	hooks.beforeReadFile = appendManaged(hooks.beforeReadFile, {
 		command,
-		timeout: 30,
+		timeout: HOOK_TIMEOUT_SECONDS,
 	});
 
 	return {

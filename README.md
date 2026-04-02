@@ -26,10 +26,20 @@ Requires [Node.js >= 18](https://nodejs.org/).
 
 ### Cursor
 
-Build and install the extension, then run `Sage: Enable Protection` from the command palette.
+[Install](cursor:extension/Gen.sage-cursor) the official extension from the Cursor extension marketplace. Alternatively, build from source:
 
 ```bash
 pnpm install && pnpm -C packages/extension run package:cursor:vsix
+```
+
+### VS Code
+
+[Install](vscode:extension/Gen.sage-vscode) the official extension from the VS Code extension marketplace. To use Sage’s MCP tools, start the MCP server manually via: `MCP: List Server` → `sage` → `Start server`.
+
+Alternatively, build from source:
+
+```bash
+pnpm install && pnpm -C packages/extension run package:vscode:vsix
 ```
 
 ### OpenClaw
@@ -74,6 +84,7 @@ See [Getting Started](docs/getting-started.md) for detailed instructions.
 | [Plugin Scanning](docs/plugin-scanning.md)       | Session-start plugin scanning                  |
 | [AMSI Scanning](docs/amsi-scanning.md)           | Windows antimalware scanning via AMSI          |
 | [Architecture](docs/architecture.md)             | Monorepo structure, packages, design decisions |
+| [MCP Server](docs/mcp.md)                        | Shared MCP server architecture + auto-install  |
 | [Development](docs/development.md)               | Building, testing, tooling, conventions        |
 | [FAQ](docs/faq.md)                               | Common questions                               |
 | [Privacy](docs/privacy.md)                       | What data is sent, what stays local            |
@@ -87,7 +98,7 @@ See [Getting Started](docs/getting-started.md) for detailed instructions.
 
 ## Privacy
 
-Sage sends URL hashes and package hashes to Gen Digital reputation APIs. File content, commands, and source code stay local. Both services can be disabled for fully offline operation. See [Privacy](docs/privacy.md) for details.
+Sage sends URLs and package hashes to Gen Digital reputation APIs. File content, commands, and source code stay local. Both services can be disabled for fully offline operation. See [Privacy](docs/privacy.md) for details.
 
 ## Contributing
 

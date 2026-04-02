@@ -5,6 +5,7 @@
 
 import { logPluginScan } from "./audit-log.js";
 import { loadConfig } from "./config.js";
+import { findPluginAllowException, findPluginDenyException, loadExceptions } from "./exceptions.js";
 import {
 	computeConfigHash,
 	getCached,
@@ -81,6 +82,15 @@ export async function runSessionStartScan(
 		return [];
 	}
 
+	// Load exceptions for plugin allow/deny rules
+	let exceptions: import("./types.js").ExceptionRule[] = [];
+	try {
+		const sageConfig = await loadConfig(context.configPath, logger);
+		exceptions = await loadExceptions(sageConfig.exceptions, logger);
+	} catch {
+		// Fail open — proceed without exceptions.
+	}
+
 	const configHash = await computeConfigHash(
 		context.sageVersion ?? "",
 		context.threatsDir,
@@ -91,6 +101,32 @@ export async function runSessionStartScan(
 	let cacheModified = false;
 
 	for (const plugin of plugins) {
+		// 1. Exception checks — always run first, before cache
+		const denyMatch = findPluginDenyException(exceptions, plugin.key);
+		if (denyMatch) {
+			resultsWithFindings.push({
+				plugin,
+				findings: [
+					{
+						threatId: "EXCEPTION-DENY",
+						title: `Denied by exception: ${denyMatch.pattern}${denyMatch.reason ? ` — ${denyMatch.reason}` : ""}`,
+						severity: "critical",
+						confidence: 1.0,
+						action: "block",
+						artifact: plugin.key,
+						sourceFile: "~/.sage/exceptions.json",
+					},
+				],
+			});
+			continue;
+		}
+
+		const allowMatch = findPluginAllowException(exceptions, plugin.key);
+		if (allowMatch) {
+			continue;
+		}
+
+		// 2. Cache check (only reached when no exception matched)
 		const cached = getCached(cache, plugin.key, plugin.version, plugin.lastUpdated);
 		if (cached && cached.findings.length === 0) {
 			continue;
@@ -104,6 +140,7 @@ export async function runSessionStartScan(
 			continue;
 		}
 
+		// 3. Scan (only reached on cache miss with no exception)
 		const result = await scanPlugin(plugin, threats, {
 			checkUrls: context.checkUrls ?? true,
 			checkFileHashes: context.checkFileHashes ?? true,
