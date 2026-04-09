@@ -129,6 +129,97 @@ describe("RegistryClient", () => {
 			expect(result?.requestedVersionFound).toBe(false);
 		});
 
+		it("resolves partial version via semver range (e.g. ^5.8)", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					"dist-tags": { latest: "5.8.3" },
+					versions: {
+						"5.7.2": { dist: { shasum: "hash-572" } },
+						"5.8.2": { dist: { shasum: "hash-582" } },
+						"5.8.3": { dist: { shasum: "hash-583" } },
+					},
+					time: { created: "2020-01-01T00:00:00.000Z" },
+				}),
+			});
+
+			const client = new RegistryClient();
+
+			const result = await client.getPackageMetadata("typescript", "npm", "^5.8");
+			expect(result).not.toBeNull();
+			expect(result?.requestedVersionFound).toBe(true);
+			expect(result?.resolvedVersion).toBe("5.8.3");
+		});
+
+		it("resolves compound range (>=5.0.0 <5.8.0)", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					"dist-tags": { latest: "5.8.3" },
+					versions: {
+						"5.7.2": { dist: { shasum: "hash-572" } },
+						"5.8.2": { dist: { shasum: "hash-582" } },
+						"5.8.3": { dist: { shasum: "hash-583" } },
+					},
+					time: { created: "2020-01-01T00:00:00.000Z" },
+				}),
+			});
+
+			const client = new RegistryClient();
+
+			const result = await client.getPackageMetadata("typescript", "npm", ">=5.0.0 <5.8.0");
+			expect(result).not.toBeNull();
+			expect(result?.requestedVersionFound).toBe(true);
+			expect(result?.resolvedVersion).toBe("5.7.2");
+		});
+
+		it("rejects range that matches no published version", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					"dist-tags": { latest: "2.0.0" },
+					versions: {
+						"1.0.0": { dist: { shasum: "hash-100" } },
+						"2.0.0": { dist: { shasum: "hash-200" } },
+					},
+					time: { created: "2020-01-01T00:00:00.000Z" },
+				}),
+			});
+
+			const client = new RegistryClient();
+
+			const result = await client.getPackageMetadata("pkg", "npm", "^9.0.0");
+			expect(result).not.toBeNull();
+			expect(result?.requestedVersionFound).toBe(false);
+			expect(result?.resolvedVersion).toBe("2.0.0");
+		});
+
+		it("resolves tilde range to best matching version", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					"dist-tags": { latest: "4.18.3" },
+					versions: {
+						"4.17.1": { dist: { shasum: "hash-4171" } },
+						"4.17.5": { dist: { shasum: "hash-4175" } },
+						"4.18.3": { dist: { shasum: "hash-4183" } },
+					},
+					time: { created: "2020-01-01T00:00:00.000Z" },
+				}),
+			});
+
+			const client = new RegistryClient();
+
+			const result = await client.getPackageMetadata("lodash", "npm", "~4.17");
+			expect(result).not.toBeNull();
+			expect(result?.requestedVersionFound).toBe(true);
+			expect(result?.resolvedVersion).toBe("4.17.5");
+		});
+
 		it("requestedVersionFound is true when no version requested", async () => {
 			globalThis.fetch = vi.fn().mockResolvedValue({
 				ok: true,
@@ -240,6 +331,126 @@ describe("RegistryClient", () => {
 			const result = await client.getPackageMetadata("../../etc/passwd", "pypi");
 			expect(result).toBeNull();
 			expect(mockFetch).not.toHaveBeenCalled();
+		});
+
+		it("resolves partial version via PEP 440 padding (2.0 → 2.0.0)", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					info: { version: "2.0.3" },
+					releases: {
+						"2.0.0": [
+							{ digests: { sha256: "hash-200" }, upload_time_iso_8601: "2023-01-01T00:00:00.000Z" },
+						],
+						"2.0.1": [
+							{ digests: { sha256: "hash-201" }, upload_time_iso_8601: "2023-02-01T00:00:00.000Z" },
+						],
+						"2.0.3": [
+							{ digests: { sha256: "hash-203" }, upload_time_iso_8601: "2023-03-01T00:00:00.000Z" },
+						],
+					},
+				}),
+			});
+
+			const client = new RegistryClient();
+			const result = await client.getPackageMetadata("flask", "pypi", "2.0");
+			expect(result).not.toBeNull();
+			expect(result?.requestedVersionFound).toBe(true);
+			expect(result?.resolvedVersion).toBe("2.0.0");
+		});
+
+		it("does not prefix-match partial version (==2.0 ≠ 2.0.1)", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					info: { version: "2.0.3" },
+					releases: {
+						"2.0.1": [
+							{ digests: { sha256: "hash-201" }, upload_time_iso_8601: "2023-02-01T00:00:00.000Z" },
+						],
+						"2.0.3": [
+							{ digests: { sha256: "hash-203" }, upload_time_iso_8601: "2023-03-01T00:00:00.000Z" },
+						],
+					},
+				}),
+			});
+
+			const client = new RegistryClient();
+			const result = await client.getPackageMetadata("flask", "pypi", "2.0");
+			expect(result).not.toBeNull();
+			expect(result?.requestedVersionFound).toBe(false);
+			expect(result?.resolvedVersion).toBe("2.0.3");
+		});
+
+		it("=== strict match: exact key hit", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					info: { version: "2.0.0" },
+					releases: {
+						"2.0": [
+							{ digests: { sha256: "hash-20" }, upload_time_iso_8601: "2023-01-01T00:00:00.000Z" },
+						],
+						"2.0.0": [
+							{ digests: { sha256: "hash-200" }, upload_time_iso_8601: "2023-02-01T00:00:00.000Z" },
+						],
+					},
+				}),
+			});
+
+			const client = new RegistryClient();
+			const result = await client.getPackageMetadata("pkg", "pypi", "===2.0");
+			expect(result).not.toBeNull();
+			expect(result?.requestedVersionFound).toBe(true);
+			expect(result?.resolvedVersion).toBe("2.0");
+		});
+
+		it("=== strict match: does not normalize (===2.0 ≠ 2.0.0)", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					info: { version: "2.0.0" },
+					releases: {
+						"2.0.0": [
+							{ digests: { sha256: "hash-200" }, upload_time_iso_8601: "2023-01-01T00:00:00.000Z" },
+						],
+					},
+				}),
+			});
+
+			const client = new RegistryClient();
+			const result = await client.getPackageMetadata("pkg", "pypi", "===2.0");
+			expect(result).not.toBeNull();
+			expect(result?.requestedVersionFound).toBe(false);
+			expect(result?.resolvedVersion).toBe("2.0.0");
+		});
+
+		it("rejects hallucinated PyPI version", async () => {
+			globalThis.fetch = vi.fn().mockResolvedValue({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					info: { version: "2.0.0" },
+					releases: {
+						"1.0.0": [
+							{ digests: { sha256: "hash-100" }, upload_time_iso_8601: "2020-01-01T00:00:00.000Z" },
+						],
+						"2.0.0": [
+							{ digests: { sha256: "hash-200" }, upload_time_iso_8601: "2023-01-01T00:00:00.000Z" },
+						],
+					},
+				}),
+			});
+
+			const client = new RegistryClient();
+			const result = await client.getPackageMetadata("pkg", "pypi", "9.0.0");
+			expect(result).not.toBeNull();
+			expect(result?.requestedVersionFound).toBe(false);
+			expect(result?.resolvedVersion).toBe("2.0.0");
 		});
 	});
 });

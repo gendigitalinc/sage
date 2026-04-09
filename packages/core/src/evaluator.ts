@@ -3,12 +3,14 @@
  * Hooks should normalize transport-specific payloads, then call this function.
  */
 
+import { randomUUID } from "node:crypto";
 import { isAllowlisted, loadAllowlist } from "./allowlist.js";
 import { logVerdict } from "./audit-log.js";
 import { VerdictCache } from "./cache.js";
 import { AmsiClient, isAmsiSupported } from "./clients/amsi.js";
 import { UrlCheckClient } from "./clients/url-check.js";
 import { loadConfig } from "./config.js";
+import { sendCommunityIqDetection } from "./detection-telemetry.js";
 import { DecisionEngine } from "./engine.js";
 import { findAllowException, findDenyException, loadExceptions } from "./exceptions.js";
 import { HeuristicsEngine } from "./heuristics.js";
@@ -107,6 +109,7 @@ export async function evaluateToolCall(
 					request.agentRuntime,
 					request.hookType,
 					undefined,
+					undefined,
 				);
 			} catch {
 				// Fail open.
@@ -130,6 +133,7 @@ export async function evaluateToolCall(
 					request.agentRuntime,
 					request.hookType,
 					undefined,
+					undefined,
 				);
 				return allowV;
 			}
@@ -152,6 +156,7 @@ export async function evaluateToolCall(
 					request.conversationId,
 					request.agentRuntime,
 					request.hookType,
+					undefined,
 					undefined,
 				);
 			} catch {
@@ -326,6 +331,9 @@ export async function evaluateToolCall(
 		}
 	}
 
+	const eventId = randomUUID();
+	const resolvedSignals = Object.keys(auditSignals).length > 0 ? auditSignals : undefined;
+
 	try {
 		await logVerdict(
 			config.logging,
@@ -337,10 +345,28 @@ export async function evaluateToolCall(
 			request.conversationId,
 			request.agentRuntime,
 			request.hookType,
-			Object.keys(auditSignals).length > 0 ? auditSignals : undefined,
+			resolvedSignals,
+			eventId,
 		);
 	} catch {
 		// Fail open.
+	}
+
+	if (verdict.decision === "deny") {
+		try {
+			await sendCommunityIqDetection({
+				eventId,
+				agentRuntime: request.agentRuntime,
+				hookType: request.hookType,
+				toolName: request.toolName,
+				toolInput: request.toolInput,
+				signals: resolvedSignals,
+				communityIqEnabled: config.community_iq,
+				logger,
+			});
+		} catch {
+			// Fail open — never block verdict delivery.
+		}
 	}
 
 	if (verdict.decision !== "allow") {

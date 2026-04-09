@@ -27,7 +27,7 @@ function makeFinding(overrides: Partial<PluginFinding> = {}): PluginFinding {
 describe("visual formatters integration", () => {
 	it("formatStartupClean produces branded one-liner", () => {
 		const msg = formatStartupClean("0.3.1");
-		expect(msg).toMatch(/Sage v0\.3\.1.*Gen Digital.*No threats found/);
+		expect(msg).toMatch(/Sage v0\.3\.1.*No threats found/);
 	});
 
 	it("formatThreatBanner produces structured output for session-start", () => {

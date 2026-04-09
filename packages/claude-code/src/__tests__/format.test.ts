@@ -64,7 +64,6 @@ describe("formatStartupClean", () => {
 	it("includes version and clean status", () => {
 		const msg = formatStartupClean("0.3.1");
 		expect(msg).toContain("Sage v0.3.1");
-		expect(msg).toContain("Gen Digital");
 		expect(msg).toContain("No threats found");
 		expect(msg).toContain("🛡️");
 		expect(msg).toContain("✅");
@@ -114,7 +113,7 @@ describe("formatThreatBanner", () => {
 			],
 		};
 		const msg = formatThreatBanner("0.3.1", [result]);
-		expect(msg).toContain("🛡️ Sage v0.3.1 by Gen Digital — Threat Detected");
+		expect(msg).toContain("🛡️ Sage v0.3.1 — Threat Detected");
 		expect(msg).toContain("━");
 		expect(msg).toContain("🚨");
 		expect(msg).toContain("cto-knowledge-base@cto-marketplace");
@@ -210,7 +209,7 @@ describe("formatBlockReason", () => {
 		expect(msg).toContain("URL check: malicious");
 		expect(msg).toContain("Blocked");
 		expect(msg).toContain("http://evil.com");
-		expect(msg).toContain("Sage by Gen Digital: Threat Blocked");
+		expect(msg).toContain("Sage: Threat Blocked");
 		expect(msg).toContain("━");
 	});
 

@@ -1,6 +1,11 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../detection-telemetry.js", () => ({
+	sendCommunityIqDetection: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { evaluateToolCall } from "../evaluator.js";
 import { makeTmpDir } from "./test-utils.js";
 

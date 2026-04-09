@@ -4,8 +4,9 @@
  * Follows Gen AV product alert patterns (shield icon, headline, key-value details).
  */
 
+import { defaultBranding } from "./branding.js";
 import type { SessionStartResult } from "./session-start.js";
-import type { PluginScanResult } from "./types.js";
+import type { Branding, PluginScanResult } from "./types.js";
 import type { VersionCheckResult } from "./version-check.js";
 
 export const PAD = 12;
@@ -33,8 +34,9 @@ export function formatUpdateNotice(result: VersionCheckResult): string {
 export function formatStartupClean(
 	version: string,
 	versionCheck?: VersionCheckResult | null,
+	branding: Branding = defaultBranding,
 ): string {
-	const base = `🛡️ Sage v${version} by Gen Digital ✅ No threats found`;
+	const base = `🛡️ ${branding.banner_text} v${version} ✅ No threats found`;
 	if (versionCheck?.updateAvailable) {
 		return `${base}\n${formatUpdateNotice(versionCheck)}`;
 	}
@@ -45,8 +47,9 @@ export function formatThreatBanner(
 	version: string,
 	results: PluginScanResult[],
 	versionCheck?: VersionCheckResult | null,
+	branding: Branding = defaultBranding,
 ): string {
-	const header = `🛡️ Sage v${version} by Gen Digital — Threat Detected`;
+	const header = `🛡️ ${branding.banner_text} v${version} — Threat Detected`;
 	const lines: string[] = [" ", header, separatorLine(SEPARATOR_WIDTH)];
 
 	const MAX_FINDINGS = 5;
@@ -89,14 +92,18 @@ export function formatThreatBanner(
 	return lines.join("\n");
 }
 
-export function formatSessionStartMessage(version: string, result: SessionStartResult): string {
+export function formatSessionStartMessage(
+	version: string,
+	result: SessionStartResult,
+	branding: Branding = defaultBranding,
+): string {
 	if (result.scanResults.length > 0) {
-		return formatThreatBanner(version, result.scanResults, result.versionCheck);
+		return formatThreatBanner(version, result.scanResults, result.versionCheck, branding);
 	}
-	return formatStartupClean(version, result.versionCheck);
+	return formatStartupClean(version, result.versionCheck, branding);
 }
 
 // TODO: Remove marketplace migration notice after v0.7.x // gitleaks:allow
-export function formatMigrationNotice(): string {
-	return "\u26a0\ufe0f  Sage has moved \u2192 run: /plugin marketplace remove sage && /plugin marketplace add https://github.com/gendigitalinc/sage.git";
+export function formatMigrationNotice(branding: Branding = defaultBranding): string {
+	return `\u26a0\ufe0f  ${branding.product_name} has moved \u2192 run: /plugin marketplace remove sage && /plugin marketplace add https://github.com/gendigitalinc/sage.git`;
 }

@@ -17,7 +17,7 @@ openclaw plugins install @gendigital/sage-openclaw
 - Matches commands and file paths against YAML-based threat definitions
 - Validates npm/PyPI packages against supply-chain risks
 - Scans installed plugins for threats at session start
-- Provides a `sage_approve` gate tool for interactive approval of flagged actions
+- Provides native approval dialogs for interactive approval of flagged actions
 
 ## Configuration
 

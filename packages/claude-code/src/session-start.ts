@@ -10,10 +10,12 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
 	atomicWriteJson,
+	type Branding,
 	discoverPlugins,
 	formatMigrationNotice,
 	initSessionStatus,
 	type Logger,
+	loadBranding,
 	needsMarketplaceMigration,
 	pruneSessionStatusFiles,
 	runPluginScan,
@@ -78,14 +80,14 @@ async function readSettingsJson(path: string): Promise<Record<string, unknown> |
  * - Already Sage's → update path if needed
  * - Another statusLine → return a hint message for the user
  */
-async function configureStatusLine(pluginRoot: string): Promise<string | null> {
+async function configureStatusLine(pluginRoot: string, branding: Branding): Promise<string | null> {
 	const home = process.env.HOME ?? "";
 	if (!home) return null;
 
 	const settingsPath = join(home, ".claude", "settings.json");
 	const settings = await readSettingsJson(settingsPath);
 	if (settings === null) {
-		return `Sage: ${settingsPath} appears corrupt — skipping status line auto-configuration.`;
+		return `${branding.product_name}: ${settingsPath} appears corrupt — skipping status line auto-configuration.`;
 	}
 	const statuslineCjs = join(pluginRoot, "packages", "claude-code", "dist", "sage-statusline.cjs");
 	const command = `node "${statuslineCjs}"`;
@@ -105,7 +107,7 @@ async function configureStatusLine(pluginRoot: string): Promise<string | null> {
 
 	if (existingCommand) {
 		// User has a different status line — don't overwrite, suggest integration
-		return `Sage status line: You already have a custom status line. To add Sage status, include \`node "${statuslineCjs}"\` in your script or pipe its output alongside yours.`;
+		return `${branding.product_name} status line: You already have a custom status line. To add ${branding.product_name} status, include \`node "${statuslineCjs}"\` in your script or pipe its output alongside yours.`;
 	}
 
 	// No status line configured — install Sage's
@@ -116,6 +118,7 @@ async function configureStatusLine(pluginRoot: string): Promise<string | null> {
 
 async function main(): Promise<void> {
 	const sessionId = getSessionId();
+	const branding = await loadBranding(logger);
 
 	// Prune stale files
 	await pruneStaleSessionFiles(logger);
@@ -132,7 +135,7 @@ async function main(): Promise<void> {
 	// Auto-configure status line
 	let statusLineHint: string | null = null;
 	try {
-		statusLineHint = await configureStatusLine(pluginRoot);
+		statusLineHint = await configureStatusLine(pluginRoot, branding);
 	} catch {
 		// Best-effort — don't block session start
 	}
@@ -152,11 +155,12 @@ async function main(): Promise<void> {
 		allowlistsDir,
 		manifest.version,
 		"claude-code",
+		branding,
 	);
 
 	// TODO: Remove marketplace migration check after v0.7.x // gitleaks:allow
 	const migrationNeeded = await needsMarketplaceMigration();
-	let finalMsg = migrationNeeded ? `${statusMsg}\n${formatMigrationNotice()}` : statusMsg;
+	let finalMsg = migrationNeeded ? `${statusMsg}\n${formatMigrationNotice(branding)}` : statusMsg;
 	if (statusLineHint) {
 		finalMsg = `${finalMsg}\n${statusLineHint}`;
 	}

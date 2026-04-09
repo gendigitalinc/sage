@@ -6,13 +6,26 @@
 git clone https://github.com/gendigitalinc/sage
 cd sage
 git checkout pre-release
-pnpm install
+pnpm install    # also installs git hooks automatically
 pnpm build
 ```
 
 Development happens on the `pre-release` branch. The `main` branch is the distribution channel (what users install). See [CONTRIBUTING.md](../CONTRIBUTING.md#branch-policy) for details.
 
 Requires Node.js >= 18 and pnpm >= 9.
+
+## Git Hooks
+
+Git hooks are installed automatically by `pnpm install` (via `core.hooksPath`). No external framework required — just bash scripts in `scripts/git-hooks/`.
+
+| Stage | Checks | Speed |
+|-------|--------|-------|
+| **pre-commit** | gitleaks, private key detection, lint | Fast |
+| **pre-push** | build, typecheck, test, changeset check | Slow (fails fast) |
+
+Bypass any hook with `--no-verify` (e.g. `git commit --no-verify`).
+
+**Required:** Install [gitleaks](https://github.com/gitleaks/gitleaks) for secret scanning (`brew install gitleaks` / `choco install gitleaks`). The pre-commit hook will refuse to commit without it.
 
 ## Commands
 
@@ -194,7 +207,7 @@ This project uses [Changesets](https://github.com/changesets/changesets) with **
 
 **Non-standard manifest sync:** Changesets only knows about `package.json` files. The `pnpm run version` script automatically runs `scripts/sync-manifests.mjs` after `changeset version` to propagate versions to `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `packages/openclaw/openclaw.plugin.json`.
 
-**Pre-commit hook:** A `changeset-check` pre-commit hook warns when staged files affect shipped artifacts (source code, threat definitions, allowlists, hooks, skills, plugin manifests) without a corresponding changeset. Bypass with `git commit --no-verify`.
+**Pre-push hook:** A `changeset-check` pre-push hook warns when the branch contains changes to shipped artifacts (source code, threat definitions, allowlists, hooks, skills, plugin manifests) without a corresponding changeset. Bypass with `git push --no-verify`.
 
 ## Building the Extension
 

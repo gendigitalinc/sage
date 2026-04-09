@@ -5,30 +5,13 @@
  */
 
 import { resolvePath } from "./config.js";
-import { atomicWriteJson, getFileContent } from "./file-utils.js";
+import { getFileContent } from "./file-utils.js";
 import type { Allowlist, AllowlistConfig, AllowlistEntry, Artifact, Logger } from "./types.js";
 import { nullLogger } from "./types.js";
 import { hashCommand, normalizeFilePath, normalizeUrl } from "./url-utils.js";
 
 export function emptyAllowlist(): Allowlist {
 	return { urls: {}, commands: {}, filePaths: {} };
-}
-
-function addEntry(
-	record: Record<string, AllowlistEntry>,
-	key: string,
-	reason: string,
-	originalVerdict: string,
-): void {
-	record[key] = { addedAt: new Date().toISOString(), reason, originalVerdict };
-}
-
-function removeEntry(record: Record<string, AllowlistEntry>, key: string): boolean {
-	if (key in record) {
-		delete record[key];
-		return true;
-	}
-	return false;
 }
 
 function parseEntries(raw: Record<string, unknown>): Record<string, AllowlistEntry> {
@@ -97,40 +80,6 @@ export async function loadAllowlist(
 	};
 }
 
-export async function saveAllowlist(
-	allowlist: Allowlist,
-	config: AllowlistConfig,
-	logger: Logger = nullLogger,
-): Promise<boolean> {
-	const path = resolvePath(config.path);
-
-	const serializeEntries = (entries: Record<string, AllowlistEntry>) =>
-		Object.fromEntries(
-			Object.entries(entries).map(([key, entry]) => [
-				key,
-				{
-					added_at: entry.addedAt,
-					reason: entry.reason,
-					original_verdict: entry.originalVerdict,
-				},
-			]),
-		);
-
-	const data = {
-		urls: serializeEntries(allowlist.urls),
-		commands: serializeEntries(allowlist.commands),
-		file_paths: serializeEntries(allowlist.filePaths),
-	};
-
-	try {
-		await atomicWriteJson(path, data);
-		return true;
-	} catch (e) {
-		logger.warn(`Failed to save allowlist to ${path}`, { error: String(e) });
-		return false;
-	}
-}
-
 export function isAllowlisted(allowlist: Allowlist, artifacts: Artifact[]): boolean {
 	for (const artifact of artifacts) {
 		if (artifact.type !== "command") {
@@ -158,43 +107,4 @@ export function isAllowlisted(allowlist: Allowlist, artifacts: Artifact[]): bool
 	}
 
 	return false;
-}
-
-export function addUrl(
-	allowlist: Allowlist,
-	url: string,
-	reason: string,
-	originalVerdict: string,
-): void {
-	addEntry(allowlist.urls, normalizeUrl(url), reason, originalVerdict);
-}
-
-export function addCommand(
-	allowlist: Allowlist,
-	command: string,
-	reason: string,
-	originalVerdict: string,
-): void {
-	addEntry(allowlist.commands, hashCommand(command), reason, originalVerdict);
-}
-
-export function addFilePath(
-	allowlist: Allowlist,
-	filePath: string,
-	reason: string,
-	originalVerdict: string,
-): void {
-	addEntry(allowlist.filePaths, normalizeFilePath(filePath), reason, originalVerdict);
-}
-
-export function removeFilePath(allowlist: Allowlist, filePath: string): boolean {
-	return removeEntry(allowlist.filePaths, normalizeFilePath(filePath));
-}
-
-export function removeUrl(allowlist: Allowlist, url: string): boolean {
-	return removeEntry(allowlist.urls, normalizeUrl(url));
-}
-
-export function removeCommand(allowlist: Allowlist, commandHash: string): boolean {
-	return removeEntry(allowlist.commands, commandHash);
 }

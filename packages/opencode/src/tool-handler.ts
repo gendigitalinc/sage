@@ -1,5 +1,7 @@
 import {
 	type ApprovalStore,
+	type Branding,
+	defaultBranding,
 	formatAskMessage,
 	formatDenyMessage,
 	guardToolCall,
@@ -18,6 +20,7 @@ export function createToolHandlers(
 	threatsDir: string,
 	allowlistsDir: string,
 	options?: ToolHandlerOptions,
+	branding: Branding = defaultBranding,
 ) {
 	const beforeToolUse = async (
 		input: { tool: string; sessionID: string; callID: string },
@@ -57,23 +60,28 @@ export function createToolHandlers(
 			try {
 				const toastMsg =
 					verdict.decision === "deny"
-						? `Sage blocked: ${verdict.reasons[0] ?? "Threat detected"} (${verdict.category})`
-						: `Sage flagged: ${verdict.reasons[0] ?? "Action flagged"} (${verdict.category})`;
+						? `${branding.product_name} blocked: ${verdict.reasons[0] ?? "Threat detected"} (${verdict.category})`
+						: `${branding.product_name} flagged: ${verdict.reasons[0] ?? "Action flagged"} (${verdict.category})`;
 				options?.showToast?.(toastMsg, verdict.severity === "critical" ? "error" : "warning");
 			} catch {
 				// Toast failure is non-critical — never prevent enforcement
 			}
 
 			if (verdict.decision === "deny") {
-				throw new SageVerdictBlockError(formatDenyMessage(verdict));
+				throw new SageVerdictBlockError(formatDenyMessage(verdict, branding));
 			}
 
 			// ask — actionId is always set for ask verdicts
-			throw new SageVerdictBlockError(formatAskMessage(actionId as string, verdict, artifacts));
+			throw new SageVerdictBlockError(
+				formatAskMessage(actionId as string, verdict, artifacts, branding),
+			);
 		} catch (error) {
 			// Verdict errors are expected (blocks and asks); others are logged as fail-open
 			if (error instanceof SageVerdictError) throw error;
-			logger.error("Sage opencode hook failed open", { error: String(error), tool: input.tool });
+			logger.error(`${branding.product_name} opencode hook failed open`, {
+				error: String(error),
+				tool: input.tool,
+			});
 		}
 	};
 

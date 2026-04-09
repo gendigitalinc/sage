@@ -280,6 +280,7 @@ export const ConfigSchema = z.object({
 	logging: LoggingConfigSchema.default({}),
 	sensitivity: SensitivitySchema.default("balanced"),
 	disabled_threats: z.array(z.string()).default([]),
+	community_iq: z.boolean().default(true),
 });
 
 export type UrlCheckConfig = z.infer<typeof UrlCheckConfigSchema>;
@@ -358,6 +359,37 @@ export interface PluginScanCache {
 	configHash: string;
 	entries: Record<string, CachedPluginScanResult>;
 }
+
+// ── Branding ───────────────────────────────────────────────────────
+
+const brandString = z
+	.string()
+	.min(1)
+	.max(64)
+	.regex(/^[^\p{Cc}]+$/u, "No control characters");
+
+export const BrandingSchema = z
+	.object({
+		product_name: brandString.default("Sage"),
+		banner_text: z
+			.string()
+			.min(1)
+			.max(128)
+			.regex(/^[^\p{Cc}]+$/u)
+			.optional(),
+		brand_key: z
+			.string()
+			.min(1)
+			.max(32)
+			.regex(/^[a-z0-9_-]+$/u)
+			.optional(),
+	})
+	.transform((b) => ({
+		...b,
+		banner_text: b.banner_text ?? b.product_name,
+	}));
+
+export type Branding = z.output<typeof BrandingSchema>;
 
 // ── Agent runtime ──────────────────────────────────────────────────
 

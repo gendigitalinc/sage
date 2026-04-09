@@ -4,6 +4,7 @@ import {
 	createToolCallHandler,
 	type ToolCallContext,
 	type ToolCallEvent,
+	type ToolCallResult,
 } from "../tool-handler.js";
 
 vi.mock("@gendigital/sage-core", async (importOriginal) => {
@@ -22,15 +23,13 @@ vi.mock("@gendigital/sage-core", async (importOriginal) => {
 				reasons: [],
 			},
 		}),
+		addException: vi.fn().mockResolvedValue(undefined),
 	};
 });
 
 describe("createToolCallHandler", () => {
 	let approvalStore: ApprovalStore;
-	let handler: (
-		event: ToolCallEvent,
-		ctx?: ToolCallContext,
-	) => Promise<{ block: true; blockReason: string } | undefined>;
+	let handler: (event: ToolCallEvent, ctx?: ToolCallContext) => Promise<ToolCallResult | undefined>;
 
 	function setup() {
 		approvalStore = new ApprovalStore();
@@ -54,6 +53,14 @@ describe("createToolCallHandler", () => {
 		setup();
 		const result = await handler({ toolName: "exec", params: { command: "ls -la" } });
 		expect(result).toBeUndefined();
+	});
+
+	it("bash tool name is treated as exec alias", async () => {
+		setup();
+		const { guardToolCall } = await import("@gendigital/sage-core");
+		const result = await handler({ toolName: "bash", params: { command: "ls -la" } });
+		expect(result).toBeUndefined();
+		expect(guardToolCall).toHaveBeenCalled();
 	});
 
 	it("deny verdict → block with formatted message", async () => {
@@ -82,9 +89,9 @@ describe("createToolCallHandler", () => {
 		expect(result?.blockReason).toContain("Pipe-to-shell");
 	});
 
-	it("ask verdict → block with actionId for gate tool", async () => {
+	it("ask verdict → requireApproval with onResolution callback", async () => {
 		setup();
-		const { guardToolCall } = await import("@gendigital/sage-core");
+		const { guardToolCall, addException } = await import("@gendigital/sage-core");
 		(guardToolCall as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
 			verdict: {
 				decision: "ask",
@@ -98,13 +105,75 @@ describe("createToolCallHandler", () => {
 			},
 			actionId: "mock-action-id",
 		});
+		approvalStore.setPending("mock-action-id", {
+			artifacts: [{ type: "command", value: "suspicious-command", context: "exec" }],
+			createdAt: Date.now(),
+		});
 
 		const result = await handler({ toolName: "exec", params: { command: "suspicious-command" } });
 		expect(result).toBeDefined();
-		expect(result?.block).toBe(true);
-		expect(result?.blockReason).toContain("Sage flagged");
-		expect(result?.blockReason).toContain("sage_approve");
-		expect(result?.blockReason).toContain("actionId");
+		expect(result).toHaveProperty("requireApproval");
+
+		const approval = (result as { requireApproval: Record<string, unknown> }).requireApproval;
+		expect(approval.id).toBe("mock-action-id");
+		expect(approval.title).toContain("suspicious");
+		expect(approval.severity).toBe("warning");
+		expect(approval.timeoutBehavior).toBe("deny");
+		expect(typeof approval.onResolution).toBe("function");
+
+		await (approval.onResolution as (d: string) => Promise<void>)("allow-always");
+		expect(addException).toHaveBeenCalledWith(
+			{ type: "command", value: "suspicious-command" },
+			"Approved by user via native approval",
+			undefined,
+			expect.anything(),
+		);
+	});
+
+	it("onResolution with allow-once does not add exception", async () => {
+		setup();
+		const { guardToolCall, addException } = await import("@gendigital/sage-core");
+		(guardToolCall as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+			verdict: {
+				decision: "ask",
+				category: "suspicious",
+				confidence: 0.8,
+				severity: "warning",
+				source: "heuristics",
+				artifacts: ["suspicious-command"],
+				matchedThreatId: "T002",
+				reasons: ["Suspicious pattern"],
+			},
+			actionId: "mock-action-id-2",
+		});
+
+		const result = await handler({ toolName: "exec", params: { command: "suspicious-command" } });
+		const approval = (result as { requireApproval: Record<string, unknown> }).requireApproval;
+		await (approval.onResolution as (d: string) => Promise<void>)("allow-once");
+		expect(addException).not.toHaveBeenCalled();
+	});
+
+	it("onResolution with deny does not add exception", async () => {
+		setup();
+		const { guardToolCall, addException } = await import("@gendigital/sage-core");
+		(guardToolCall as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+			verdict: {
+				decision: "ask",
+				category: "suspicious",
+				confidence: 0.8,
+				severity: "warning",
+				source: "heuristics",
+				artifacts: ["suspicious-command"],
+				matchedThreatId: "T002",
+				reasons: ["Suspicious pattern"],
+			},
+			actionId: "mock-action-id-3",
+		});
+
+		const result = await handler({ toolName: "exec", params: { command: "suspicious-command" } });
+		const approval = (result as { requireApproval: Record<string, unknown> }).requireApproval;
+		await (approval.onResolution as (d: string) => Promise<void>)("deny");
+		expect(addException).not.toHaveBeenCalled();
 	});
 
 	it("error in handler → fail-open (undefined)", async () => {

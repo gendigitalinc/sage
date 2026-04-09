@@ -40,7 +40,8 @@ Sage reads configuration from `~/.sage/config.json`. All fields are optional - d
     "path": "~/.sage/audit.jsonl"
   },
   "sensitivity": "balanced",
-  "disabled_threats": []
+  "disabled_threats": [],
+  "community_iq": true
 }
 ```
 
@@ -119,6 +120,20 @@ Relative `path` values are resolved under `~/.sage`. Paths that escape that dire
 One of `"paranoid"`, `"balanced"`, or `"relaxed"`. Default: `"balanced"`. See [How It Works](how-it-works.md#sensitivity-presets).
 
 In `paranoid` mode, `ask` verdicts are promoted to `deny` on OpenClaw and OpenCode connectors. These connectors rely on the agent to relay approval prompts, making them vulnerable to prompt-injection attacks that could persuade the agent to auto-approve. Claude Code and Cursor are unaffected — they use modal dialogs that require direct user interaction.
+
+### `community_iq`
+
+Boolean, default `true`. When enabled, Sage sends anonymous detection telemetry to Gen Digital on deny verdicts. This data is used to improve Sage's detection quality and does not include source code, file contents, or command arguments beyond what is necessary to identify the detection. See [Privacy](privacy.md) for details.
+
+Set to `false` to disable:
+
+```json
+{
+  "community_iq": false
+}
+```
+
+The timeout for detection telemetry requests can be overridden via the `SAGE_COMMUNITY_IQ_TIMEOUT_SECONDS` environment variable.
 
 ### `disabled_threats`
 

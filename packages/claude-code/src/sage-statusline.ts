@@ -7,9 +7,16 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { formatStatusLine, resolvePath, sanitizeSessionId } from "@gendigital/sage-core";
+import {
+	formatStatusLine,
+	loadBrandingSync,
+	resolvePath,
+	sanitizeSessionId,
+} from "@gendigital/sage-core";
 
 function main(): void {
+	const branding = loadBrandingSync();
+
 	let sessionId = "";
 	try {
 		const input = JSON.parse(readFileSync(0, "utf-8"));
@@ -19,7 +26,7 @@ function main(): void {
 	}
 
 	if (!sessionId) {
-		process.stdout.write("🛡️ Sage: ✅\n");
+		process.stdout.write(`🛡️ ${branding.product_name}: ✅\n`);
 		return;
 	}
 
@@ -33,10 +40,10 @@ function main(): void {
 			lastCategory?: string | null;
 		};
 		process.stdout.write(
-			`${formatStatusLine(data.denied ?? 0, data.flagged ?? 0, data.lastReason, data.lastCategory)}\n`,
+			`${formatStatusLine(data.denied ?? 0, data.flagged ?? 0, data.lastReason, data.lastCategory, branding)}\n`,
 		);
 	} catch {
-		process.stdout.write(`${formatStatusLine(0, 0)}\n`);
+		process.stdout.write(`${formatStatusLine(0, 0, undefined, undefined, branding)}\n`);
 	}
 }
 

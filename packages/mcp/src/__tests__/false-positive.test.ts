@@ -59,6 +59,7 @@ vi.mock("@gendigital/sage-core", () => ({
 	loadConfig: mockLoadConfig,
 	getRecentEntries: mockGetRecentEntries,
 	getInstallationId: mockGetInstallationId,
+	defaultBranding: { product_name: "Sage", banner_text: "Sage", brand_key: undefined },
 	buildSageProxyEnvelope: (args: SageProxyEnvelopeArgs) => ({
 		identity: { uuid: args.iid },
 		product: { version_app: args.versionApp },

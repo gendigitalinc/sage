@@ -4,7 +4,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "description": "Safety for Agents - ADR layer for OpenCode",
   "main": "./dist/index.js",
@@ -23,7 +23,7 @@
   ],
   "scripts": {
     "build": "pnpm -C ../core build && pnpm run clean && pnpm run sync:assets && tsc",
-    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('resources',{recursive:true,force:true});require('node:fs').rmSync('tsconfig.tsbuildinfo',{force:true})\"",
+    "clean": "node ../../scripts/clean.mjs dist resources tsconfig.tsbuildinfo",
     "prepack": "node ../../scripts/check-workspace-refs.mjs",
     "sync:assets": "node scripts/sync-assets.mjs",
     "test": "vitest run"

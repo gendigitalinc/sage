@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import {
 	type AgentRuntime,
 	type Artifact,
+	type Branding,
 	evaluateToolCall,
 	extractFromBash,
 	extractFromDelete,
@@ -13,6 +14,7 @@ import {
 	extractFromWrite,
 	extractUrls,
 	type HookType,
+	loadBrandingSync,
 	type Verdict,
 } from "@gendigital/sage-core";
 
@@ -38,21 +40,22 @@ const MAX_CONTENT_SIZE = 64 * 1024;
 export async function runCli(argv: string[] = process.argv.slice(2)): Promise<void> {
 	const mode = argv[0] as HookMode | undefined;
 	const payload = await readStdinJson();
+	const branding = loadBrandingSync();
 
 	if (mode === "cursor") {
-		await handleCursor(payload);
+		await handleCursor(payload, branding);
 		return;
 	}
 
 	if (mode === "vscode") {
-		await handleVsCode(payload);
+		await handleVsCode(payload, branding);
 		return;
 	}
 
 	writeJson({});
 }
 
-async function handleCursor(payload: unknown): Promise<void> {
+async function handleCursor(payload: unknown, branding: Branding): Promise<void> {
 	const eventName = detectCursorEvent(payload);
 	if (!eventName) {
 		writeJson({});
@@ -61,21 +64,31 @@ async function handleCursor(payload: unknown): Promise<void> {
 
 	const normalized = normalizeCursorCall(payload, eventName);
 	if (!normalized) {
-		writeJson(internalCursorResponse("allow", "Sage could not normalize hook payload."));
+		writeJson(
+			internalCursorResponse(
+				"allow",
+				`${branding.product_name} could not normalize hook payload.`,
+				branding,
+			),
+		);
 		return;
 	}
 
 	try {
 		const verdict = await evaluateNormalizedCall(normalized);
-		writeJson(toCursorResponse(verdict));
+		writeJson(toCursorResponse(verdict, branding));
 	} catch {
 		writeJson(
-			internalCursorResponse("allow", "Sage internal error; default allow policy applied."),
+			internalCursorResponse(
+				"allow",
+				`${branding.product_name} internal error; default allow policy applied.`,
+				branding,
+			),
 		);
 	}
 }
 
-async function handleVsCode(payload: unknown): Promise<void> {
+async function handleVsCode(payload: unknown, branding: Branding): Promise<void> {
 	const normalized = normalizeVsCodeCall(payload);
 	if (!normalized) {
 		writeJson({});
@@ -84,7 +97,7 @@ async function handleVsCode(payload: unknown): Promise<void> {
 
 	try {
 		const verdict = await evaluateNormalizedCall(normalized);
-		writeJson(toVsCodeResponse(verdict));
+		writeJson(toVsCodeResponse(verdict, branding));
 	} catch {
 		writeJson({});
 	}
@@ -410,13 +423,13 @@ function readFilePath(toolInput: Record<string, unknown>): string | undefined {
 	);
 }
 
-function toCursorResponse(verdict: Verdict): Record<string, unknown> {
+function toCursorResponse(verdict: Verdict, branding: Branding): Record<string, unknown> {
 	if (verdict.decision === "allow") {
 		return { decision: "allow", permission: "allow" };
 	}
 
-	const reason = truncateReason(verdict);
-	const agentMessage = `Sage ${verdict.decision === "deny" ? "blocked" : "flagged"} this action (${verdict.severity}).`;
+	const reason = truncateReason(verdict, branding);
+	const agentMessage = `${branding.product_name} ${verdict.decision === "deny" ? "blocked" : "flagged"} this action (${verdict.severity}).`;
 
 	return {
 		decision: verdict.decision === "ask" ? "ask" : "deny",
@@ -427,7 +440,7 @@ function toCursorResponse(verdict: Verdict): Record<string, unknown> {
 	};
 }
 
-function toVsCodeResponse(verdict: Verdict): Record<string, unknown> {
+function toVsCodeResponse(verdict: Verdict, branding: Branding): Record<string, unknown> {
 	if (verdict.decision === "allow") {
 		return {};
 	}
@@ -436,7 +449,7 @@ function toVsCodeResponse(verdict: Verdict): Record<string, unknown> {
 		hookSpecificOutput: {
 			hookEventName: "PreToolUse",
 			permissionDecision: verdict.decision,
-			permissionDecisionReason: truncateReason(verdict),
+			permissionDecisionReason: truncateReason(verdict, branding),
 		},
 	};
 }
@@ -444,19 +457,21 @@ function toVsCodeResponse(verdict: Verdict): Record<string, unknown> {
 function internalCursorResponse(
 	decision: "allow" | "deny",
 	reason: string,
+	branding: Branding,
 ): Record<string, unknown> {
 	return {
 		decision,
 		permission: decision,
 		reason,
 		user_message: reason,
-		agent_message: decision === "allow" ? undefined : "Sage internal error policy applied.",
+		agent_message:
+			decision === "allow" ? undefined : `${branding.product_name} internal error policy applied.`,
 	};
 }
 
-function truncateReason(verdict: Verdict): string {
+function truncateReason(verdict: Verdict, branding: Branding): string {
 	if (verdict.reasons.length === 0) {
-		return `Sage flagged this action (${verdict.category}).`;
+		return `${branding.product_name} flagged this action (${verdict.category}).`;
 	}
 	const joined = verdict.reasons.slice(0, 5).join("; ");
 	return joined.length <= 350 ? joined : `${joined.slice(0, 347)}...`;

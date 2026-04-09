@@ -46,9 +46,9 @@ Tool call received
 
 | Decision | Meaning |
 |----------|---------|
-| `allow`  | No threats detected, tool call proceeds |
-| `ask`    | Suspicious - user prompted for approval |
-| `deny`   | Confirmed threat - tool call blocked |
+| `allow`  | No threats detected — tool call proceeds |
+| `ask`    | Suspicious — user presented with approval dialog |
+| `deny`   | Confirmed threat — tool call blocked |
 
 When multiple signals fire, merge precedence is: `deny > ask > allow`.
 
@@ -68,4 +68,4 @@ The confidence threshold determines when a detection escalates from `ask` to `de
 
 Configure in `~/.sage/config.json` with `"sensitivity": "paranoid"`.
 
-On text-based connectors (OpenClaw, OpenCode), `paranoid` mode also promotes all `ask` verdicts to `deny`. These connectors rely on the agent to relay approval prompts, which is susceptible to prompt-injection auto-approval. Claude Code and Cursor use modal dialogs and are unaffected.
+On text-based connectors (OpenCode), `paranoid` mode also promotes all `ask` verdicts to `deny`. OpenCode relies on the agent to relay approval prompts, which is susceptible to prompt-injection auto-approval. Claude Code, Cursor, and OpenClaw use native approval dialogs and are unaffected.

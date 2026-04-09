@@ -2,7 +2,7 @@ import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { HOOK_TIMEOUT_SECONDS } from "@gendigital/sage-core";
+import { type Branding, defaultBranding, HOOK_TIMEOUT_SECONDS } from "@gendigital/sage-core";
 import * as vscode from "vscode";
 import type {
 	ManagedHookHealth,
@@ -20,6 +20,7 @@ type SettingsObject = Record<string, unknown>;
 
 export async function installManagedHooks(
 	options: ManagedHookInstallOptions,
+	branding: Branding = defaultBranding,
 ): Promise<ManagedHookHealth> {
 	const configPath = await resolveSettingsPath(options.scope);
 	await mkdir(path.dirname(configPath), { recursive: true });
@@ -29,7 +30,7 @@ export async function installManagedHooks(
 	const command = await buildHookCommand(configPath, nodePath, runnerPath);
 
 	const settings = await readSettingsFile(configPath);
-	const updated = upsertManagedHooks(settings, command);
+	const updated = upsertManagedHooks(settings, command, branding);
 	await writeSettingsFile(configPath, updated);
 
 	const hooks = normalizeHookMap(updated.hooks);
@@ -161,7 +162,11 @@ function assertSafePathForShim(pathValue: string, label: string): void {
 	}
 }
 
-function upsertManagedHooks(existing: SettingsObject, command: string): SettingsObject {
+function upsertManagedHooks(
+	existing: SettingsObject,
+	command: string,
+	branding: Branding,
+): SettingsObject {
 	const hooks = cloneHookSettings(existing.hooks);
 	hooks.PreToolUse = appendManaged(asMatcherEntries(hooks.PreToolUse), {
 		matcher: "Bash|WebFetch|Write|Edit|Read|Delete",
@@ -170,7 +175,7 @@ function upsertManagedHooks(existing: SettingsObject, command: string): Settings
 				type: "command",
 				command,
 				timeout: HOOK_TIMEOUT_SECONDS,
-				statusMessage: "Sage: Checking for threats...",
+				statusMessage: `${branding.product_name}: Checking for threats...`,
 			},
 		],
 	});

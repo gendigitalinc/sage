@@ -5,7 +5,7 @@
     "access": "public"
   },
   "description": "Safety for Agents — platform-agnostic detection engine",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "exports": {
     ".": {
@@ -18,10 +18,11 @@
   ],
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist *.tsbuildinfo",
+    "clean": "node ../../scripts/clean.mjs dist tsconfig.tsbuildinfo",
     "prepack": "node ../../scripts/check-workspace-refs.mjs"
   },
   "dependencies": {
+    "semver": "^7.7.0",
     "yaml": "^2.7.0",
     "zod": "^3.24.0"
   },
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/semver": "^7.7.1",
     "typescript": "^5.9.0",
     "vitest": "^4.0.0"
   },

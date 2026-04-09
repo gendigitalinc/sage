@@ -128,6 +128,65 @@ export async function loadExceptions(
 	return rules;
 }
 
+// ── Adding exceptions programmatically ────────────────────────────
+
+function escapeRegexString(s: string): string {
+	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Add an exception rule for an artifact. Used by the native "allow-always"
+ * approval flow — NOT exposed as a tool to agents.
+ *
+ * @param exceptionsPath — direct path to exceptions.json; when omitted,
+ *   resolved from config.json via loadConfig().
+ */
+export async function addException(
+	artifact: { type: "url" | "command" | "file_path"; value: string },
+	reason: string,
+	exceptionsPath?: string,
+	logger: Logger = nullLogger,
+): Promise<void> {
+	let excConfig: ExceptionsConfig;
+	if (exceptionsPath) {
+		excConfig = { path: exceptionsPath };
+	} else {
+		const config = await import("./config.js").then((m) => m.loadConfig(undefined, logger));
+		excConfig = config.exceptions;
+	}
+
+	const pattern = `^${escapeRegexString(artifact.value)}$`;
+	const rule: ExceptionRule = {
+		id: computeRuleId("allow", "regex", pattern),
+		decision: "allow",
+		match: "regex",
+		pattern,
+		reason,
+	};
+
+	const existing = await loadExceptions(excConfig, logger);
+
+	// Dedup: skip if rule with same ID already exists
+	if (existing.some((r) => r.id === rule.id)) return;
+
+	const rules = [...existing, rule];
+	const path = resolvePath(excConfig.path);
+
+	try {
+		await atomicWriteJson(path, {
+			rules: rules.map((r) => ({
+				id: r.id,
+				decision: r.decision,
+				match: r.match,
+				pattern: r.pattern,
+				...(r.reason !== undefined ? { reason: r.reason } : {}),
+			})),
+		});
+	} catch (e) {
+		logger.warn("Failed to write exception rule", { error: String(e) });
+	}
+}
+
 // ── Matching functions ─────────────────────────────────────────────
 
 /**

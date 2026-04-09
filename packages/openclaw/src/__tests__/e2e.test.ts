@@ -120,14 +120,4 @@ describeE2E("E2E: Sage plugin in OpenClaw gateway", { timeout: 180_000 }, () => 
 		const text = await chat("Use web_fetch on https://sage-canary-deny-4e91ca37.test/page");
 		expect(text.toLowerCase()).toMatch(/sage|blocked/);
 	});
-
-	it("sage_approve tool is registered", async (ctx) => {
-		const text = await chat("What tools do you have? List all of them.");
-		const mentionsSage =
-			text.toLowerCase().includes("sage_approve") || text.toLowerCase().includes("sage");
-		if (!mentionsSage) {
-			ctx.skip("Model did not mention sage_approve in tool list");
-		}
-		expect(mentionsSage).toBe(true);
-	});
 });

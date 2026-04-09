@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
+	addException,
 	computeRuleId,
 	findAllowException,
 	findDenyException,
@@ -435,5 +436,76 @@ describe("self-defense coverage", () => {
 	it("still detects .sage/config.json and .sage/allowlist.json", () => {
 		expect(matchFilePath(engine, "/home/user/.sage/config.json")).toContain("CLT-SELF-002");
 		expect(matchFilePath(engine, "/home/user/.sage/allowlist.json")).toContain("CLT-SELF-002");
+	});
+});
+
+// ── addException ──────────────────────────────────────────────────
+
+describe("addException", () => {
+	it("adds a regex rule for a URL artifact", async () => {
+		const dir = await makeTmpDir();
+		const path = join(dir, "exceptions.json");
+		await writeFile(path, JSON.stringify({ rules: [] }));
+
+		await addException({ type: "url", value: "https://evil.test/page" }, "Approved by user", path);
+
+		const raw = JSON.parse(await readFile(path, "utf-8"));
+		expect(raw.rules).toHaveLength(1);
+		expect(raw.rules[0].decision).toBe("allow");
+		expect(raw.rules[0].match).toBe("regex");
+		expect(raw.rules[0].pattern).toBe("^https://evil\\.test/page$");
+		expect(raw.rules[0].reason).toBe("Approved by user");
+	});
+
+	it("adds a regex rule for a command artifact", async () => {
+		const dir = await makeTmpDir();
+		const path = join(dir, "exceptions.json");
+		await writeFile(path, JSON.stringify({ rules: [] }));
+
+		await addException(
+			{ type: "command", value: "chmod 777 ./script.sh" },
+			"Approved by user",
+			path,
+		);
+
+		const raw = JSON.parse(await readFile(path, "utf-8"));
+		expect(raw.rules).toHaveLength(1);
+		expect(raw.rules[0].match).toBe("regex");
+		expect(raw.rules[0].pattern).toBe("^chmod 777 \\./script\\.sh$");
+	});
+
+	it("adds a regex rule for a file_path artifact", async () => {
+		const dir = await makeTmpDir();
+		const path = join(dir, "exceptions.json");
+		await writeFile(path, JSON.stringify({ rules: [] }));
+
+		await addException({ type: "file_path", value: "/home/user/.env" }, "Approved by user", path);
+
+		const raw = JSON.parse(await readFile(path, "utf-8"));
+		expect(raw.rules).toHaveLength(1);
+		expect(raw.rules[0].match).toBe("regex");
+		expect(raw.rules[0].pattern).toBe("^/home/user/\\.env$");
+	});
+
+	it("deduplicates: adding same artifact twice creates only one rule", async () => {
+		const dir = await makeTmpDir();
+		const path = join(dir, "exceptions.json");
+		await writeFile(path, JSON.stringify({ rules: [] }));
+
+		await addException({ type: "url", value: "https://example.com" }, "first", path);
+		await addException({ type: "url", value: "https://example.com" }, "second", path);
+
+		const raw = JSON.parse(await readFile(path, "utf-8"));
+		expect(raw.rules).toHaveLength(1);
+	});
+
+	it("creates file when it does not exist", async () => {
+		const dir = await makeTmpDir();
+		const path = join(dir, "exceptions.json");
+
+		await addException({ type: "url", value: "https://new.test" }, "new rule", path);
+
+		const raw = JSON.parse(await readFile(path, "utf-8"));
+		expect(raw.rules).toHaveLength(1);
 	});
 });

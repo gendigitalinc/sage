@@ -4,8 +4,15 @@
  * This file keeps Claude Code-specific verdict formatting.
  */
 
-import type { Verdict } from "@gendigital/sage-core";
-import { kv, PAD, SEPARATOR_WIDTH, separatorLine, severityEmoji } from "@gendigital/sage-core";
+import type { Branding, Verdict } from "@gendigital/sage-core";
+import {
+	defaultBranding,
+	kv,
+	PAD,
+	SEPARATOR_WIDTH,
+	separatorLine,
+	severityEmoji,
+} from "@gendigital/sage-core";
 
 export function artifactTypeLabel(type: string): string {
 	if (type === "url") return "URL";
@@ -34,13 +41,13 @@ function appendVerdictDetails(lines: string[], verdict: Verdict): void {
  * For deny: details-only block (this goes in systemMessage; permissionDecisionReason is plain "Blocked by Sage").
  * For ask: full branded banner with separator (shown once in confirmation dialog).
  */
-export function formatBlockReason(verdict: Verdict): string {
+export function formatBlockReason(verdict: Verdict, branding: Branding = defaultBranding): string {
 	const isDeny = verdict.decision === "deny";
 	const emoji = severityEmoji(verdict.severity);
 	const reasonText = verdict.reasons.length > 0 ? verdict.reasons[0] : verdict.category;
 
 	if (isDeny) {
-		const header = `🛡️ Sage by Gen Digital: Threat Blocked`;
+		const header = `🛡️ ${branding.banner_text}: Threat Blocked`;
 		const lines: string[] = [header, separatorLine(SEPARATOR_WIDTH)];
 		lines.push(`${emoji} ${"Threat".padEnd(PAD)}${reasonText}`);
 		appendVerdictDetails(lines, verdict);
@@ -48,7 +55,7 @@ export function formatBlockReason(verdict: Verdict): string {
 		return lines.join("\n");
 	}
 
-	const header = `🛡️ Sage by Gen Digital: Suspicious Activity Detected`;
+	const header = `🛡️ ${branding.banner_text}: Suspicious Activity Detected`;
 	const lines: string[] = [header, separatorLine(SEPARATOR_WIDTH)];
 	lines.push(`${emoji} ${"Threat".padEnd(PAD)}${reasonText}`);
 	appendVerdictDetails(lines, verdict);

@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Pre-commit hook: secret scanning, private key detection, lint.
+# Bypass with: git commit --no-verify
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+source scripts/git-hooks/lib/util.sh
+
+exit_code=0
+
+# ── Gitleaks (required) ──────────────────────────────────────────────────
+echo_header "Checking for secrets (gitleaks)..."
+if ! command -v gitleaks &>/dev/null; then
+  echo_err "gitleaks is not installed. Install it before committing:"
+  echo "  macOS:    brew install gitleaks"
+  echo "  Windows:  choco install gitleaks"
+  echo "  Linux:    https://github.com/gitleaks/gitleaks/releases"
+  exit 1
+fi
+if ! gitleaks protect --staged --config .gitleaks.toml; then
+  echo_err "Gitleaks found potential secrets."
+  exit_code=1
+fi
+
+# ── Private key detection ────────────────────────────────────────────────
+echo_header "Checking for private keys..."
+staged=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
+if [[ -n "$staged" ]]; then
+  while IFS= read -r file; do
+    if git show ":$file" 2>/dev/null | grep -qE -- '-----BEGIN [A-Z ]+ PRIVATE KEY-----'; then
+      echo_err "  Private key detected: $file"
+      exit_code=1
+    fi
+  done <<< "$staged"
+fi
+
+# ── Lint (Biome) ─────────────────────────────────────────────────────────
+echo_header "Linting (Biome)..."
+if ! pnpm lint; then
+  echo_err "Lint failed."
+  exit_code=1
+fi
+
+[[ $exit_code -eq 0 ]] && echo_ok "All pre-commit checks passed."
+exit $exit_code

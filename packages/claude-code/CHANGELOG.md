@@ -1,5 +1,11 @@
 # @gendigital/sage-claude-code
 
+## 0.8.0
+
+### Minor Changes
+
+- Add white-label branding support. Product name, banner text, and extension command palette entries are configurable per installation via ~/.sage/branding.json.
+
 ## 0.7.0
 
 ### Minor Changes

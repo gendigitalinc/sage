@@ -14,7 +14,9 @@ No. Sage sends URLs and package hashes to reputation APIs. File content, command
 
 ## How do I handle false positives?
 
-When Sage shows an `ask` verdict, you can choose to proceed. To permanently suppress a pattern, add an exception rule to `~/.sage/exceptions.json`:
+When Sage flags an action, you can approve it via the native approval dialog. Select "Allow always" to permanently allowlist the artifact — it won't be flagged again. Select "Allow once" to approve for the current session only.
+
+To permanently suppress a pattern, add an exception rule to `~/.sage/exceptions.json`:
 
 ```json
 {
@@ -57,11 +59,11 @@ MCP tool call interception (`mcp__*`) is planned but not yet implemented. Curren
 
 You can also disable individual features in `~/.sage/config.json` (e.g. set `url_check.enabled` to `false`).
 
-## How do I prevent the agent from auto-approving flagged actions on OpenClaw or OpenCode?
+## Can the agent auto-approve flagged actions on OpenCode?
 
-OpenClaw and OpenCode relay `ask` verdicts through the agent conversation, so a prompt-injection attack could trick the agent into approving without user consent. (Claude Code and Cursor use native UI dialogs and are not affected.)
+OpenCode relays `ask` verdicts through the agent conversation, which is susceptible to prompt-injection attacks that could trick the agent into approving without user consent. Claude Code, Cursor, and OpenClaw use native UI dialogs and are not affected.
 
-Set `"sensitivity": "paranoid"` in `~/.sage/config.json` to promote `ask` verdicts to `deny` on these platforms, removing the agent from the approval loop. See [Configuration](configuration.md#sensitivity).
+Set `"sensitivity": "paranoid"` in `~/.sage/config.json` to block all flagged actions on OpenCode instead of asking for approval. See [Configuration](configuration.md#sensitivity).
 
 ## Why does OpenClaw flag Sage as "potential-exfiltration"?
 

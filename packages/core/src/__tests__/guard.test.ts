@@ -1,12 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApprovalStore } from "../approval-store.js";
 import {
-	addToAllowlist,
 	approveAction,
 	formatAskMessage,
 	formatDenyMessage,
 	guardToolCall,
-	removeFromAllowlist,
 	summarizeArtifacts,
 } from "../guard.js";
 import type { Verdict } from "../types.js";
@@ -29,35 +27,11 @@ vi.mock("../config.js", async (importOriginal) => {
 	};
 });
 
-// Mock allowlist
-vi.mock("../allowlist.js", async (importOriginal) => {
-	const original = (await importOriginal()) as Record<string, unknown>;
-	return {
-		...original,
-		loadAllowlist: vi.fn(),
-		saveAllowlist: vi.fn(),
-		addUrl: vi.fn(),
-		addCommand: vi.fn(),
-		addFilePath: vi.fn(),
-		removeUrl: vi.fn(),
-		removeCommand: vi.fn(),
-		removeFilePath: vi.fn(),
-	};
-});
-
 const { evaluateToolCall } = await import("../evaluator.js");
 const { loadConfig } = await import("../config.js");
-const { loadAllowlist, saveAllowlist, removeUrl, removeCommand, removeFilePath } = await import(
-	"../allowlist.js"
-);
 
 const mockEvaluate = vi.mocked(evaluateToolCall);
 const mockLoadConfig = vi.mocked(loadConfig);
-const mockLoadAllowlist = vi.mocked(loadAllowlist);
-const mockSaveAllowlist = vi.mocked(saveAllowlist);
-const mockRemoveUrl = vi.mocked(removeUrl);
-const mockRemoveCommand = vi.mocked(removeCommand);
-const mockRemoveFilePath = vi.mocked(removeFilePath);
 
 function makeRequest(toolName = "bash", toolInput: Record<string, unknown> = { command: "ls" }) {
 	return {
@@ -247,7 +221,6 @@ describe("approveAction", () => {
 
 		const msg = await approveAction(store, "a1");
 		expect(msg).toContain("Approved action a1");
-		expect(msg).toContain("Do NOT add it to the allowlist");
 		expect(store.isApproved("a1")).toBe(true);
 	});
 
@@ -255,131 +228,5 @@ describe("approveAction", () => {
 		const store = new ApprovalStore();
 		const msg = await approveAction(store, "nonexistent");
 		expect(msg).toContain("No pending Sage approval");
-	});
-});
-
-describe("addToAllowlist", () => {
-	it("rejects when no approved artifact exists", async () => {
-		const store = new ApprovalStore();
-		const msg = await addToAllowlist(store, "url", "https://evil.test");
-		expect(msg).toContain("no recent user approval");
-	});
-
-	it("adds to allowlist when artifact is approved", async () => {
-		const store = new ApprovalStore();
-		store.setPending("a1", {
-			artifacts: [{ type: "url", value: "https://example.com" }],
-			createdAt: Date.now(),
-		});
-		store.approve("a1");
-
-		mockLoadConfig.mockResolvedValueOnce({
-			allowlist: { path: "~/.sage/allowlist.json" },
-		} as ReturnType<typeof loadConfig> extends Promise<infer T> ? T : never);
-		mockLoadAllowlist.mockResolvedValueOnce({ urls: {}, commands: {}, filePaths: {} });
-		mockSaveAllowlist.mockResolvedValueOnce(true);
-
-		const msg = await addToAllowlist(store, "url", "https://example.com");
-		expect(msg).toContain("Added url to Sage allowlist");
-		// Artifact consumed
-		expect(store.hasApprovedArtifact("url", "https://example.com")).toBe(false);
-	});
-
-	it("preserves approval token when save fails", async () => {
-		const store = new ApprovalStore();
-		store.setPending("a1", {
-			artifacts: [{ type: "url", value: "https://example.com" }],
-			createdAt: Date.now(),
-		});
-		store.approve("a1");
-
-		mockLoadConfig.mockResolvedValueOnce({
-			allowlist: { path: "~/.sage/allowlist.json" },
-		} as ReturnType<typeof loadConfig> extends Promise<infer T> ? T : never);
-		mockLoadAllowlist.mockResolvedValueOnce({ urls: {}, commands: {}, filePaths: {} });
-		mockSaveAllowlist.mockResolvedValueOnce(false);
-
-		const msg = await addToAllowlist(store, "url", "https://example.com");
-		expect(msg).toContain("Failed to save allowlist");
-		// Approval token preserved for retry
-		expect(store.hasApprovedArtifact("url", "https://example.com")).toBe(true);
-	});
-});
-
-describe("removeFromAllowlist", () => {
-	it("returns not found when entry doesn't exist", async () => {
-		mockLoadConfig.mockResolvedValueOnce({
-			allowlist: { path: "~/.sage/allowlist.json" },
-		} as ReturnType<typeof loadConfig> extends Promise<infer T> ? T : never);
-		mockLoadAllowlist.mockResolvedValueOnce({ urls: {}, commands: {}, filePaths: {} });
-		mockRemoveUrl.mockReturnValueOnce(false);
-
-		const msg = await removeFromAllowlist("url", "https://nope.test");
-		expect(msg).toContain("not found");
-	});
-
-	it("removes existing url entry", async () => {
-		mockLoadConfig.mockResolvedValueOnce({
-			allowlist: { path: "~/.sage/allowlist.json" },
-		} as ReturnType<typeof loadConfig> extends Promise<infer T> ? T : never);
-		mockLoadAllowlist.mockResolvedValueOnce({ urls: {}, commands: {}, filePaths: {} });
-		mockRemoveUrl.mockReturnValueOnce(true);
-		mockSaveAllowlist.mockResolvedValueOnce(true);
-
-		const msg = await removeFromAllowlist("url", "https://example.com");
-		expect(msg).toContain("Removed url from Sage allowlist");
-	});
-
-	it("tries hash fallback for command removal", async () => {
-		mockLoadConfig.mockResolvedValueOnce({
-			allowlist: { path: "~/.sage/allowlist.json" },
-		} as ReturnType<typeof loadConfig> extends Promise<infer T> ? T : never);
-		mockLoadAllowlist.mockResolvedValueOnce({ urls: {}, commands: {}, filePaths: {} });
-		mockRemoveCommand.mockReturnValueOnce(false); // first try: value itself
-		mockRemoveCommand.mockReturnValueOnce(true); // second try: hash
-		mockSaveAllowlist.mockResolvedValueOnce(true);
-
-		const msg = await removeFromAllowlist("command", "chmod 777 ./x");
-		expect(msg).toContain("Removed command from Sage allowlist");
-		expect(mockRemoveCommand).toHaveBeenCalledTimes(2);
-	});
-
-	it("removes file_path entry", async () => {
-		mockLoadConfig.mockResolvedValueOnce({
-			allowlist: { path: "~/.sage/allowlist.json" },
-		} as ReturnType<typeof loadConfig> extends Promise<infer T> ? T : never);
-		mockLoadAllowlist.mockResolvedValueOnce({ urls: {}, commands: {}, filePaths: {} });
-		mockRemoveFilePath.mockReturnValueOnce(true);
-		mockSaveAllowlist.mockResolvedValueOnce(true);
-
-		const msg = await removeFromAllowlist("file_path", "/etc/passwd");
-		expect(msg).toContain("Removed file_path from Sage allowlist");
-	});
-
-	it("returns failure message when save fails", async () => {
-		mockLoadConfig.mockResolvedValueOnce({
-			allowlist: { path: "~/.sage/allowlist.json" },
-		} as ReturnType<typeof loadConfig> extends Promise<infer T> ? T : never);
-		mockLoadAllowlist.mockResolvedValueOnce({ urls: {}, commands: {}, filePaths: {} });
-		mockRemoveUrl.mockReturnValueOnce(true);
-		mockSaveAllowlist.mockResolvedValueOnce(false);
-
-		const msg = await removeFromAllowlist("url", "https://example.com");
-		expect(msg).toContain("Failed to save allowlist after removal");
-	});
-
-	it("renders command value directly when matched without hashing", async () => {
-		mockLoadConfig.mockResolvedValueOnce({
-			allowlist: { path: "~/.sage/allowlist.json" },
-		} as ReturnType<typeof loadConfig> extends Promise<infer T> ? T : never);
-		mockLoadAllowlist.mockResolvedValueOnce({ urls: {}, commands: {}, filePaths: {} });
-		// Value matched directly (e.g., it's already a hash in the allowlist)
-		mockRemoveCommand.mockReturnValueOnce(true);
-		mockSaveAllowlist.mockResolvedValueOnce(true);
-
-		const hash = "abcdef012345678901234567890123456789";
-		const msg = await removeFromAllowlist("command", hash);
-		// Should render the value itself (truncated), not hash-of-hash
-		expect(msg).toContain("abcdef012345...");
 	});
 });

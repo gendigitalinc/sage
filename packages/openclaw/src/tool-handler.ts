@@ -1,19 +1,22 @@
 /**
  * before_tool_call handler: extracts artifacts from tool calls,
- * evaluates them through guardToolCall, returns block/pass decisions.
+ * evaluates them through guardToolCall, returns block/pass/requireApproval decisions.
  */
 
 import {
 	type ApprovalStore,
 	type Artifact,
+	addException,
+	type Branding,
+	defaultBranding,
 	extractFromBash,
 	extractFromEdit,
 	extractFromWebFetch,
 	extractFromWrite,
-	formatAskMessage,
 	formatDenyMessage,
 	guardToolCall,
 	type Logger,
+	summarizeArtifacts,
 } from "@gendigital/sage-core";
 
 export interface ToolCallEvent {
@@ -30,6 +33,17 @@ export interface BlockResult {
 	blockReason: string;
 }
 
+export interface ApprovalRequest {
+	id: string;
+	title: string;
+	description: string;
+	severity?: "info" | "warning" | "critical";
+	timeoutBehavior: "deny";
+	onResolution?: (decision: string) => Promise<void> | void;
+}
+
+export type ToolCallResult = BlockResult | { requireApproval: ApprovalRequest };
+
 function extractFilePaths(patch: string): Artifact[] {
 	// OpenClaw apply_patch uses unified diff format; extract file paths from --- and +++ lines
 	const artifacts: Artifact[] = [];
@@ -44,6 +58,7 @@ function extractFilePaths(patch: string): Artifact[] {
 
 function mapToolToArtifacts(toolName: string, params: Record<string, unknown>): Artifact[] | null {
 	switch (toolName) {
+		case "bash":
 		case "exec": {
 			const command = (params.command ?? "") as string;
 			return command ? extractFromBash(command) : null;
@@ -72,11 +87,12 @@ export function createToolCallHandler(
 	logger: Logger,
 	threatsDir: string,
 	allowlistsDir: string,
-): (event: ToolCallEvent, ctx?: ToolCallContext) => Promise<BlockResult | undefined> {
+	branding: Branding = defaultBranding,
+): (event: ToolCallEvent, ctx?: ToolCallContext) => Promise<ToolCallResult | undefined> {
 	async function handleToolCall(
 		event: ToolCallEvent,
 		ctx?: ToolCallContext,
-	): Promise<BlockResult | undefined> {
+	): Promise<ToolCallResult | undefined> {
 		try {
 			const { toolName, params } = event;
 
@@ -101,13 +117,39 @@ export function createToolCallHandler(
 			if (verdict.decision === "allow") return undefined;
 
 			if (verdict.decision === "deny") {
-				return { block: true, blockReason: formatDenyMessage(verdict) };
+				return { block: true, blockReason: formatDenyMessage(verdict, branding) };
 			}
 
 			// ask — actionId is always set for ask verdicts
+			const reasons =
+				verdict.reasons.length > 0 ? verdict.reasons.slice(0, 3).join("; ") : verdict.category;
+			const intersected = artifacts.filter((a) => verdict.artifacts.includes(a.value));
+			const flaggedArtifacts = intersected.length > 0 ? intersected : artifacts;
+
 			return {
-				block: true,
-				blockReason: formatAskMessage(actionId as string, verdict, artifacts),
+				requireApproval: {
+					id: actionId as string,
+					title: `${branding.product_name}: ${verdict.category}`,
+					description: [
+						`Severity: ${verdict.severity}`,
+						`Reason: ${reasons}`,
+						`Artifacts: ${summarizeArtifacts(artifacts)}`,
+					].join("\n"),
+					severity: verdict.severity,
+					timeoutBehavior: "deny",
+					onResolution: async (decision: string) => {
+						approvalStore.deletePending(actionId as string);
+						if (decision !== "allow-always") return;
+						for (const a of flaggedArtifacts) {
+							await addException(
+								{ type: a.type as "url" | "command" | "file_path", value: a.value },
+								"Approved by user via native approval",
+								undefined,
+								logger,
+							);
+						}
+					},
+				},
 			};
 		} catch (e) {
 			// Fail-open: any unhandled error → pass through

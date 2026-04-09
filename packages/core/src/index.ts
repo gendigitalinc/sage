@@ -1,23 +1,14 @@
 // @gendigital/sage-core public API
 
 // Allowlist
-export {
-	addCommand,
-	addFilePath,
-	addUrl,
-	emptyAllowlist,
-	isAllowlisted,
-	loadAllowlist,
-	removeCommand,
-	removeFilePath,
-	removeUrl,
-	saveAllowlist,
-} from "./allowlist.js";
+export { emptyAllowlist, isAllowlisted, loadAllowlist } from "./allowlist.js";
 export type { ApprovedEntry, PendingEntry } from "./approval-store.js";
 // Approval store
 export { ApprovalStore } from "./approval-store.js";
 // Audit log
 export { getRecentEntries, logPluginScan, logVerdict } from "./audit-log.js";
+// Branding
+export { defaultBranding, loadBranding, loadBrandingSync } from "./branding.js";
 // Cache
 export { VerdictCache } from "./cache.js";
 // AMSI client
@@ -32,6 +23,13 @@ export { RegistryClient } from "./clients/package-registry.js";
 export { resolveEndpoint, UrlCheckClient } from "./clients/url-check.js";
 // Config
 export { HOOK_TIMEOUT_SECONDS, loadConfig, resolvePath, SAGE_DIR } from "./config.js";
+// Detection telemetry (Community IQ)
+export {
+	type DetectionTelemetryArgs,
+	type NormalizedTelemetryContext,
+	normalizeDetectionTelemetryContext,
+	sendCommunityIqDetection,
+} from "./detection-telemetry.js";
 // Decision engine
 export { CONFIDENCE_THRESHOLD, DecisionEngine } from "./engine.js";
 // Runtime evaluator
@@ -43,6 +41,7 @@ export {
 } from "./evaluator.js";
 // Exceptions
 export {
+	addException,
 	computeRuleId,
 	type DenyExceptionMatch,
 	findAllowException,
@@ -88,13 +87,11 @@ export {
 } from "./format.js";
 // Guard (soft-gated connector orchestrator)
 export {
-	addToAllowlist,
 	approveAction,
 	formatAskMessage,
 	formatDenyMessage,
 	type GuardResult,
 	guardToolCall,
-	removeFromAllowlist,
 	summarizeArtifacts,
 } from "./guard.js";
 // Heuristics
@@ -171,6 +168,7 @@ export type {
 	AmsiCheckConfig,
 	AmsiCheckResult,
 	Artifact,
+	Branding,
 	CacheConfig,
 	CachedEntry,
 	CachedPluginScanResult,
@@ -211,6 +209,7 @@ export {
 	AllowlistConfigSchema,
 	ArtifactSchema,
 	ArtifactTypeSchema,
+	BrandingSchema,
 	CacheConfigSchema,
 	ConfigSchema,
 	DecisionSchema,

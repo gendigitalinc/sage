@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import {
+	type Branding,
 	buildSageProxyEnvelope,
+	defaultBranding,
 	getInstallationId,
 	getRecentEntries,
 	type HookType,
@@ -233,17 +235,17 @@ function parseAuditSignals(raw: unknown): {
 
 export function registerFalsePositiveTools(
 	server: McpServer,
-	opts: { logger: Logger; versionApp: string },
+	opts: { logger: Logger; versionApp: string; branding?: Branding },
 ): void {
 	const logger = opts.logger;
 	const versionApp = opts.versionApp;
+	const branding = opts.branding ?? defaultBranding;
 
 	server.registerTool(
 		"sage_list_audit_entries",
 		{
-			title: "Sage: List Audit Entries",
-			description:
-				"List recent Sage audit log entries, optionally scoped to a conversation id. Useful for selecting entry_ids to report as false positives.",
+			title: `${branding.product_name}: List Audit Entries`,
+			description: `List recent ${branding.product_name} audit log entries, optionally scoped to a conversation id. Useful for selecting entry_ids to report as false positives.`,
 			inputSchema: ListInputSchema,
 		},
 		async ({ conversation_id, limit }) => {
@@ -293,9 +295,8 @@ export function registerFalsePositiveTools(
 	server.registerTool(
 		"sage_report_false_positive",
 		{
-			title: "Sage: Report False Positive",
-			description:
-				"Report Sage audit log entries as false positives to the backend, scoped to the current conversation.",
+			title: `${branding.product_name}: Report False Positive`,
+			description: `Report ${branding.product_name} audit log entries as false positives to the backend, scoped to the current conversation.`,
 			inputSchema: ReportInputSchema,
 		},
 		async ({
@@ -352,7 +353,7 @@ export function registerFalsePositiveTools(
 				const iid = await getInstallationId().catch(() => undefined);
 				if (!iid) {
 					return textResult(
-						"Failed to retrieve installation id; FP reporting requires a working Sage install.",
+						`Failed to retrieve installation id; FP reporting requires a working ${branding.product_name} install.`,
 						true,
 					);
 				}

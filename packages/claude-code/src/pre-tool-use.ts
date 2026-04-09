@@ -10,6 +10,8 @@ import { join, resolve } from "node:path";
 import {
 	type Artifact,
 	allowVerdict,
+	type Branding,
+	defaultBranding,
 	evaluateToolCall,
 	extractFromBash,
 	extractFromEdit,
@@ -17,6 +19,7 @@ import {
 	extractFromWebFetch,
 	extractFromWrite,
 	type Logger,
+	loadBranding,
 	type Verdict,
 } from "@gendigital/sage-core";
 import pino from "pino";
@@ -25,10 +28,10 @@ import { formatBlockReason } from "./format.js";
 
 const logger: Logger = pino({ level: "warn" }, pino.destination(2));
 
-function makeResponse(verdict: Verdict): Record<string, unknown> {
+function makeResponse(verdict: Verdict, branding: Branding): Record<string, unknown> {
 	if (verdict.decision === "allow") return {};
 
-	const banner = formatBlockReason(verdict);
+	const banner = formatBlockReason(verdict, branding);
 
 	if (verdict.decision === "deny") {
 		return {
@@ -36,7 +39,7 @@ function makeResponse(verdict: Verdict): Record<string, unknown> {
 			hookSpecificOutput: {
 				hookEventName: "PreToolUse",
 				permissionDecision: "deny",
-				permissionDecisionReason: "Blocked by Sage",
+				permissionDecisionReason: `Blocked by ${branding.product_name}`,
 			},
 		};
 	}
@@ -58,6 +61,8 @@ function getPluginRoot(): string {
 }
 
 async function main(): Promise<void> {
+	const branding = await loadBranding(logger);
+
 	let rawInput: string;
 	try {
 		rawInput = readFileSync(0, "utf-8");
@@ -71,7 +76,7 @@ async function main(): Promise<void> {
 		toolCall = JSON.parse(rawInput) as Record<string, unknown>;
 	} catch (e) {
 		process.stdout.write(
-			`${JSON.stringify(makeResponse(allowVerdict(`Failed to parse input: ${e}`)))}\n`,
+			`${JSON.stringify(makeResponse(allowVerdict(`Failed to parse input: ${e}`), branding))}\n`,
 		);
 		return;
 	}
@@ -157,9 +162,11 @@ async function main(): Promise<void> {
 		}
 	}
 
-	process.stdout.write(`${JSON.stringify(makeResponse(verdict))}\n`);
+	process.stdout.write(`${JSON.stringify(makeResponse(verdict, branding))}\n`);
 }
 
 main().catch((e) => {
-	process.stdout.write(`${JSON.stringify(makeResponse(allowVerdict(`Internal error: ${e}`)))}\n`);
+	process.stdout.write(
+		`${JSON.stringify(makeResponse(allowVerdict(`Internal error: ${e}`), defaultBranding))}\n`,
+	);
 });

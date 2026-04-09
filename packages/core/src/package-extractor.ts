@@ -97,6 +97,39 @@ function shellTokenize(cmd: string): string[] {
 	return tokens;
 }
 
+/**
+ * Check if a version string is a single canonical PEP 440 version
+ * (e.g. "1.2.3", "1.2.3.post1", "1.0a2") — not a wildcard, compound
+ * specifier, or prefix match pattern.
+ */
+const PEP440_CANONICAL_RE =
+	/^\d+(\.\d+)*([._-]?(a|alpha|b|beta|c|rc|pre|preview|post|rev|dev)\d*)*$/i;
+function isPep440Canonical(version: string | undefined): boolean {
+	if (!version) return false;
+	if (version.includes("*") || version.includes(",")) return false;
+	return PEP440_CANONICAL_RE.test(version);
+}
+
+/**
+ * Return a verifiable version string for a PyPI exact-pin specifier, or
+ * undefined if the specifier cannot be verified as a literal release key.
+ *
+ * - `==`  with a canonical PEP 440 version → version string (normalized
+ *         matching with trailing-zero padding in registry client)
+ * - `===` with any non-empty token → `"===<token>"` (strict literal
+ *         equality — registry client must NOT normalize)
+ * - anything else → undefined (skip version verification)
+ */
+function pypiExactVersion(
+	operator: string | undefined,
+	version: string | undefined,
+): string | undefined {
+	if (!operator || !version) return undefined;
+	if (operator === "==") return isPep440Canonical(version) ? version : undefined;
+	if (operator === "===") return `===${version}`;
+	return undefined;
+}
+
 /** Check if a token looks like a package name (not a flag, URL, or local path). */
 function isPackageName(token: string): boolean {
 	if (token.startsWith("-")) return false;
@@ -299,12 +332,15 @@ function extractPipPackages(tokens: string[]): ParsedPackage[] {
 		if (t.startsWith("-")) continue;
 		if (!isPackageName(t)) break;
 
-		// Handle version specifiers: requests==2.31.0, flask>=2.0
-		const match = t.match(/^([a-zA-Z0-9._-]+)(?:[><=!~]+(.+))?$/);
+		// Extract version for exact pins only:
+		// - == with a canonical PEP 440 version (normalized matching in registry)
+		// - === with any non-empty token (strict literal equality, no normalization)
+		// Prefix matches (==1.2.*), compound specifiers, and range operators are skipped.
+		const match = t.match(/^([a-zA-Z0-9._-]+)(?:([><=!~]+)(.+))?$/);
 		if (match) {
 			packages.push({
 				name: match[1] as string,
-				version: match[2],
+				version: pypiExactVersion(match[2], match[3]),
 				registry: "pypi",
 				source: "command",
 			});
@@ -321,14 +357,43 @@ function extractFromPackageJson(content: string): ParsedPackage[] {
 		const devDeps = (data.devDependencies ?? {}) as Record<string, string>;
 
 		for (const [name, version] of Object.entries({ ...deps, ...devDeps })) {
-			// Skip local/URL/git dependencies
 			if (typeof version !== "string") continue;
-			if (version.startsWith("file:") || version.startsWith("link:")) continue;
-			if (version.startsWith("git+") || version.startsWith("http")) continue;
+			if (version === "" || version === "*") continue;
+			if (
+				version.startsWith("file:") ||
+				version.startsWith("link:") ||
+				version.startsWith("git+") ||
+				version.startsWith("git:") ||
+				version.startsWith("http:") ||
+				version.startsWith("https:") ||
+				version.startsWith("workspace:") ||
+				version.startsWith("github:") ||
+				version.startsWith("bitbucket:") ||
+				version.startsWith("gitlab:") ||
+				version.startsWith("portal:") ||
+				version.startsWith("patch:")
+			)
+				continue;
+
+			// npm: alias protocol — "npm:real-pkg@^1.0.0" targets a real
+			// registry package under a local alias name.
+			if (version.startsWith("npm:")) {
+				const aliasTarget = version.slice(4);
+				const { name: targetName, version: targetVersion } = splitNameVersion(aliasTarget);
+				if (targetName) {
+					packages.push({
+						name: targetName,
+						version: targetVersion ?? "",
+						registry: "npm",
+						source: "package.json",
+					});
+				}
+				continue;
+			}
 
 			packages.push({
 				name,
-				version: version.replace(/^[\^~>=<]+/, ""),
+				version,
 				registry: "npm",
 				source: "package.json",
 			});
@@ -370,11 +435,12 @@ function extractFromRequirementsTxt(content: string): ParsedPackage[] {
 		const cleaned = line.split("#")[0]?.split(";")[0]?.trim() ?? "";
 		if (!cleaned) continue;
 
-		const match = cleaned.match(/^([a-zA-Z0-9._-]+)(?:\[.*\])?(?:[><=!~]+(.+))?$/);
+		// Extract version for exact pins only (== canonical or === literal).
+		const match = cleaned.match(/^([a-zA-Z0-9._-]+)(?:\[.*\])?(?:([><=!~]+)(.+))?$/);
 		if (match) {
 			packages.push({
 				name: match[1] as string,
-				version: match[2]?.trim(),
+				version: pypiExactVersion(match[2], match[3]?.trim()),
 				registry: "pypi",
 				source: "requirements.txt",
 			});

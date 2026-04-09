@@ -1,5 +1,16 @@
 # @gendigital/sage-core
 
+## 0.8.0
+
+### Minor Changes
+
+- Add white-label branding support. Product name, banner text, and extension command palette entries are configurable per installation via ~/.sage/branding.json.
+- new community iq feature to improve detection capabilities
+
+### Patch Changes
+
+- fix: package check will no longer incorrectly handle shortened or composite version specification for npm packages; PyPI package check is now also more robust and only validates version for exact version specification
+
 ## 0.7.0
 
 ### Minor Changes

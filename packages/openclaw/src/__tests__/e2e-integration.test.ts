@@ -29,13 +29,29 @@ interface BlockResult {
 	blockReason: string;
 }
 
-type ToolCallHandler = (event: ToolCallEvent) => Promise<BlockResult | undefined>;
+interface ApprovalResult {
+	requireApproval: {
+		id: string;
+		title: string;
+		description: string;
+		severity?: string;
+		timeoutBehavior: string;
+		onResolution?: (decision: string) => Promise<void> | void;
+	};
+}
+
+type ToolCallResult = BlockResult | ApprovalResult;
+
+type ToolCallHandler = (event: ToolCallEvent) => Promise<ToolCallResult | undefined>;
+
+let registeredTools: Array<Record<string, unknown>> = [];
 
 function loadHandler(): ToolCallHandler {
 	// eslint-disable-next-line @typescript-eslint/no-require-imports
 	const plugin = require(PLUGIN_DIST).default;
 
 	let handler: ToolCallHandler | undefined;
+	registeredTools = [];
 
 	const mockApi = {
 		logger: {
@@ -47,7 +63,9 @@ function loadHandler(): ToolCallHandler {
 		on(event: string, h: ToolCallHandler) {
 			if (event === "before_tool_call") handler = h;
 		},
-		registerTool() {},
+		registerTool(tool: Record<string, unknown>) {
+			registeredTools.push(tool);
+		},
 	};
 
 	plugin.register(mockApi);
@@ -60,8 +78,18 @@ function loadHandler(): ToolCallHandler {
 async function expectBlocked(handler: ToolCallHandler, event: ToolCallEvent): Promise<BlockResult> {
 	const result = await handler(event);
 	expect(result).toBeDefined();
-	expect(result?.block).toBe(true);
+	expect((result as BlockResult).block).toBe(true);
 	return result as BlockResult;
+}
+
+async function expectFlagged(
+	handler: ToolCallHandler,
+	event: ToolCallEvent,
+): Promise<ApprovalResult> {
+	const result = await handler(event);
+	expect(result).toBeDefined();
+	expect(result).toHaveProperty("requireApproval");
+	return result as ApprovalResult;
 }
 
 async function expectAllowed(handler: ToolCallHandler, event: ToolCallEvent): Promise<void> {
@@ -76,6 +104,12 @@ describe("OpenClaw integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 
 	beforeAll(() => {
 		handler = loadHandler();
+	});
+
+	it("does not register allowlist tools", () => {
+		const toolNames = registeredTools.map((t) => t.name);
+		expect(toolNames).not.toContain("sage_allowlist_add");
+		expect(toolNames).not.toContain("sage_allowlist_remove");
 	});
 
 	// --- Blocked commands (deny) ---
@@ -145,13 +179,14 @@ describe("OpenClaw integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 
 	// --- Flagged commands (ask verdict) ---
 
-	it("flags edit of .bashrc", async () => {
-		const result = await expectBlocked(handler, {
+	it("flags edit of .bashrc with native approval", async () => {
+		const result = await expectFlagged(handler, {
 			toolName: "edit",
 			params: { path: "/home/user/.bashrc", new_string: "export PATH=/suspect:$PATH" },
 		});
-		expect(result.blockReason).toContain("Sage flagged");
-		expect(result.blockReason).toContain("sage_approve");
+		expect(result.requireApproval.title).toContain("Sage:");
+		expect(result.requireApproval.timeoutBehavior).toBe("deny");
+		expect(typeof result.requireApproval.onResolution).toBe("function");
 	});
 
 	// --- Allowed actions ---
@@ -244,6 +279,7 @@ describe("OpenClaw integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 			let findingsBanner: string | null = null;
 			const scanHandler = createSessionScanHandler(
 				{ debug() {}, info() {}, warn() {}, error() {} },
+				undefined,
 				(banner) => {
 					findingsBanner = banner;
 				},

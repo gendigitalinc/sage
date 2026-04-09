@@ -2,11 +2,11 @@
   "name": "@gendigital/sage-claude-code",
   "private": true,
   "license": "Apache-2.0",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "scripts": {
     "build": "node esbuild.config.js",
-    "clean": "rm -rf dist *.tsbuildinfo"
+    "clean": "node ../../scripts/clean.mjs dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",

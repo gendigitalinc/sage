@@ -4,9 +4,10 @@
  * OpenCode/OpenClaw startup-scan files.
  */
 
+import { defaultBranding } from "./branding.js";
 import { formatSessionStartMessage } from "./format.js";
 import { runSessionStart } from "./session-start.js";
-import type { AgentRuntime, Logger, PluginInfo } from "./types.js";
+import type { AgentRuntime, Branding, Logger, PluginInfo } from "./types.js";
 
 /**
  * Run a plugin scan with the given plugins and return a formatted status message.
@@ -20,8 +21,12 @@ export async function runPluginScan(
 	allowlistsDir: string,
 	version: string,
 	agentRuntime: AgentRuntime,
+	branding: Branding = defaultBranding,
 ): Promise<string> {
-	logger.info(`Sage plugin scan started (${context})`, { threatsDir, allowlistsDir });
+	logger.info(`${branding.product_name} plugin scan started (${context})`, {
+		threatsDir,
+		allowlistsDir,
+	});
 
 	const result = await runSessionStart({
 		plugins,
@@ -32,12 +37,12 @@ export async function runPluginScan(
 		agentRuntime,
 	});
 
-	logger.info(`Sage plugin scan (${context}) complete`, {
+	logger.info(`${branding.product_name} plugin scan (${context}) complete`, {
 		findings: result.scanResults.length,
 		updateAvailable: result.versionCheck?.updateAvailable ?? false,
 	});
 
-	return formatSessionStartMessage(version, result);
+	return formatSessionStartMessage(version, result, branding);
 }
 
 /**
@@ -52,6 +57,7 @@ export interface ScanHandlerOptions {
 	allowlistsDir: string;
 	version: string;
 	agentRuntime: AgentRuntime;
+	branding?: Branding;
 	onResult?: (msg: string) => void;
 }
 
@@ -65,6 +71,7 @@ export function createScanHandler(options: ScanHandlerOptions): () => Promise<vo
 		allowlistsDir,
 		version,
 		agentRuntime,
+		branding = defaultBranding,
 		onResult,
 	} = options;
 
@@ -74,7 +81,9 @@ export function createScanHandler(options: ScanHandlerOptions): () => Promise<vo
 			plugins = plugins.filter((p) => !p.key.startsWith(selfPrefix));
 
 			if (plugins.length === 0) {
-				logger.warn(`Sage plugin scan (${context}): no plugins to scan after filtering`);
+				logger.warn(
+					`${branding.product_name} plugin scan (${context}): no plugins to scan after filtering`,
+				);
 			}
 
 			const msg = await runPluginScan(
@@ -85,10 +94,11 @@ export function createScanHandler(options: ScanHandlerOptions): () => Promise<vo
 				allowlistsDir,
 				version,
 				agentRuntime,
+				branding,
 			);
 			onResult?.(msg);
 		} catch (e) {
-			logger.error(`Sage ${context} scan failed`, { error: String(e) });
+			logger.error(`${branding.product_name} ${context} scan failed`, { error: String(e) });
 		}
 	};
 }

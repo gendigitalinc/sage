@@ -5,7 +5,7 @@
     "access": "public"
   },
   "description": "Safety for Agents — shared MCP server for Sage connectors",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "exports": {
     ".": {
@@ -18,7 +18,7 @@
   ],
   "scripts": {
     "build": "pnpm run clean && tsc",
-    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('tsconfig.tsbuildinfo',{force:true})\"",
+    "clean": "node ../../scripts/clean.mjs dist tsconfig.tsbuildinfo",
     "prepack": "node ../../scripts/check-workspace-refs.mjs"
   },
   "dependencies": {

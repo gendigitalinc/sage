@@ -50,9 +50,7 @@ Registered via `hooks/hooks.json`.
 
 In-process plugin using `api.on('before_tool_call')`. Includes:
 
-- **`tool-handler.ts`** - Intercepts tool calls, runs detection pipeline
-- **`gate-tool.ts`** - `sage_approve` tool for interactive approval of flagged actions
-- **`approval-store.ts`** - Tracks per-session approvals
+- **`tool-handler.ts`** - Intercepts tool calls, runs detection pipeline, returns `requireApproval` for flagged actions
 - **`startup-scan.ts`** - Plugin scanning at gateway/session start
 
 ### Extension (Cursor / VS Code)
@@ -77,12 +75,12 @@ Claude Code hooks exit 0. Errors return an `allow` verdict.
 ### OpenClaw
 
 ```
-before_tool_call event -> extract artifacts -> check approval store
-  -> check allowlist -> check cache -> heuristics + URL check + package check
-  -> DecisionEngine -> cache result -> audit log -> block/pass
+before_tool_call event -> extract artifacts -> check allowlist -> check cache
+  -> heuristics + URL check + package check -> DecisionEngine
+  -> cache result -> audit log -> block/pass
 ```
 
-Blocked actions return an `actionId` that users can approve via the `sage_approve` gate tool.
+Flagged actions return a `requireApproval` object that triggers native platform approval dialogs. An `onResolution` callback handles persistent allowlisting when the user selects "Allow always".
 
 ### Cursor / VS Code
 

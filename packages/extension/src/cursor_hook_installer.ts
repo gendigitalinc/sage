@@ -2,7 +2,7 @@ import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { HOOK_TIMEOUT_SECONDS } from "@gendigital/sage-core";
+import { type Branding, defaultBranding, HOOK_TIMEOUT_SECONDS } from "@gendigital/sage-core";
 import * as vscode from "vscode";
 import type {
 	ManagedHookHealth,
@@ -23,6 +23,7 @@ interface CursorHooksFile {
 
 export async function installManagedHooks(
 	options: ManagedHookInstallOptions,
+	_branding: Branding = defaultBranding,
 ): Promise<ManagedHookHealth> {
 	const configPath = await resolveHooksPath(options.scope);
 	await mkdir(path.dirname(configPath), { recursive: true });

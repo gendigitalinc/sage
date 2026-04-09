@@ -1,5 +1,12 @@
 # @gendigital/sage-openclaw
 
+## 0.8.0
+
+### Minor Changes
+
+- Add white-label branding support. Product name, banner text, and extension command palette entries are configurable per installation via ~/.sage/branding.json.
+- Replace sage_approve gate tool with OpenClaw native `requireApproval` mechanism for ask verdicts. Persistent allowlisting is now handled via `onResolution` callback — selecting "Allow always" saves an exception rule to ~/.sage/exceptions.json automatically. **Requires OpenClaw 2026.3.28 or later** (the release that added `requireApproval` to the plugin hook API).
+
 ## 0.7.0
 
 ### Patch Changes

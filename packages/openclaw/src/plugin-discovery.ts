@@ -6,16 +6,19 @@
 import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { Logger, PluginInfo } from "@gendigital/sage-core";
-import { getFileContent } from "@gendigital/sage-core";
+import type { Branding, Logger, PluginInfo } from "@gendigital/sage-core";
+import { defaultBranding, getFileContent } from "@gendigital/sage-core";
 
 const DEFAULT_EXTENSIONS_DIR = join(homedir(), ".openclaw", "extensions");
 
 export async function discoverOpenClawPlugins(
 	logger: Logger,
 	extensionsDir = DEFAULT_EXTENSIONS_DIR,
+	branding: Branding = defaultBranding,
 ): Promise<PluginInfo[]> {
-	logger.info("Sage plugin discovery: scanning extensions directory", { path: extensionsDir });
+	logger.info(`${branding.product_name} plugin discovery: scanning extensions directory`, {
+		path: extensionsDir,
+	});
 
 	let entries: string[];
 	try {
@@ -54,7 +57,10 @@ export async function discoverOpenClawPlugins(
 		const version = (pkg.version ?? "unknown") as string;
 
 		const key = `${name}@${version}`;
-		logger.debug("Sage plugin discovery: found extension", { key, path: extDir });
+		logger.debug(`${branding.product_name} plugin discovery: found extension`, {
+			key,
+			path: extDir,
+		});
 		plugins.push({
 			key,
 			installPath: extDir,
@@ -63,6 +69,6 @@ export async function discoverOpenClawPlugins(
 		});
 	}
 
-	logger.info(`Sage plugin discovery: found ${plugins.length} extension(s)`);
+	logger.info(`${branding.product_name} plugin discovery: found ${plugins.length} extension(s)`);
 	return plugins;
 }

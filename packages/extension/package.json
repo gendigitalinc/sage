@@ -2,10 +2,10 @@
   "name": "sage-cursor",
   "displayName": "Gen Sage",
   "description": "Safety for Agents — protects AI agent tool calls against dangerous commands, malicious URLs, and harmful file writes.",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "publisher": "Gen",
-  "icon": "sage-icon.png",
+  "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/gendigitalinc/sage.git"
@@ -24,7 +24,19 @@
     "onCommand:sage.openConfig",
     "onCommand:sage.openExceptions",
     "onCommand:sage.openAuditLog",
-    "onCommand:sage.showHookHealth"
+    "onCommand:sage.showHookHealth",
+    "onCommand:sage.enableProtection.norton",
+    "onCommand:sage.disableProtection.norton",
+    "onCommand:sage.openConfig.norton",
+    "onCommand:sage.openExceptions.norton",
+    "onCommand:sage.openAuditLog.norton",
+    "onCommand:sage.showHookHealth.norton",
+    "onCommand:sage.enableProtection.avast",
+    "onCommand:sage.disableProtection.avast",
+    "onCommand:sage.openConfig.avast",
+    "onCommand:sage.openExceptions.avast",
+    "onCommand:sage.openAuditLog.avast",
+    "onCommand:sage.showHookHealth.avast"
   ],
   "files": [
     "dist/cursor_extension.js",
@@ -34,7 +46,7 @@
     "dist/sage-hook.cjs",
     "dist/sage-hook.cjs.map",
     "resources/**",
-    "sage-icon.png",
+    "icon.png",
     "package.json",
     "README.md",
     "LICENSE"
@@ -65,6 +77,66 @@
       {
         "command": "sage.showHookHealth",
         "title": "Sage: Show hook health"
+      },
+      {
+        "command": "sage.enableProtection.norton",
+        "title": "Enable protection",
+        "category": "Norton Sage"
+      },
+      {
+        "command": "sage.disableProtection.norton",
+        "title": "Disable protection until restart",
+        "category": "Norton Sage"
+      },
+      {
+        "command": "sage.openConfig.norton",
+        "title": "Open config",
+        "category": "Norton Sage"
+      },
+      {
+        "command": "sage.openExceptions.norton",
+        "title": "Open exceptions",
+        "category": "Norton Sage"
+      },
+      {
+        "command": "sage.openAuditLog.norton",
+        "title": "Open audit log",
+        "category": "Norton Sage"
+      },
+      {
+        "command": "sage.showHookHealth.norton",
+        "title": "Show hook health",
+        "category": "Norton Sage"
+      },
+      {
+        "command": "sage.enableProtection.avast",
+        "title": "Enable protection",
+        "category": "Avast Sage"
+      },
+      {
+        "command": "sage.disableProtection.avast",
+        "title": "Disable protection until restart",
+        "category": "Avast Sage"
+      },
+      {
+        "command": "sage.openConfig.avast",
+        "title": "Open config",
+        "category": "Avast Sage"
+      },
+      {
+        "command": "sage.openExceptions.avast",
+        "title": "Open exceptions",
+        "category": "Avast Sage"
+      },
+      {
+        "command": "sage.openAuditLog.avast",
+        "title": "Open audit log",
+        "category": "Avast Sage"
+      },
+      {
+        "command": "sage.showHookHealth.avast",
+        "title": "Show hook health",
+        "category": "Avast Sage"
       }
     ],
     "mcpServerDefinitionProviders": [
@@ -92,13 +164,89 @@
           "description": "Optional absolute path to a sage-hook runner script."
         }
       }
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "sage.enableProtection",
+          "when": "!sage.brandKey"
+        },
+        {
+          "command": "sage.disableProtection",
+          "when": "!sage.brandKey"
+        },
+        {
+          "command": "sage.openConfig",
+          "when": "!sage.brandKey"
+        },
+        {
+          "command": "sage.openExceptions",
+          "when": "!sage.brandKey"
+        },
+        {
+          "command": "sage.openAuditLog",
+          "when": "!sage.brandKey"
+        },
+        {
+          "command": "sage.showHookHealth",
+          "when": "!sage.brandKey"
+        },
+        {
+          "command": "sage.enableProtection.norton",
+          "when": "sage.brandKey == 'norton'"
+        },
+        {
+          "command": "sage.disableProtection.norton",
+          "when": "sage.brandKey == 'norton'"
+        },
+        {
+          "command": "sage.openConfig.norton",
+          "when": "sage.brandKey == 'norton'"
+        },
+        {
+          "command": "sage.openExceptions.norton",
+          "when": "sage.brandKey == 'norton'"
+        },
+        {
+          "command": "sage.openAuditLog.norton",
+          "when": "sage.brandKey == 'norton'"
+        },
+        {
+          "command": "sage.showHookHealth.norton",
+          "when": "sage.brandKey == 'norton'"
+        },
+        {
+          "command": "sage.enableProtection.avast",
+          "when": "sage.brandKey == 'avast'"
+        },
+        {
+          "command": "sage.disableProtection.avast",
+          "when": "sage.brandKey == 'avast'"
+        },
+        {
+          "command": "sage.openConfig.avast",
+          "when": "sage.brandKey == 'avast'"
+        },
+        {
+          "command": "sage.openExceptions.avast",
+          "when": "sage.brandKey == 'avast'"
+        },
+        {
+          "command": "sage.openAuditLog.avast",
+          "when": "sage.brandKey == 'avast'"
+        },
+        {
+          "command": "sage.showHookHealth.avast",
+          "when": "sage.brandKey == 'avast'"
+        }
+      ]
     }
   },
   "scripts": {
-    "build": "pnpm -C ../core build && pnpm -C ../mcp build && npm run clean && npm run sync:assets && node esbuild.config.cjs",
-    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('resources',{recursive:true,force:true});require('node:fs').rmSync('.vsce',{recursive:true,force:true})\"",
+    "build": "pnpm -C ../core build && pnpm -C ../mcp build && npm run clean && npm run sync:assets && node scripts/generate-brand-commands.mjs && node esbuild.config.cjs",
+    "clean": "node ../../scripts/clean.mjs dist resources .vsce",
     "sync:assets": "node scripts/sync-assets.mjs",
-    "pretest": "pnpm -C ../core build && pnpm -C ../mcp build && npm run sync:assets && node esbuild.config.cjs",
+    "pretest": "pnpm -C ../core build && pnpm -C ../mcp build && npm run sync:assets && node scripts/generate-brand-commands.mjs && node esbuild.config.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "package:cursor:vsix": "npm run build && pnpm dlx @vscode/vsce package -o ../../sage-cursor.vsix --no-dependencies --allow-package-secrets github --allow-package-secrets slack",

@@ -84,6 +84,7 @@ export async function logVerdict(
 	agentRuntime?: AgentRuntime,
 	hookType?: HookType,
 	signals?: AuditSignals,
+	eventId?: string,
 ): Promise<void> {
 	if (!config.enabled) return;
 
@@ -92,7 +93,7 @@ export async function logVerdict(
 
 	const entry = {
 		type: "runtime_verdict",
-		entry_id: randomUUID(),
+		entry_id: eventId ?? randomUUID(),
 		timestamp: new Date().toISOString(),
 		session_id: sessionId,
 		conversation_id: conversationId ?? sessionId,

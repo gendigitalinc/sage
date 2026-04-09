@@ -12,6 +12,7 @@
     "node": ">=18"
   },
   "scripts": {
+    "prepare": "bash scripts/git-hooks/install.sh",
     "build": "pnpm -r run build",
     "test": "vitest run",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",

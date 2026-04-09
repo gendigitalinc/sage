@@ -6,8 +6,8 @@
 import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
-import type { Logger, PluginInfo } from "@gendigital/sage-core";
-import { getFileContent } from "@gendigital/sage-core";
+import type { Branding, Logger, PluginInfo } from "@gendigital/sage-core";
+import { defaultBranding, getFileContent } from "@gendigital/sage-core";
 
 /** Resolve XDG base directories with fallbacks to homedir defaults */
 function getConfigHome(): string {
@@ -28,8 +28,9 @@ const PROJECT_CONFIG_NAME = "opencode.json";
 export async function discoverOpenCodePlugins(
 	logger: Logger,
 	projectDir?: string,
+	branding: Branding = defaultBranding,
 ): Promise<PluginInfo[]> {
-	logger.debug("Sage plugin discovery: scanning OpenCode plugins");
+	logger.debug(`${branding.product_name} plugin discovery: scanning OpenCode plugins`);
 
 	const plugins: PluginInfo[] = [];
 
@@ -49,7 +50,7 @@ export async function discoverOpenCodePlugins(
 		plugins.push(...projectPlugins);
 	}
 
-	logger.info(`Sage plugin discovery: found ${plugins.length} plugin(s)`);
+	logger.info(`${branding.product_name} plugin discovery: found ${plugins.length} plugin(s)`);
 	return plugins;
 }
 

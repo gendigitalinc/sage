@@ -6,7 +6,7 @@
  */
 
 import { readFileSync } from "node:fs";
-import type { Logger } from "@gendigital/sage-core";
+import { type Logger, loadBranding } from "@gendigital/sage-core";
 import pino from "pino";
 import { consumePendingApproval } from "./approval-tracker.js";
 import { artifactTypeLabel } from "./format.js";
@@ -43,6 +43,7 @@ async function main(): Promise<void> {
 		return;
 	}
 
+	const branding = await loadBranding(logger);
 	const artifactList = entry.artifacts
 		.map((a) => `${artifactTypeLabel(a.type)} '${a.value}'`)
 		.join(", ");
@@ -50,7 +51,7 @@ async function main(): Promise<void> {
 	const response = {
 		hookSpecificOutput: {
 			hookEventName: "PostToolUse",
-			additionalContext: `Sage: The user approved a flagged action (threat ${entry.threatId}: ${entry.threatTitle}, artifacts: ${artifactList}). To permanently allow this in the future, the user can add an exception rule to ~/.sage/exceptions.json.`,
+			additionalContext: `${branding.product_name}: The user approved a flagged action (threat ${entry.threatId}: ${entry.threatTitle}, artifacts: ${artifactList}). To permanently allow this in the future, the user can add an exception rule to ~/.sage/exceptions.json.`,
 		},
 	};
 

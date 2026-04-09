@@ -1,0 +1,14 @@
+{
+  "commands": [
+    { "id": "enableProtection", "title": "Enable protection" },
+    { "id": "disableProtection", "title": "Disable protection until restart" },
+    { "id": "openConfig", "title": "Open config" },
+    { "id": "openExceptions", "title": "Open exceptions" },
+    { "id": "openAuditLog", "title": "Open audit log" },
+    { "id": "showHookHealth", "title": "Show hook health" }
+  ],
+  "brands": [
+    { "id": "norton", "category": "Norton Sage" },
+    { "id": "avast", "category": "Avast Sage" }
+  ]
+}

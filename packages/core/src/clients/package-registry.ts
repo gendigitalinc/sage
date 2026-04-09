@@ -4,6 +4,7 @@
  * Returns null on 404 or error (fail-open at client level).
  */
 
+import semver from "semver";
 import type { Logger } from "../types.js";
 import { nullLogger } from "../types.js";
 
@@ -83,15 +84,25 @@ export class RegistryClient {
 			if (!latestTag) return null;
 
 			const versions = (data.versions ?? {}) as Record<string, Record<string, unknown>>;
+			const versionKeys = Object.keys(versions);
+
 			// Resolve dist-tags (e.g. "latest", "next", "canary") to actual version strings
 			const effectiveVersion =
 				requestedVersion && distTags[requestedVersion]
 					? distTags[requestedVersion]
 					: requestedVersion;
-			// Use requested version if specified and exists, otherwise fall back to latest
-			const requestedVersionFound = !effectiveVersion || Boolean(versions[effectiveVersion]);
+
+			// Check if any published version satisfies the requested specifier.
+			// Exact versions hit the fast path; ranges/partials fall back to semver matching.
+			const requestedVersionFound =
+				!effectiveVersion ||
+				Boolean(versions[effectiveVersion]) ||
+				semver.maxSatisfying(versionKeys, effectiveVersion) !== null;
+
 			const resolvedVersion =
-				effectiveVersion && versions[effectiveVersion] ? effectiveVersion : latestTag;
+				effectiveVersion && versions[effectiveVersion]
+					? effectiveVersion
+					: (effectiveVersion && semver.maxSatisfying(versionKeys, effectiveVersion)) || latestTag;
 			const resolvedVersionData = versions[resolvedVersion];
 			if (!resolvedVersionData) return null;
 
@@ -168,10 +179,26 @@ export class RegistryClient {
 			if (!latestTag) return null;
 
 			const releases = (data.releases ?? {}) as Record<string, Record<string, unknown>[]>;
-			const requestedVersionFound =
-				!requestedVersion || Boolean(releases[requestedVersion]?.length);
-			const resolvedVersion =
-				requestedVersion && releases[requestedVersion]?.length ? requestedVersion : latestTag;
+
+			// PEP 440 trailing-zero normalization: "2.0" ≡ "2.0.0" ≡ "2.0.0.0".
+			// Only pad with ".0" — do NOT prefix-match (==2.0 ≠ ==2.0.1).
+			// "===" prefix signals strict literal equality (no normalization).
+			const pypiVersionMatch = (raw: string): string | undefined => {
+				if (raw.startsWith("===")) {
+					const literal = raw.slice(3);
+					return releases[literal]?.length ? literal : undefined;
+				}
+				if (releases[raw]?.length) return raw;
+				const oneZero = `${raw}.0`;
+				if (releases[oneZero]?.length) return oneZero;
+				const twoZero = `${raw}.0.0`;
+				if (releases[twoZero]?.length) return twoZero;
+				return undefined;
+			};
+
+			const matchedVersion = requestedVersion ? pypiVersionMatch(requestedVersion) : undefined;
+			const requestedVersionFound = !requestedVersion || Boolean(matchedVersion);
+			const resolvedVersion = matchedVersion ?? latestTag;
 
 			// Get hash from resolved version's first file
 			let latestHash = "";

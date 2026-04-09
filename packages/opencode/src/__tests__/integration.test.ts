@@ -185,7 +185,6 @@ describe("OpenCode integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 
 		const result = await approve?.execute({ actionId, approved: true }, makeContext());
 		expect(result).toContain("Approved action");
-		expect(result).toContain("Do NOT add it to the allowlist");
 
 		await expect(runBefore("chmod 777 ./run.sh", "c6")).resolves.toBeUndefined();
 	});

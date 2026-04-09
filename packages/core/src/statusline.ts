@@ -6,9 +6,10 @@
 
 import * as fsPromises from "node:fs/promises";
 import { join } from "node:path";
+import { defaultBranding } from "./branding.js";
 import { resolvePath, SAGE_DIR } from "./config.js";
 import { atomicWriteJson, getFileContent } from "./file-utils.js";
-import type { Verdict } from "./types.js";
+import type { Branding, Verdict } from "./types.js";
 
 export interface SessionStatus {
 	denied: number;
@@ -85,15 +86,17 @@ export function formatStatusLine(
 	flagged: number,
 	lastReason?: string | null,
 	lastCategory?: string | null,
+	branding: Branding = defaultBranding,
 ): string {
+	const name = branding.product_name;
 	if (denied > 0 || flagged > 0) {
 		const parts: string[] = [];
 		if (denied > 0) parts.push(`${denied} blocked`);
 		if (flagged > 0) parts.push(`${flagged} flagged`);
 		const detail = lastReason ? ` — ${lastReason}${lastCategory ? ` (${lastCategory})` : ""}` : "";
-		return `🛡️ Sage: ${parts.join(", ")}${detail}`;
+		return `🛡️ ${name}: ${parts.join(", ")}${detail}`;
 	}
-	return "🛡️ Sage: ✅";
+	return `🛡️ ${name}: ✅`;
 }
 
 /** Read current session status. Returns null if file doesn't exist. */

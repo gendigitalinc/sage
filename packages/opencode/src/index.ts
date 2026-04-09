@@ -3,7 +3,7 @@
  * Intercepts tool calls and uses @gendigital/sage-core to enforce security verdicts.
  */
 
-import { ApprovalStore, approveAction } from "@gendigital/sage-core";
+import { ApprovalStore, approveAction, loadBranding } from "@gendigital/sage-core";
 import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin/tool";
 import { getBundledDataDirs } from "./bundled-dirs.js";
@@ -15,6 +15,7 @@ const APPROVAL_STORE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 export const SagePlugin: Plugin = async ({ client, directory }) => {
 	const logger = new OpencodeLogger(client);
+	const branding = await loadBranding(logger);
 	const { threatsDir, allowlistsDir } = getBundledDataDirs();
 	const approvalStore = new ApprovalStore();
 
@@ -29,13 +30,22 @@ export const SagePlugin: Plugin = async ({ client, directory }) => {
 	}, APPROVAL_STORE_CLEANUP_INTERVAL_MS);
 	interval.unref?.();
 
-	const toolHandlers = createToolHandlers(logger, approvalStore, threatsDir, allowlistsDir, {
-		showToast: (msg, variant) => {
-			client.tui
-				.showToast({ body: { title: "Sage", message: msg, variant, duration: 5000 } })
-				.catch(() => {});
+	const toolHandlers = createToolHandlers(
+		logger,
+		approvalStore,
+		threatsDir,
+		allowlistsDir,
+		{
+			showToast: (msg, variant) => {
+				client.tui
+					.showToast({
+						body: { title: branding.product_name, message: msg, variant, duration: 5000 },
+					})
+					.catch(() => {});
+			},
 		},
-	});
+		branding,
+	);
 
 	return {
 		"tool.execute.before": toolHandlers["tool.execute.before"],
@@ -91,16 +101,21 @@ export const SagePlugin: Plugin = async ({ client, directory }) => {
 			if (sessionID !== "unknown" && scannedSessions.has(sessionID)) return;
 
 			try {
-				logger.debug("Sage: starting session scan", { sessionID });
-				const scanHandler = createSessionScanHandler(logger, directory, (msg) => {
-					pendingFindingsBySession.set(sessionID, msg);
-				});
+				logger.debug(`${branding.product_name}: starting session scan`, { sessionID });
+				const scanHandler = createSessionScanHandler(
+					logger,
+					directory,
+					(msg) => {
+						pendingFindingsBySession.set(sessionID, msg);
+					},
+					branding,
+				);
 				await scanHandler();
 				if (sessionID !== "unknown") {
 					scannedSessions.add(sessionID);
 				}
 			} catch (error) {
-				logger.error("Sage session scan failed (fail-open)", {
+				logger.error(`${branding.product_name} session scan failed (fail-open)`, {
 					sessionID,
 					error: String(error),
 				});
@@ -113,10 +128,11 @@ export const SagePlugin: Plugin = async ({ client, directory }) => {
 			// PR: https://github.com/anomalyco/opencode/pull/12046
 			// Discussion: https://github.com/avast/sage/pull/21#discussion_r2873812399
 			sage_approve: tool({
-				description:
-					"Approve or reject a Sage-flagged tool call. IMPORTANT: you MUST ask the user for explicit confirmation in the conversation BEFORE calling this tool. Never auto-approve - always present the flagged action and wait for the user to response.",
+				description: `Approve or reject a ${branding.product_name}-flagged tool call. IMPORTANT: you MUST ask the user for explicit confirmation in the conversation BEFORE calling this tool. Never auto-approve - always present the flagged action and wait for the user to response.`,
 				args: {
-					actionId: tool.schema.string().describe("Action ID from Sage blocked message"),
+					actionId: tool.schema
+						.string()
+						.describe(`Action ID from ${branding.product_name} blocked message`),
 					approved: tool.schema.boolean().describe("true to approve, false to reject"),
 				},
 				async execute(args: { actionId: string; approved: boolean }, _context) {
@@ -124,7 +140,7 @@ export const SagePlugin: Plugin = async ({ client, directory }) => {
 						approvalStore.deletePending(args.actionId);
 						return "Rejected by user.";
 					}
-					return approveAction(approvalStore, args.actionId);
+					return approveAction(approvalStore, args.actionId, branding);
 				},
 			}),
 		},

@@ -1,12 +1,11 @@
 /**
  * Sage OpenClaw plugin entry point.
- * Registers before_tool_call handler, sage_approve tool,
- * startup/session scan hooks, and before_agent_start handler.
+ * Registers before_tool_call handler, startup/session scan hooks,
+ * and before_agent_start handler.
  */
 
-import { ApprovalStore } from "@gendigital/sage-core";
+import { ApprovalStore, loadBrandingSync } from "@gendigital/sage-core";
 import { getBundledDataDirs } from "./bundled-dirs.js";
-import { createSageApproveTool } from "./gate-tool.js";
 import { createLogger, type PluginLogger } from "./logger-adapter.js";
 import {
 	createBeforeAgentStartHandler,
@@ -19,12 +18,14 @@ interface PluginApi {
 	logger: PluginLogger;
 	// biome-ignore lint/suspicious/noExplicitAny: OpenClaw handler signatures vary by event
 	on(event: string, handler: (...args: any[]) => any, options?: { priority?: number }): void;
-	registerTool(tool: Record<string, unknown>): void;
 }
+
+// Load branding once at module scope so the plugin registration name reflects it
+const branding = loadBrandingSync();
 
 export default {
 	id: "sage-openclaw",
-	name: "Sage",
+	name: branding.product_name,
 	description: "Safety for Agents — ADR layer that guards commands, files, and web requests",
 	configSchema: {
 		jsonSchema: { type: "object", additionalProperties: false, properties: {} },
@@ -46,12 +47,11 @@ export default {
 
 		api.on(
 			"before_tool_call",
-			createToolCallHandler(approvalStore, logger, threatsDir, allowlistsDir),
+			createToolCallHandler(approvalStore, logger, threatsDir, allowlistsDir, branding),
 			{ priority: 100 },
 		);
-		api.registerTool(createSageApproveTool(approvalStore) as unknown as Record<string, unknown>);
-		api.on("gateway_start", createStartupScanHandler(logger, onFindings));
-		api.on("session_start", createSessionScanHandler(logger, onFindings));
+		api.on("gateway_start", createStartupScanHandler(logger, branding, onFindings));
+		api.on("session_start", createSessionScanHandler(logger, branding, onFindings));
 		api.on(
 			"before_agent_start",
 			createBeforeAgentStartHandler(
@@ -60,6 +60,7 @@ export default {
 					pendingFindings = null;
 				},
 				logger,
+				branding,
 			),
 		);
 	},

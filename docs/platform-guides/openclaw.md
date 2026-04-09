@@ -21,7 +21,7 @@ The build copies threat definitions, allowlists, and skills into `packages/openc
 The OpenClaw connector runs in-process using the OpenClaw plugin API:
 
 - **`before_tool_call`** - Intercepts `exec`, `web_fetch`, `write`, `edit`, `read`, and `apply_patch`. Runs the full detection pipeline.
-- **`sage_approve`** - A gate tool that lets users approve flagged actions by action ID.
+- **Native approval** - Flagged actions use OpenClaw's `requireApproval` mechanism, presenting native UI dialogs (Telegram buttons, Discord components, `/approve` command) for user decisions.
 - **`gateway_start` / `session_start`** - Scans installed plugins for threats.
 
 ## Intercepted Tools
@@ -35,18 +35,17 @@ The OpenClaw connector runs in-process using the OpenClaw plugin API:
 | `read` | File path extraction |
 | `apply_patch` | File path extraction from diffs |
 
-## Gate Tool
+## Approval Flow
 
-When Sage blocks a tool call, it returns an `actionId` in the block reason. The model can then call `sage_approve` to ask the user for approval:
+When Sage flags a tool call with an `ask` verdict, it returns a `requireApproval` object. OpenClaw presents a native approval dialog to the user (Telegram buttons, Discord components, or `/approve` command depending on the channel).
 
-```json
-{
-  "actionId": "abc-123",
-  "approved": true
-}
-```
+The user can:
 
-Approvals are stored per-session and not persisted across restarts.
+- **Allow once** — approves the action for the current session only
+- **Allow always** — approves and saves an exception rule to `~/.sage/exceptions.json` for permanent allowlisting
+- **Deny** — blocks the action
+
+The `onResolution` callback handles persistent allowlisting automatically — when the user selects "Allow always", Sage adds an exception rule without any agent-callable tools.
 
 ## Security Awareness Skill
 

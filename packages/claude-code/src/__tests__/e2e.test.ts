@@ -230,7 +230,7 @@ describe("E2E: Sage plugin in Claude CLI", { timeout: 180_000 }, () => {
 
 	it("blocks canary URL via dummy rule", () => {
 		const { messages } = runClaude(
-			"Use the WebFetch tool to fetch this URL: https://sage-canary-deny-4e91ca37.test/page",
+			"Use the WebFetch tool to fetch this URL: https://sage-canary-deny-4e91ca37.test/page and summarize the content",
 		);
 		const results = findToolResults(messages);
 		const fetches = results.filter((r) => r.toolName === "WebFetch");

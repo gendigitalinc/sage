@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Pre-push hook: build, typecheck, test, changeset check.
+# Fails fast on first error. Bypass with: git push --no-verify
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+source scripts/git-hooks/lib/util.sh
+
+echo_header "Building..."
+if ! pnpm build; then
+  echo_err "Build failed. Push aborted."
+  exit 1
+fi
+
+echo_header "Type-checking..."
+if ! pnpm check; then
+  echo_err "Type check failed. Push aborted."
+  exit 1
+fi
+
+echo_header "Running tests..."
+if ! pnpm test; then
+  echo_err "Tests failed. Push aborted."
+  exit 1
+fi
+
+echo_header "Checking changeset..."
+if ! bash scripts/check-changeset.sh; then
+  echo_err "Changeset check failed. Push aborted."
+  exit 1
+fi
+
+echo_ok "All pre-push checks passed."

@@ -22,7 +22,7 @@ await cp(join(extensionRoot, "resources"), join(stageDir, "resources"), {
 });
 await cp(join(extensionRoot, "README.md"), join(stageDir, "README.md"), { force: true });
 await cp(join(extensionRoot, "LICENSE"), join(stageDir, "LICENSE"), { force: true });
-await cp(join(extensionRoot, "sage-icon.png"), join(stageDir, "sage-icon.png"), { force: true });
+await cp(join(extensionRoot, "icon.png"), join(stageDir, "icon.png"), { force: true });
 await writeFile(join(stageDir, "package.json"), `${JSON.stringify(vscodeManifest, null, 2)}\n`, "utf8");
 
 await runVscePackage(stageDir, outputVsix);
@@ -42,7 +42,7 @@ function buildVsCodeManifest(base) {
 		"dist/sage-hook.cjs",
 		"dist/sage-hook.cjs.map",
 		"resources/**",
-		"sage-icon.png",
+		"icon.png",
 		"package.json",
 		"README.md",
 		"LICENSE",

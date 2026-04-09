@@ -128,11 +128,42 @@ describe("extractPackagesFromCommand", () => {
 		expect(result[0]?.name).toBe("numpy");
 	});
 
-	it("handles pip version specifiers", () => {
+	it("extracts version only for == pip specifiers", () => {
 		const result = extractPackagesFromCommand("pip install requests==2.31.0 flask>=2.0");
 		expect(result).toHaveLength(2);
 		expect(result[0]?.name).toBe("requests");
 		expect(result[0]?.version).toBe("2.31.0");
+		expect(result[1]?.name).toBe("flask");
+		expect(result[1]?.version).toBeUndefined();
+	});
+
+	it("skips version for pip range specifiers (~=, !=, >=)", () => {
+		const result = extractPackagesFromCommand("pip install 'django~=4.2' 'celery!=5.0.0'");
+		expect(result).toHaveLength(2);
+		expect(result[0]?.name).toBe("django");
+		expect(result[0]?.version).toBeUndefined();
+		expect(result[1]?.name).toBe("celery");
+		expect(result[1]?.version).toBeUndefined();
+	});
+
+	it("preserves === prefix for strict literal equality", () => {
+		const result = extractPackagesFromCommand(
+			"pip install 'pkg===1.2.3.dev4' 'other===1.0+ubuntu1'",
+		);
+		expect(result).toHaveLength(2);
+		expect(result[0]?.name).toBe("pkg");
+		expect(result[0]?.version).toBe("===1.2.3.dev4");
+		expect(result[1]?.name).toBe("other");
+		expect(result[1]?.version).toBe("===1.0+ubuntu1");
+	});
+
+	it("skips version for == with wildcard or compound specifiers", () => {
+		const result = extractPackagesFromCommand("pip install 'foo==1.2.*' 'bar==1.2.3,!=1.2.4'");
+		expect(result).toHaveLength(2);
+		expect(result[0]?.name).toBe("foo");
+		expect(result[0]?.version).toBeUndefined();
+		expect(result[1]?.name).toBe("bar");
+		expect(result[1]?.version).toBeUndefined();
 	});
 });
 
@@ -150,12 +181,72 @@ describe("extractPackagesFromManifest", () => {
 		expect(result[0]?.source).toBe("package.json");
 	});
 
+	it("preserves raw version specifiers from package.json", () => {
+		const content = JSON.stringify({
+			dependencies: {
+				express: "^4.18.0",
+				lodash: "~4.17.0",
+				typescript: ">=5.0.0 <6.0.0",
+				react: "^18.2",
+			},
+		});
+		const result = extractPackagesFromManifest("package.json", content);
+		const byName = Object.fromEntries(result.map((p) => [p.name, p.version]));
+		expect(byName.express).toBe("^4.18.0");
+		expect(byName.lodash).toBe("~4.17.0");
+		expect(byName.typescript).toBe(">=5.0.0 <6.0.0");
+		expect(byName.react).toBe("^18.2");
+	});
+
+	it("skips wildcard and empty versions in package.json", () => {
+		const content = JSON.stringify({
+			dependencies: { "any-ver": "*", "empty-ver": "" },
+		});
+		const result = extractPackagesFromManifest("package.json", content);
+		expect(result).toHaveLength(0);
+	});
+
 	it("skips file: and link: dependencies in package.json", () => {
 		const content = JSON.stringify({
 			dependencies: { "local-pkg": "file:../local", linked: "link:./linked" },
 		});
 		const result = extractPackagesFromManifest("package.json", content);
 		expect(result).toHaveLength(0);
+	});
+
+	it("skips non-registry protocol specifiers in package.json", () => {
+		const content = JSON.stringify({
+			dependencies: {
+				"ws-pkg": "workspace:*",
+				"ws-caret": "workspace:^",
+				"gh-pkg": "github:user/repo",
+				"bb-pkg": "bitbucket:user/repo",
+				"gl-pkg": "gitlab:user/repo",
+				"portal-pkg": "portal:../other",
+				"patch-pkg": "patch:pkg@^1.0.0#./fix.patch",
+				"git-pkg": "git:github.com/user/repo.git",
+				"http-pkg": "https://example.com/pkg.tgz",
+			},
+		});
+		const result = extractPackagesFromManifest("package.json", content);
+		expect(result).toHaveLength(0);
+	});
+
+	it("resolves npm: alias to target package for checking", () => {
+		const content = JSON.stringify({
+			dependencies: {
+				"my-alias": "npm:real-pkg@^1.0.0",
+				"scoped-alias": "npm:@scope/pkg@~2.3",
+				"unversioned-alias": "npm:other-pkg",
+			},
+		});
+		const result = extractPackagesFromManifest("package.json", content);
+		expect(result).toHaveLength(3);
+		expect(result[0]?.name).toBe("real-pkg");
+		expect(result[0]?.version).toBe("^1.0.0");
+		expect(result[1]?.name).toBe("@scope/pkg");
+		expect(result[1]?.version).toBe("~2.3");
+		expect(result[2]?.name).toBe("other-pkg");
 	});
 
 	it("extracts from requirements.txt", () => {
@@ -165,7 +256,21 @@ describe("extractPackagesFromManifest", () => {
 		expect(result).toHaveLength(2);
 		expect(result[0]?.name).toBe("requests");
 		expect(result[0]?.registry).toBe("pypi");
+		expect(result[0]?.version).toBe("2.31.0");
 		expect(result[1]?.name).toBe("flask");
+		expect(result[1]?.version).toBeUndefined();
+	});
+
+	it("skips version for requirements.txt range specifiers", () => {
+		const content = "django~=4.2\nnumpy>=1.24,<2.0\ncelery!=5.0.0\n";
+		const result = extractPackagesFromManifest("requirements.txt", content);
+		expect(result).toHaveLength(3);
+		expect(result[0]?.name).toBe("django");
+		expect(result[0]?.version).toBeUndefined();
+		expect(result[1]?.name).toBe("numpy");
+		expect(result[1]?.version).toBeUndefined();
+		expect(result[2]?.name).toBe("celery");
+		expect(result[2]?.version).toBeUndefined();
 	});
 
 	it("handles malformed package.json gracefully", () => {
