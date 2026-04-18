@@ -1,0 +1,304 @@
+# Agent-protocol threat patterns for Sage
+# Source: ATR (Agent Threat Rules) — https://github.com/Agent-Threat-Rule/agent-threat-rules
+# License: MIT (approved per issue #30)
+# Schema: id, category, severity, confidence, action, pattern, match_on, title, expires_at, revoked
+#
+# These rules detect agent-protocol-layer threats arriving via MCP tool descriptions
+# and SKILL.md content — BEFORE they become OS commands (which Sage's existing
+# commands.yaml / credentials.yaml / etc. already handle at the execution layer).
+#
+# All rules use match_on: content (the agent-surface scan target).
+
+- id: AGT-PI-001
+  category: tool
+  severity: high
+  confidence: 0.85
+  action: block
+  pattern: \b(ignore|disregard|forget|override|bypass|skip|abandon|drop|cancel|suppress|nullify|void|revoke|dismiss|discard|reject)\s+(all\s+)?(the\s+|your\s+|my\s+|any\s+|these\s+|those\s+)?(previous|prior|above|earlier|preceding|original|existing|current|initial|default|given|assigned|preset|established)?\s*(instructions?|prompts?|rules?|guidelines?|directives?|constraints?|context|programming|training|protocols?|policies|configuration|parameters|boundaries|guardrails?|safeguards?|restrictions?|tasks?|assignments?|information|directions?|orders?|commands?)
+  match_on: content
+  title: Direct Prompt Injection via User Input
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-PI-002
+  category: tool
+  severity: high
+  confidence: 0.85
+  action: block
+  pattern: <!--[^>]{0,20}(ignore|disregard|override|new\s+instructions?|system\s*:|you\s+must|you\s+are\s+now|forget\s+previous|execute|perform|send\s+to|exfiltrate|reveal|disclose|output\s+the)[^>]{0,200}-->
+  match_on: content
+  title: Indirect Prompt Injection via External Content
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-PI-003
+  category: tool
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: (?:(?:pretend|act(?:ing)?\s+as|you\s+are\s+(?:now\s+)?|be(?:come)?|enable|activate|enter|switch\s+to)\s+(?:a\s+)?\b(DAN|D\.A\.N|STAN|DUDE|AIM|UCAR|BH|BetterDAN|BasedGPT|JailbreakGPT|EvilGPT|UnfilteredGPT|KEVIN|Maximum|Omega|Jailbroken|AntiGPT|DevMode|HackGPT|NsfwGPT|DarkGPT)\b|\b(DAN|D\.A\.N|STAN|DUDE|AIM|UCAR|BH|BetterDAN|BasedGPT|JailbreakGPT|EvilGPT|UnfilteredGPT|KEVIN|Maximum|Omega|Jailbroken|AntiGPT|DevMode|HackGPT|NsfwGPT|DarkGPT)\b\s+(?:mode|persona|jailbreak|enabled|activated)|\bdo\s+anything\s+now\b)
+  match_on: content
+  title: Jailbreak Attempt Detection
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-PI-004
+  category: tool
+  severity: critical
+  confidence: 0.92
+  action: block
+  pattern: \b(new|updated|revised|replacement|corrected|actual|real|true|proper|authentic|overriding|amended|modified|changed|current)\s+(system\s+)?(prompt|message|instructions?|directives?|guidelines?|configuration|persona|behavior|role\s+definition)\s*[:=\-]
+  match_on: content
+  title: System Prompt Override Attempt
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-PI-005
+  category: tool
+  severity: high
+  confidence: 0.85
+  action: block
+  pattern: (my|the)\s+(system\s+)?(?:prompt|instructions?)\s+(?:is|are|says?|states?|reads?|tells?\s+me)
+  match_on: content
+  title: System Prompt and Internal Instruction Leakage
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-PI-006
+  category: tool
+  severity: critical
+  confidence: 0.92
+  action: require_approval
+  pattern: (?:i\s+am|this\s+is|speaking\s+as|responding\s+as|acting\s+as)\s+(?:the\s+)?(?:admin|supervisor|orchestrator|manager|controller|system|root)\s+agent
+  match_on: content
+  title: Cross-Agent Attack Detection
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-PI-007
+  category: tool
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: (?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|prior|above|earlier)\s+(?:instructions|context|rules|guidelines)
+  match_on: content
+  title: Malicious Agent-to-Agent Message Injection
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-PI-008
+  category: tool
+  severity: critical
+  confidence: 0.92
+  action: block
+  pattern: (?:\uDB40[\uDC00-\uDC7F]){3,}
+  match_on: content
+  title: Unicode Tag Character Smuggling
+  expires_at: null
+  revoked: false
+- id: AGT-MCP-001
+  category: tool
+  severity: critical
+  confidence: 0.92
+  action: block
+  pattern: (\brm\s+-[rRf]{1,3}[\s/]|\bmkfs\b|\bdd\s+if=|\bformat\s+[a-z]:|\bdeltree\b|\bshred\s+-|\bwipefs\b|\bfdisk\b.*--delete|:\(\)\s*\{\s*:\|:\s*&\s*\})
+  match_on: content
+  title: Malicious Content in MCP Tool Response
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-MCP-002
+  category: tool
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: (IMPORTANT|URGENT|CRITICAL|PRIORITY|MANDATORY|REQUIRED|ESSENTIAL|ATTENTION)\s*(NOTE\s+)?(TO\s+)?(THE\s+)?(ASSISTANT|AI|AGENT|MODEL|LLM|CHATBOT|BOT|SYSTEM)\s*[:\-]\s*(you\s+(must|should|need\s+to|have\s+to|are\s+(required|instructed|directed|ordered)\s+to)|please|now|immediately|do\s+not|never|always)
+  match_on: content
+  title: Instruction Injection via Tool Output
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-MCP-003
+  category: tool
+  severity: high
+  confidence: 0.85
+  action: block
+  pattern: (\.\.[\/\\]){2,}|\.\.[\/\\][^\s]*[\/\\](etc|proc|root|sys|var|home|tmp|boot|dev|usr|opt|passwd|shadow|hosts)[\/\\]?|~[\/\\]\.\.[\/\\]
+  match_on: content
+  title: Unauthorized Tool Call Detection
+  expires_at: null
+  revoked: false
+- id: AGT-MCP-004
+  category: tool
+  severity: critical
+  confidence: 0.92
+  action: block
+  pattern: (https?://)?169\.254\.169\.254|/latest/(meta-data|user-data|api/token|dynamic|instance-identity)|X-aws-ec2-metadata-token|amazonaws\.com.{0,50}(credentials|security-credentials|role)|iam[\/\\]security-credentials
+  match_on: content
+  title: SSRF via Agent Tool Calls
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-MCP-005
+  category: tool
+  severity: critical
+  confidence: 0.92
+  action: require_approval
+  pattern: sk-[a-zA-Z0-9]{20,}
+  match_on: content
+  title: Credential and Secret Exposure in Agent Output
+  expires_at: null
+  revoked: false
+- id: AGT-MCP-006
+  category: tool
+  severity: critical
+  confidence: 0.92
+  action: block
+  pattern: (eval\s*\$\(\s*echo\s+["'][A-Za-z0-9+/=]{20,}["']\s*\|\s*base64\s+-d|echo\s+["'][A-Za-z0-9+/=]{20,}["']\s*\|\s*base64\s+(-d|--decode)\s*\|\s*(bash|sh|python|perl))
+  match_on: content
+  title: Malicious Code in Skill Package
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-MCP-007
+  category: tool
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: (?:use|install|adopt|deploy|enable|set ?up|add|activate|configure)\s+(?:the\s+)?(?:enhanced|improved|upgraded|extended|advanced|better|super|pro|plus)[_-]?\w+\s*(?:package|module|library|tool|plugin|skill)?\s*[.,;:]?\s*(?:it.s|which is|this is|a|the)?\s*(?:a\s+)?(?:community|unofficial|third.party|independent)\s*(?:-\s*)?(?:maintained\s+)?(?:fork|variant|alternative|adaptation|version|build|branch|port)\s+(?:of|from|based on)
+  match_on: content
+  title: Community Fork Impersonation
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-MCP-008
+  category: tool
+  severity: critical
+  confidence: 0.92
+  action: block
+  pattern: <important>[\s\S]{0,600}?\b(read|send|exec|fetch|invoke|extract|include|must|pass|forward|upload)\b[\s\S]{0,300}?</important>
+  match_on: content
+  title: MCP Tool Description — IMPORTANT Tag Cross-Tool Shadowing Attack
+  expires_at: null
+  revoked: false
+- id: AGT-SKL-001
+  category: tool
+  severity: critical
+  confidence: 0.92
+  action: block
+  pattern: (you\s+are\s+(now\s+)?in\s+(developer|unrestricted|god|admin|root)\s+mode|security\s+warnings?\s+are\s+test\s+artifacts?|enable\s+advanced\s+features?\s+mode)
+  match_on: content
+  title: SKILL.md Prompt Injection
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-SKL-002
+  category: tool
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: (?:always|must|shall)\s+(?:approve|accept|allow|grant|permit)\s+(?:all\s+)?(?:file|tool|command|operation|request|action)s?\s+(?:without|regardless|even\s+if)
+  match_on: content
+  title: Hidden Override Instructions in Skill Content
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-SKL-003
+  category: tool
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: (?:also|additionally|while\s+you.re\s+at\s+it|before\s+(?:returning|responding))\s+(?:read|access|check|scan|collect|gather|harvest)\s+(?:all\s+)?(?:other|additional|nearby|available|accessible)\s+(?:files?|directories|folders?|configs?|secrets?|keys?|tokens?|env)
+  match_on: content
+  title: Skill Scope Hijacking and Cross-Agent Escalation
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-SKL-004
+  category: tool
+  severity: critical
+  confidence: 0.92
+  action: block
+  pattern: (?:cat|read|type|head|tail|strings|xxd|base64)\s+[^\n]*(?:\.ssh/id_|\.aws/credentials|\.npmrc|\.env|\.netrc|\.docker/config|\.kube/config)[^\n]*(?:\||>|curl|wget|nc\s|fetch|POST|http)
+  match_on: content
+  title: Credential Access with Exfiltration in Skill Instructions
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-SUP-001
+  category: tool
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: (?:filesytem|filsystem|file_sytem|flie_system|filessystem|filesystm|filsystm|filesysem)[-_](?:read|write|list|delete|search)
+  match_on: content
+  title: MCP Skill Impersonation and Supply Chain Attack
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-SUP-002
+  category: tool
+  severity: critical
+  confidence: 0.92
+  action: block
+  pattern: getHours\s*\(\s*\)\s*.{0,40}(readFileSync|readFile|fs\.read|open\s*\()
+  match_on: content
+  title: Time-Gated Credential Exfiltration (Rug Pull Timebomb)
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-SUP-003
+  category: tool
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: (npm\s+i(nstall)?|pip\s+install|cargo\s+add|go\s+get)\s+\S+.{0,40}(community\s+fork|enhanced\s+(version|fork)|patched\s+(version|fork)|improved\s+fork|unofficial\s+fork)
+  match_on: content
+  title: Malicious Fork Impersonation via Install Instruction
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-EXF-001
+  category: tool
+  severity: critical
+  confidence: 0.92
+  action: block
+  pattern: ~/?\.(?:aws/credentials|ssh/id_(?:rsa|ed25519|ecdsa)|npmrc|netrc|docker/config\.json|kube/config)
+  match_on: content
+  title: Credential File Theft from Agent Environment
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-EXF-002
+  category: tool
+  severity: critical
+  confidence: 0.92
+  action: block
+  pattern: (tar|zip|7z)\s+[^\n]*~/?\.ssh
+  match_on: content
+  title: Skill Data Exfiltration via Compound Patterns
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-EXF-003
+  category: tool
+  severity: critical
+  confidence: 0.92
+  action: block
+  pattern: '-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----'
+  match_on: content
+  title: Credential Data Leaked in Tool Response
+  expires_at: null
+  revoked: false
+  case_insensitive: true
+- id: AGT-EXF-004
+  category: tool
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: (encrypted|encoded|obfuscated)\s+(key|token|secret|credential|password)\s*[:=]\s*\S*(sk-|ghp_|gho_|glpat-|xox[bpras]-|AKIA|real-key)
+  match_on: content
+  title: Obfuscated Credential Exfiltration via Encoding
+  expires_at: null
+  revoked: false
+  case_insensitive: true
