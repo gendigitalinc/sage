@@ -276,3 +276,170 @@
   expires_at: null
   revoked: false
   # Upstream: ATR-2026-00075.
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EXPANDED COVERAGE (added 2026-04-19)  —  multi-agent attacks, tool-call
+# path traversal, fork impersonation, supply-chain typosquatting, and
+# credential-leak-in-content. Ported from an earlier iteration of this
+# ruleset after the initial scope audit undercounted a few classes.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── More prompt injection ──────────────────────────────────────────────────
+
+- id: "CLT-PI-005"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  action: block
+  pattern: "\\b(new|updated|revised|replacement|corrected|actual|real|true|proper|authentic|overriding|amended|modified|changed|current)\\s+(system\\s+)?(prompt|message|instructions?|directives?|guidelines?|configuration|persona|behavior|role\\s+definition)\\s*[:=\\-]"
+  match_on: content
+  case_insensitive: true
+  title: "System-prompt override framing — 'new/updated system prompt:' pattern"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00004 family. Complements CLT-SKL-001 (mandatory-verb
+  # override) by catching the declarative variant that asserts an authoritative
+  # replacement prompt follows the colon.
+
+- id: "CLT-PI-006"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  action: require_approval
+  pattern: "(?:i\\s+am|this\\s+is|speaking\\s+as|responding\\s+as|acting\\s+as)\\s+(?:the\\s+)?(?:admin|supervisor|orchestrator|manager|controller|system|root)\\s+agent"
+  match_on: content
+  case_insensitive: true
+  title: "Cross-agent impersonation claim (admin / supervisor / orchestrator)"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00030 (cross-agent attack). Multi-agent attack surface:
+  # an untrusted agent falsely claims administrative authority to a sibling.
+
+- id: "CLT-PI-007"
+  category: prompt_injection
+  severity: high
+  confidence: 0.82
+  action: require_approval
+  pattern: "(?:ignore|disregard|forget)\\s+(?:all\\s+)?(?:previous|prior|above|earlier)\\s+(?:instructions|context|rules|guidelines).{0,80}(?:assistant|agent|bot|model|llm)"
+  match_on: content
+  case_insensitive: true
+  title: "Agent-to-agent injection — override verb adjacent to agent keyword"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00076 (inter-agent message spoofing). Tightened over
+  # the upstream pattern by requiring an agent-identifier within 80 chars,
+  # so it fires only on agent-to-agent channels (CLT-PI-001 covers the
+  # generic override case for user input).
+
+# ── Tool-call / MCP attacks ────────────────────────────────────────────────
+
+- id: "CLT-MCP-004"
+  category: mcp_poisoning
+  severity: high
+  confidence: 0.90
+  action: block
+  pattern: "\\.\\.[\\/\\\\](?:\\.\\.[\\/\\\\])*(?:etc|proc|root|sys|boot|dev|passwd|shadow|hosts|shadow\\.bak|master\\.key)\\b|~[\\/\\\\]\\.\\.[\\/\\\\]"
+  match_on: content
+  case_insensitive: false
+  title: "Path traversal targeting system directory (/etc, /proc, /root, /sys, …)"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00012 (unauthorized tool call). Narrowed: the traversal
+  # must terminate in a sensitive system directory. Skills legitimately use
+  # `../../` in code examples and relative paths, so the bare multi-hop
+  # traversal pattern FPs at ~3% on the benign corpus; requiring a sensitive
+  # target keeps the signal while dropping FPs to 0.
+
+- id: "CLT-MCP-005"
+  category: mcp_poisoning
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "(?:use|install|adopt|deploy|enable|set ?up|add|activate|configure)\\s+(?:the\\s+)?(?:enhanced|improved|upgraded|extended|advanced|better|super|pro|plus)[_-]?\\w+\\s*(?:package|module|library|tool|plugin|skill)?\\s*[.,;:]?\\s*(?:it.s|which is|this is|a|the)?\\s*(?:a\\s+)?(?:community|unofficial|third.party|independent)\\s*(?:-\\s*)?(?:maintained\\s+)?(?:fork|variant|alternative|adaptation|version|build|branch|port)\\s+(?:of|from|based on)"
+  match_on: content
+  case_insensitive: true
+  title: "Community-fork impersonation framing in install instructions"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00147 (community fork impersonation). Social-engineering
+  # framing where malicious skills present themselves as an "enhanced community
+  # fork" of a trusted package.
+
+# ── More skill compromise ──────────────────────────────────────────────────
+
+- id: "CLT-SKL-009"
+  category: skill_compromise
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "(?:also|additionally|while\\s+you.re\\s+at\\s+it|before\\s+(?:returning|responding))\\s+(?:read|access|check|scan|collect|gather|harvest)\\s+(?:all\\s+)?(?:other|additional|nearby|available|accessible)\\s+(?:files?|directories|folders?|configs?|secrets?|keys?|tokens?|env)"
+  match_on: content
+  case_insensitive: true
+  title: "Skill scope hijacking — 'also read other files' rider instruction"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00074 (cross-agent privilege escalation). Catches
+  # skills that tack on extra file-reading instructions as side effects.
+
+# ── Supply chain ───────────────────────────────────────────────────────────
+
+- id: "CLT-SUP-001"
+  category: supply_chain
+  severity: high
+  confidence: 0.90
+  action: block
+  pattern: "(?:filesytem|filsystem|file_sytem|flie_system|filessystem|filesystm|filsystm|filesysem)[-_](?:read|write|list|delete|search)"
+  match_on: content
+  case_insensitive: true
+  title: "Typosquatted filesystem tool name (targets MCP filesystem server)"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00060 (MCP skill impersonation). Specifically targets
+  # the @modelcontextprotocol/server-filesystem squatting attack family.
+
+- id: "CLT-SUP-002"
+  category: supply_chain
+  severity: high
+  confidence: 0.88
+  action: require_approval
+  pattern: "(npm\\s+i(nstall)?|pip\\s+install|cargo\\s+add|go\\s+get)\\s+\\S+.{0,40}(community\\s+fork|enhanced\\s+(version|fork)|patched\\s+(version|fork)|improved\\s+fork|unofficial\\s+fork)"
+  match_on: content
+  case_insensitive: true
+  title: "Install instruction pointing to impersonated 'community fork' package"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00151 (fork impersonation via install instruction).
+  # Pairs with CLT-MCP-005 — that rule catches the prose framing, this rule
+  # catches the concrete install command carrying the same social-engineering.
+
+# ── More context exfiltration ──────────────────────────────────────────────
+
+- id: "CLT-CTX-003"
+  category: context_exfiltration
+  severity: critical
+  confidence: 0.98
+  action: block
+  pattern: "-----BEGIN\\s+(RSA\\s+)?PRIVATE\\s+KEY-----"
+  match_on: content
+  case_insensitive: true
+  title: "PEM private key block appearing in agent content"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00021 family (credential exposure). Narrow, high-
+  # confidence signal — PEM private keys should never appear in agent
+  # Write/Edit content or in tool responses.
+
+- id: "CLT-CTX-004"
+  category: context_exfiltration
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "(encrypted|encoded|obfuscated)\\s+(key|token|secret|credential|password)\\s*[:=]\\s*\\S*(sk-|ghp_|gho_|glpat-|xox[bpras]-|AKIA|real-key)"
+  match_on: content
+  case_insensitive: true
+  title: "Obfuscation-framed credential leak (hides real key behind 'encrypted:' label)"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00114 (token interception). Catches the deception
+  # pattern where an agent is instructed to exfiltrate a real credential
+  # while labeling it as encrypted/encoded/obfuscated.
