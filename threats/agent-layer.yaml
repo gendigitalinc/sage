@@ -5,7 +5,9 @@
 # Contributed per issue #30 + vaclavbelak's comment
 #   (https://github.com/gendigitalinc/sage/issues/30#issuecomment-4266904912)
 #
-# License: MIT  (explicitly granted to Sage per the above comment)
+# License: Detection Rule License (DRL) 1.1 (per CONTRIBUTING.md; see threats/LICENSE).
+#   @vaclavbelak suggested MIT in #30, but CONTRIBUTING.md requires DRL-1.1 for
+#   threats/*.yaml — relicensing to match convention and remove ambiguity.
 #
 # What this file covers (gaps vs Sage's existing 313 rules):
 #   Prompt injection           CLT-PI-001..004   (4 rules)
