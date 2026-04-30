@@ -8,9 +8,62 @@ import { appendFile, mkdir, rename, stat, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
 import { resolvePath } from "./config.js";
 import { getFileContent } from "./file-utils.js";
-import type { AgentRuntime, AuditSignals, HookType, LoggingConfig, Verdict } from "./types.js";
+import type {
+	AgentRuntime,
+	AuditSignals,
+	HookType,
+	LoggingConfig,
+	PiCheckConfig,
+	Verdict,
+} from "./types.js";
+
+/**
+ * Structured input to {@link logVerdict}. Replaces the previous 11-parameter
+ * positional signature so call sites can omit unused fields by name and
+ * future telemetry additions don't reorder existing arguments.
+ *
+ * `content` is the structured snapshot produced by `buildContentSnapshot`
+ * (in `content-snapshot.ts`). `audit-log.ts` deliberately does not import
+ * the builder — the evaluator constructs `content` once, then passes the
+ * opaque object to both this function and `sendCommunityIqDetection`.
+ */
+export interface VerdictLogEntry {
+	sessionId: string;
+	toolName: string;
+	toolInput: Record<string, unknown>;
+	verdict: Verdict;
+	userOverride?: boolean;
+	conversationId?: string;
+	agentRuntime?: AgentRuntime;
+	hookType?: HookType;
+	signals?: AuditSignals;
+	content?: Record<string, unknown>;
+	eventId?: string;
+	toolUseId?: string;
+}
 
 const MAX_SUMMARY_LEN = 200;
+
+/**
+ * Schema version stamped on every audit log entry by {@link appendEntry}.
+ *
+ * Bump this whenever the on-disk shape of a `runtime_verdict` or
+ * `plugin_scan` entry changes in a backwards-incompatible way (renamed/
+ * removed top-level keys, semantically repurposed fields, narrower
+ * value domains, etc.). Additive changes — new optional fields, new
+ * `type` values, new entries inside `signals`/`content` — do NOT
+ * require a bump because readers (`getRecentEntries`, the FP tool's
+ * `parseAuditSignals`, etc.) all tolerate unknown keys.
+ *
+ * Exported so downstream consumers (tests, schema validators, future
+ * audit-log readers that want to gate on the writer's version) can
+ * reference the symbolic value instead of duplicating the literal —
+ * a bump here then propagates without churn elsewhere. Production
+ * callers MUST NOT stamp `schema_version` themselves: `appendEntry`
+ * is the single chokepoint that injects it, and a manually-set value
+ * in a caller's entry literal would be silently overwritten anyway.
+ */
+export const AUDIT_LOG_SCHEMA_VERSION = 1;
 
 function toolInputSummary(toolName: string, toolInput: Record<string, unknown>): string {
 	if (toolName === "Bash") {
@@ -70,45 +123,49 @@ async function appendEntry(config: LoggingConfig, entry: Record<string, unknown>
 	const path = resolvePath(config.path);
 	await mkdir(dirname(path), { recursive: true });
 	await rotateIfNeeded(path, config.max_bytes, config.max_files);
-	await appendFile(path, `${JSON.stringify(entry)}\n`);
+	// `schema_version` is stamped here — the single chokepoint for every
+	// audit write — so callers (logVerdict, logPluginScan, future entry
+	// types) cannot accidentally omit it. Spread last so this assignment
+	// is authoritative even if a future caller mistakenly sets the field
+	// in their entry literal.
+	const stamped = { ...entry, schema_version: AUDIT_LOG_SCHEMA_VERSION };
+	await appendFile(path, `${JSON.stringify(stamped)}\n`);
 }
 
-export async function logVerdict(
-	config: LoggingConfig,
-	sessionId: string,
-	toolName: string,
-	toolInput: Record<string, unknown>,
-	verdict: Verdict,
-	userOverride = false,
-	conversationId?: string,
-	agentRuntime?: AgentRuntime,
-	hookType?: HookType,
-	signals?: AuditSignals,
-	eventId?: string,
-): Promise<void> {
+export async function logVerdict(config: LoggingConfig, input: VerdictLogEntry): Promise<void> {
 	if (!config.enabled) return;
 
-	// Skip clean verdicts unless log_clean is on or this is a user override
-	if (verdict.decision === "allow" && !config.log_clean && !userOverride) return;
+	const userOverride = input.userOverride ?? false;
+	const hasSignals = input.signals != null && Object.keys(input.signals).length > 0;
+	// Skip clean verdicts unless log_clean is on, user overrode, or signals fired
+	if (input.verdict.decision === "allow" && !config.log_clean && !userOverride && !hasSignals)
+		return;
 
-	const entry = {
+	const entry: Record<string, unknown> = {
 		type: "runtime_verdict",
-		entry_id: eventId ?? randomUUID(),
+		entry_id: input.eventId ?? randomUUID(),
 		timestamp: new Date().toISOString(),
-		session_id: sessionId,
-		conversation_id: conversationId ?? sessionId,
-		agent_runtime: agentRuntime,
-		hook_type: hookType,
-		tool_name: toolName,
-		tool_input_summary: toolInputSummary(toolName, toolInput),
-		artifacts: verdict.artifacts,
-		verdict: verdict.decision,
-		severity: verdict.severity,
-		reasons: verdict.reasons,
-		source: verdict.source,
+		session_id: input.sessionId,
+		conversation_id: input.conversationId ?? input.sessionId,
+		agent_runtime: input.agentRuntime,
+		hook_type: input.hookType,
+		tool_name: input.toolName,
+		tool_input_summary: toolInputSummary(input.toolName, input.toolInput),
+		artifacts: input.verdict.artifacts,
+		verdict: input.verdict.decision,
+		severity: input.verdict.severity,
+		reasons: input.verdict.reasons,
+		source: input.verdict.source,
 		user_override: userOverride,
-		signals,
+		signals: input.signals,
+		tool_use_id: input.toolUseId,
 	};
+	// `content` is omitted entirely (not written as `null`) when the evaluator
+	// produced no structured snapshot — keeps legacy entries and "nothing to
+	// extract" entries indistinguishable on disk.
+	if (input.content !== undefined) {
+		entry.content = input.content;
+	}
 
 	try {
 		await appendEntry(config, entry);
@@ -139,6 +196,27 @@ export async function logPluginScan(
 	} catch {
 		// Fail-open
 	}
+}
+
+export async function findPiWarningInAuditLog(
+	loggingConfig: LoggingConfig,
+	toolUseId: string,
+	piConfig: PiCheckConfig,
+): Promise<{ risk: number; contentName: string } | null> {
+	const entries = await getRecentEntries(loggingConfig, 20);
+	for (const raw of entries.reverse()) {
+		const e = raw as Record<string, unknown>;
+		if (e.tool_use_id !== toolUseId) continue;
+		const signals = e.signals as
+			| { pi_checks?: { risk: number; content_name: string }[] }
+			| undefined;
+		const pi = signals?.pi_checks?.[0];
+		if (pi && pi.risk >= piConfig.medium_risk_threshold && pi.risk < piConfig.high_risk_threshold) {
+			return { risk: pi.risk, contentName: pi.content_name };
+		}
+		break;
+	}
+	return null;
 }
 
 export async function getRecentEntries(config: LoggingConfig, limit = 100): Promise<unknown[]> {

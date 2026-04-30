@@ -47,3 +47,6 @@ packages/opencode/resources/
 
 # Dummy canary e2e threat rules
 threats/dummy.yaml
+
+# Local git worktrees
+.worktrees/

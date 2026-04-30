@@ -39,14 +39,17 @@
   revoked: false
 
 # --- IP-based URLs (often C2 or staging) ---
+# Excludes loopback (127/8), unspecified (0/8), RFC1918 private
+# (10/8, 172.16/12, 192.168/16), and link-local (169.254/16) ranges,
+# which are common in local development and rarely indicate C2 traffic.
 - id: "CLT-URL-004"
   category: network_egress
   severity: medium
   confidence: 0.65
   action: require_approval
-  pattern: "https?://\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}[:/]"
+  pattern: "https?://(?!(?:127|10|0)\\.|192\\.168\\.|169\\.254\\.|172\\.(?:1[6-9]|2\\d|3[01])\\.)\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}[:/]"
   match_on: url
-  title: "Direct IP address URL (potential C2 or staging server)"
+  title: "Direct public IP address URL (potential C2 or staging server)"
   expires_at: null
   revoked: false
 

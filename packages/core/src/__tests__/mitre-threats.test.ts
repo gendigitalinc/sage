@@ -102,6 +102,19 @@ describe("MITRE ATT&CK threats", () => {
 		expect(matchCommand(engine, "nmap -sV 192.168.1.0/24")).toContain("CLT-MITRE-022");
 	});
 
+	it("does not match nmap substring inside identifiers (MITRE-022 FP)", () => {
+		// Reproduces user-reported FP: `nmap` matched inside Win32 identifier
+		// `UnmapViewOfFile` from pydevd. With \b boundaries on telnet/nmap,
+		// only standalone tokens trigger the rule.
+		const ids = matchCommand(engine, "UnmapViewOfFile(view)");
+		expect(ids.filter((id) => id === "CLT-MITRE-022")).toEqual([]);
+	});
+
+	it("does not match telnet substring inside identifiers (MITRE-022 FP)", () => {
+		const ids = matchCommand(engine, "do_telnetting()");
+		expect(ids.filter((id) => id === "CLT-MITRE-022")).toEqual([]);
+	});
+
 	it("detects permission group discovery (MITRE-032)", () => {
 		expect(matchCommand(engine, "Get-ManagementRoleAssignment")).toContain("CLT-MITRE-032");
 	});
@@ -173,6 +186,18 @@ describe("MITRE ATT&CK threats", () => {
 		expect(matchCommand(engine, "schtasks /create /tn evil /tr cmd.exe /sc daily")).toContain(
 			"CLT-MITRE-026",
 		);
+	});
+
+	it("detects standalone at.exe invocation (MITRE-026)", () => {
+		expect(matchCommand(engine, "at.exe 12:00 cmd /c notepad.exe")).toContain("CLT-MITRE-026");
+	});
+
+	it("does not match at.exe substring inside identifiers (MITRE-026 FP)", () => {
+		// Reproduces user-reported FP: `at.exe` matched inside Python
+		// identifier `compat.exec(...)` from pydevd's winappdbg. With \b
+		// boundaries on at.exe, only standalone tokens trigger the rule.
+		const ids = matchCommand(engine, "compat.exec(_arg, globals(), locals())");
+		expect(ids.filter((id) => id === "CLT-MITRE-026")).toEqual([]);
 	});
 
 	it("does not match scheduled task query (MITRE-026)", () => {

@@ -5,6 +5,7 @@
  */
 
 import { resolveEndpoint } from "./clients/url-check.js";
+import { loadExtendedInfo, mergeExtendedInfo } from "./extended-info.js";
 import { buildSageProxyEnvelope } from "./sage-proxy.js";
 import type { AgentRuntime, Logger } from "./types.js";
 import { nullLogger } from "./types.js";
@@ -68,6 +69,20 @@ export async function checkForUpdate(
 			return null;
 		}
 
+		const envelope = buildSageProxyEnvelope({
+			iid: context.iid,
+			versionApp: currentVersion,
+			agentRuntime: context.agentRuntime,
+			agentRuntimeVersion: context.agentRuntimeVersion ?? "unknown",
+		});
+		// Optional extended-info enrichment. Fail-open: any error inside the
+		// loader yields `null`, leaving the envelope unchanged.
+		const extendedInfo = await loadExtendedInfo(undefined, logger).catch(() => null);
+		const enriched = mergeExtendedInfo(
+			envelope as unknown as Record<string, unknown>,
+			extendedInfo,
+		);
+
 		const response = await fetch(resolveEndpoint("/v2/version-check"), {
 			method: "POST",
 			signal: AbortSignal.timeout(timeoutMs),
@@ -75,14 +90,7 @@ export async function checkForUpdate(
 				Accept: "application/json",
 				"Content-Type": "application/json",
 			},
-			body: JSON.stringify(
-				buildSageProxyEnvelope({
-					iid: context.iid,
-					versionApp: currentVersion,
-					agentRuntime: context.agentRuntime,
-					agentRuntimeVersion: context.agentRuntimeVersion ?? "unknown",
-				}),
-			),
+			body: JSON.stringify(enriched),
 		});
 
 		if (!response.ok) {

@@ -38,7 +38,10 @@ flowchart TD
     - `entry_id` (UUID)
     - `conversation_id` (used for report scoping)
     - `agent_runtime` (best-effort source platform identifier)
-    - `signals` (best-effort structured signal metadata for reporting)
+    - `signals` (best-effort structured signal metadata for reporting, including `amsi_checks` on Windows/WSL)
+    - `content` (structured snapshot of the tool input, sanitized — same shape as the detection-telemetry `content` field; per-field caps and home-path scrubbing applied upstream by `buildContentSnapshot`)
+
+    See [Audit Log](audit-log.md) for the full on-disk schema.
 - `packages/mcp` (`@gendigital/sage-mcp`)
   - Shared MCP server implementation (stdio transport) + tool registration.
 - Reads the audit log via `@gendigital/sage-core` and sends reports via HTTP `POST /v2/fp-report`.
@@ -60,7 +63,7 @@ flowchart TD
 
 ### VS Code
 
-Sage’s VS Code extension manages Claude-style settings (in `~/.claude/settings.json` or workspace `.claude/settings.json`) for **hooks**.
+Sage’s VS Code extension manages Copilot hooks (in `~/.copilot/hooks/hooks.json`) for **hooks**.
 
 For **MCP**, Sage registers an MCP server definition provider so that the server shows up in VS Code’s MCP UI.
 
@@ -81,7 +84,10 @@ Reports audit entries as false positives to Sage Proxy (`POST /v2/fp-report`).
 - **User input**: the tool requires:
   - `description`: a short description of what is wrong
   - `reasoning`: why it’s a false positive
-- **Payload**: one report per audit entry, shaped like the Sage FP Submit Structure (see `sage_fp_handling_implementation.md` in this branch for the full schema).
+- **Entry selection**: callers should call `sage_list_audit_entries` first and pass the relevant `entry_id`(s) via the `entry_ids` parameter.
+  - With `entry_ids` provided: at most **10** entries per call. Larger arrays are rejected with an actionable error.
+  - With `entry_ids` omitted (fallback): `allow` verdicts are filtered out and only the **3** most recent `deny` / `ask` entries for the conversation are submitted, to avoid flooding the backend with unrelated verdicts.
+- **Payload**: one report per audit entry, shaped like the Sage FP Submit Structure (see `sage_fp_handling_implementation.md` in this branch for the full schema). The structured `content` field stored on the audit entry is forwarded verbatim — the tool does not reconstruct content from the truncated `tool_input_summary`.
 
 ## Configuration
 
@@ -90,7 +96,8 @@ The `sage_report_false_positive` tool is always available (it cannot be disabled
 Environment overrides:
 
 - `SAGE_FALSE_POSITIVE_TIMEOUT_SECONDS`
-- `SAGE_AGENT_RUNTIME_VERSION` (used when the caller does not provide an explicit agent runtime version)
+- `SAGE_APP_ROOT` — absolute path to the host application root (`vscode.env.appRoot` for Cursor / VS Code). When set, the MCP server reads `product.json` from this directory at startup to resolve the host runtime version (e.g. Cursor `3.1.14`, VS Code `1.117.0`). Set automatically by the Sage extension when it registers the MCP server; only needs to be supplied manually for non-extension hosts.
+- `SAGE_AGENT_RUNTIME_VERSION` — fallback used when the caller does not provide an explicit agent runtime version and `SAGE_APP_ROOT` is unset or its `product.json` is unreadable. If neither resolves to a value, the runtime version is reported as `"unknown"`.
 
 ## Auto-installation details
 

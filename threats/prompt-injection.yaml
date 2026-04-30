@@ -1,0 +1,334 @@
+# Prompt injection detection heuristic rules (tier 1)
+# Catches common PI patterns with zero model dependency, ~1ms.
+# Designed for low false-positive rate on coding content.
+#
+# Sources: original Sage PI prototype, PR #90 (promptware), @stackone/defender patterns.
+# These complement the ML model (tier 2) which handles subtler attacks.
+
+# ── Instruction Override ────────────────────────────────────────────
+# The most common PI pattern family. Well-established attack surface.
+
+- id: "CLT-PI-001"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  action: block
+  case_insensitive: true
+  pattern: "ignore\\s+(all\\s+)?(previous|prior|above|earlier)\\s+(instructions?|directives?|rules?|guidelines?|prompts?|directions?)"
+  match_on: content
+  title: "Instruction override: ignore previous"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-002"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  action: block
+  case_insensitive: true
+  pattern: "disregard\\s+(all\\s+)?(previous|prior|above|your)\\s+(instructions?|directives?|rules?|guidelines?|safety)"
+  match_on: content
+  title: "Instruction override: disregard directives"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-003"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  action: block
+  case_insensitive: true
+  pattern: "forget\\s+(all\\s+)?(your\\s+)?(previous\\s+)?(instructions?|rules?|guidelines?|restrictions?|constraints?|context)"
+  match_on: content
+  title: "Instruction override: forget instructions"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-004"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  action: block
+  case_insensitive: true
+  pattern: "override\\s+(the\\s+)?(system\\s+)?(prompt|instructions?|rules?|guidelines?)"
+  match_on: content
+  title: "Instruction override: direct override"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-005"
+  category: prompt_injection
+  severity: high
+  confidence: 0.85
+  action: block
+  case_insensitive: true
+  pattern: "(new|updated?|revised?|changed?)\\s+instructions?:\\s*"
+  match_on: content
+  title: "Instruction override: inject new instructions"
+  expires_at: null
+  revoked: false
+
+# ── Role / Persona Override ─────────────────────────────────────────
+# Attempts to reassign the AI's identity or role.
+
+- id: "CLT-PI-010"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  action: block
+  case_insensitive: true
+  pattern: "you\\s+are\\s+now\\s+(a\\s+)?(different|new|the|my|an?\\s+unrestricted|an?\\s+unfiltered)"
+  match_on: content
+  title: "Role override: identity reassignment"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-011"
+  category: prompt_injection
+  severity: high
+  confidence: 0.85
+  action: block
+  case_insensitive: true
+  pattern: "\\bDAN\\b.*?(do\\s+anything|jailbreak|no\\s+restrictions)"
+  match_on: content
+  title: "Role override: DAN jailbreak"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-012"
+  category: prompt_injection
+  severity: high
+  confidence: 0.85
+  action: block
+  case_insensitive: true
+  pattern: "developer\\s+mode\\s+(is\\s+)?(now\\s+)?(enabled?|activated?|on).{0,50}(comply|content\\s+polic|no\\s+restrict|without\\s+restrict|any\\s+request)"
+  match_on: content
+  title: "Role override: developer mode jailbreak"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-013"
+  category: prompt_injection
+  severity: high
+  confidence: 0.85
+  action: block
+  case_insensitive: true
+  pattern: "act\\s+(as|like)\\s+(a\\s+)?(system|admin|root|superuser)"
+  match_on: content
+  title: "Role override: privileged role assumption"
+  expires_at: null
+  revoked: false
+
+# ── Security Bypass ─────────────────────────────────────────────────
+# Attempts to disable safety mechanisms.
+
+- id: "CLT-PI-020"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.85
+  action: block
+  case_insensitive: true
+  pattern: "(bypass|disable)\\s+(the\\s+)?(security|safety|guardrails?|filters?|restrictions?)"
+  match_on: content
+  title: "Security bypass: disable safety features"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-021"
+  category: prompt_injection
+  severity: high
+  confidence: 0.85
+  action: block
+  case_insensitive: true
+  pattern: "ignore\\s+(the\\s+)?(safety|security|ethical)\\s+(guidelines?|rules?|restrictions?)"
+  match_on: content
+  title: "Security bypass: ignore safety guidelines"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-022"
+  category: prompt_injection
+  severity: high
+  confidence: 0.80
+  action: block
+  case_insensitive: true
+  pattern: "skip\\s+(all\\s+)?security\\s+checks"
+  match_on: content
+  title: "Security bypass: skip security checks"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-023"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  action: block
+  case_insensitive: true
+  pattern: "system\\s+override.{0,50}(execut|disabl|bypass|security|safet|comply|filter)"
+  match_on: content
+  title: "Security bypass: system override with action"
+  expires_at: null
+  revoked: false
+
+# ── Anti-Transparency ──────────────────────────────────────────────
+# Instructions to hide activity from the user.
+
+- id: "CLT-PI-030"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  action: block
+  case_insensitive: true
+  pattern: "do\\s+not\\s+(tell|inform|mention|reveal|show|disclose)\\s+(the\\s+)?(user|human|operator|developer)"
+  match_on: content
+  title: "Anti-transparency: hide from user"
+  expires_at: null
+  revoked: false
+
+# ── Prompt Exfiltration ────────────────────────────────────────────
+# Attempts to extract the system prompt or instructions.
+
+- id: "CLT-PI-040"
+  category: prompt_injection
+  severity: high
+  confidence: 0.85
+  action: block
+  case_insensitive: true
+  pattern: "reveal\\s+(your\\s+)?(system\\s+)?prompt"
+  match_on: content
+  title: "Prompt exfiltration: reveal system prompt"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-041"
+  category: prompt_injection
+  severity: high
+  confidence: 0.85
+  action: block
+  case_insensitive: true
+  pattern: "show\\s+(me\\s+)?(your\\s+)?(initial|original|system|hidden)\\s+instructions?"
+  match_on: content
+  title: "Prompt exfiltration: show hidden instructions"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-042"
+  category: prompt_injection
+  severity: high
+  confidence: 0.85
+  action: block
+  case_insensitive: true
+  pattern: "repeat\\s+(back\\s+)?(everything|all|your\\s+instructions?)"
+  match_on: content
+  title: "Prompt exfiltration: repeat instructions"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-043"
+  category: prompt_injection
+  severity: high
+  confidence: 0.85
+  action: block
+  case_insensitive: true
+  pattern: "output\\s+(your\\s+)?(initialization|system\\s+prompt|initial\\s+instructions?)"
+  match_on: content
+  title: "Prompt exfiltration: output initialization"
+  expires_at: null
+  revoked: false
+
+# ── Structural Injection ───────────────────────────────────────────
+# Injection hiding in HTML, markdown, or JSON structures.
+
+- id: "CLT-PI-050"
+  category: prompt_injection
+  severity: high
+  confidence: 0.85
+  action: block
+  case_insensitive: true
+  pattern: "<!--\\s*(?:system|ignore|instruction|prompt|important|override|execute).*?-->"
+  match_on: content
+  title: "Structural injection: HTML comment with injection keywords"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-051"
+  category: prompt_injection
+  severity: high
+  confidence: 0.85
+  action: block
+  case_insensitive: true
+  pattern: "\\[.*?\\]\\(.*?(?:ignore|forget|system|instruction|override).*?\\)"
+  match_on: content
+  title: "Structural injection: markdown link with hidden injection"
+  expires_at: null
+  revoked: false
+
+# ── Role Marker Injection ──────────────────────────────────────────
+# Fake conversation turn markers to confuse the model.
+
+- id: "CLT-PI-060"
+  category: prompt_injection
+  severity: high
+  confidence: 0.85
+  action: block
+  case_insensitive: true
+  pattern: "\\n\\s*\\n\\s*(Human|User|Assistant|System)\\s*:"
+  match_on: content
+  title: "Role marker injection: fake conversation turn"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-061"
+  category: prompt_injection
+  severity: high
+  confidence: 0.85
+  action: block
+  case_insensitive: true
+  pattern: "\\[INST\\]|\\[/INST\\]"
+  match_on: content
+  title: "Role marker injection: Llama instruction format"
+  expires_at: null
+  revoked: false
+
+# ── Encoding / Obfuscation ─────────────────────────────────────────
+# Obfuscated injection attempts.
+
+- id: "CLT-PI-070"
+  category: prompt_injection
+  severity: high
+  confidence: 0.80
+  action: require_approval
+  case_insensitive: true
+  pattern: "1gn0r3|f0rg3t|byp4ss|syst3m|4dm1n"
+  match_on: content
+  title: "Encoding: leetspeak obfuscation of injection keywords"
+  expires_at: null
+  revoked: false
+
+# ── Credential Exfiltration via Injection ──────────────────────────
+# PI-driven data exfiltration patterns. Note: bare curl/wget commands
+# are NOT PI — these only match when combined with credential targets.
+
+- id: "CLT-PI-080"
+  category: prompt_injection
+  severity: high
+  confidence: 0.80
+  action: block
+  case_insensitive: true
+  pattern: "cat\\s+~/\\.(env|ssh|aws|gnupg).*\\|.*curl"
+  match_on: content
+  title: "Credential exfiltration: pipe dotfile to curl"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-081"
+  category: prompt_injection
+  severity: high
+  confidence: 0.80
+  action: block
+  case_insensitive: true
+  pattern: "output\\s+(all\\s+)?(the\\s+)?environment\\s+variables.{0,50}(send|post|upload|exfiltrat|curl|fetch)"
+  match_on: content
+  title: "Credential exfiltration: dump env vars and send"
+  expires_at: null
+  revoked: false

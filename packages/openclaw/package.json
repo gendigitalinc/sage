@@ -1,7 +1,7 @@
 {
   "name": "@gendigital/sage-openclaw",
   "license": "Apache-2.0",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "description": "Safety for Agents — ADR layer for OpenClaw",
   "main": "./dist/index.cjs",
@@ -36,6 +36,9 @@
     ],
     "compat": {
       "pluginApi": ">=2026.3.28"
+    },
+    "build": {
+      "openclawVersion": "2026.3.28"
     }
   },
   "engines": {

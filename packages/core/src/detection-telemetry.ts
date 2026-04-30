@@ -3,167 +3,24 @@
  * Sends an awaited JSON POST to /v2/detection on qualifying deny paths.
  * Payload uses the same schema shape as FP reports but is populated
  * independently from live detection context.
+ *
+ * The structured `content` snapshot is built once by the evaluator (via
+ * `buildContentSnapshot` in `content-snapshot.ts`) and threaded into both
+ * `logVerdict` and this function. This module deliberately does not import
+ * the snapshot builder — it sends `args.content` verbatim.
  */
 
 import { resolveEndpoint } from "./clients/url-check.js";
+import { loadExtendedInfo, mergeExtendedInfo } from "./extended-info.js";
 import { getInstallationId } from "./installation-id.js";
 import { buildSageProxyEnvelope } from "./sage-proxy.js";
+import type { CanonicalToolType } from "./tool-names.js";
 import type { AgentRuntime, AuditSignals, HookType, Logger } from "./types.js";
 import { nullLogger } from "./types.js";
 import { VERSION } from "./version.js";
 
 const MAX_EFFECTIVE_TIMEOUT_MS = 1000;
 const DEFAULT_TIMEOUT_MS = 1000;
-
-// ── Canonical tool vocabulary ──────────────────────────────────────
-
-type CanonicalToolType =
-	| "Bash"
-	| "WebFetch"
-	| "Write"
-	| "Edit"
-	| "Read"
-	| "Delete"
-	| "ApplyPatch"
-	| "Glob"
-	| "Grep"
-	| "List"
-	| "CodeSearch"
-	| "WebSearch"
-	| "Question"
-	| "Task"
-	| "ReadLines"
-	| "MCP"
-	| "Unknown";
-
-// ── Normalization maps per agent runtime ───────────────────────────
-
-const OPENCLAW_MAP: Record<string, CanonicalToolType> = {
-	bash: "Bash",
-	exec: "Bash",
-	web_fetch: "WebFetch",
-	write: "Write",
-	edit: "Edit",
-	read: "Read",
-	apply_patch: "ApplyPatch",
-};
-
-const OPENCODE_MAP: Record<string, CanonicalToolType> = {
-	bash: "Bash",
-	webfetch: "WebFetch",
-	write: "Write",
-	edit: "Edit",
-	read: "Read",
-	glob: "Glob",
-	grep: "Grep",
-	ls: "List",
-	codesearch: "CodeSearch",
-	websearch: "WebSearch",
-	question: "Question",
-	task: "Task",
-	read_lines: "ReadLines",
-};
-
-const CANONICAL_SET = new Set<string>([
-	"Bash",
-	"WebFetch",
-	"Write",
-	"Edit",
-	"Read",
-	"Delete",
-	"ApplyPatch",
-	"Glob",
-	"Grep",
-	"List",
-	"CodeSearch",
-	"WebSearch",
-	"Question",
-	"Task",
-	"ReadLines",
-	"MCP",
-	"Unknown",
-]);
-
-// ── Canonicalization helper ────────────────────────────────────────
-
-export interface NormalizedTelemetryContext {
-	toolType: CanonicalToolType;
-	content: Record<string, unknown>;
-}
-
-/**
- * Maps connector-native toolName + toolInput to canonical tool type
- * and schema-compatible content fields for telemetry.
- */
-export function normalizeDetectionTelemetryContext(
-	agentRuntime: AgentRuntime | string | undefined,
-	toolName: string,
-	toolInput: Record<string, unknown>,
-): NormalizedTelemetryContext {
-	const toolType = canonicalizeToolName(agentRuntime, toolName);
-	const content = buildContent(toolType, toolInput);
-	return { toolType, content };
-}
-
-function canonicalizeToolName(
-	agentRuntime: AgentRuntime | string | undefined,
-	toolName: string,
-): CanonicalToolType {
-	if (CANONICAL_SET.has(toolName)) return toolName as CanonicalToolType;
-
-	if (agentRuntime === "openclaw") {
-		return OPENCLAW_MAP[toolName] ?? "Unknown";
-	}
-	if (agentRuntime === "opencode") {
-		return OPENCODE_MAP[toolName] ?? "Unknown";
-	}
-
-	return "Unknown";
-}
-
-function asString(v: unknown): string | undefined {
-	return typeof v === "string" ? v : undefined;
-}
-
-function buildContent(
-	toolType: CanonicalToolType,
-	toolInput: Record<string, unknown>,
-): Record<string, unknown> {
-	const content: Record<string, unknown> = {};
-
-	switch (toolType) {
-		case "Bash": {
-			const command = asString(toolInput.command);
-			if (command) content.command = command;
-			break;
-		}
-		case "WebFetch": {
-			const url = asString(toolInput.url);
-			if (url) content.url = url;
-			break;
-		}
-		case "Write":
-		case "Edit":
-		case "Read":
-		case "Delete": {
-			const filePath =
-				asString(toolInput.file_path) ?? asString(toolInput.filePath) ?? asString(toolInput.path);
-			if (filePath) content.file_path = filePath;
-			break;
-		}
-	}
-
-	const packageName = asString(toolInput.package_name);
-	if (packageName) content.package_name = packageName;
-
-	const packageVersion = asString(toolInput.package_version);
-	if (packageVersion) content.package_version = packageVersion;
-
-	const packageRegistry = asString(toolInput.package_registry);
-	if (packageRegistry) content.package_registry = packageRegistry;
-
-	return content;
-}
 
 // ── Timeout resolution ─────────────────────────────────────────────
 
@@ -185,8 +42,14 @@ export interface DetectionTelemetryArgs {
 	agentRuntime: AgentRuntime | string | undefined;
 	agentRuntimeVersion?: string;
 	hookType?: HookType;
-	toolName: string;
-	toolInput: Record<string, unknown>;
+	toolName: CanonicalToolType;
+	/**
+	 * Pre-built content snapshot from `buildContentSnapshot`. Sent verbatim
+	 * in the `block_event.content` field of the detection payload. When
+	 * absent or empty the payload includes `content: {}` rather than omitting
+	 * the field, matching the historical schema shape.
+	 */
+	content?: Record<string, unknown>;
 	signals?: AuditSignals;
 	communityIqEnabled: boolean;
 	logger?: Logger;
@@ -215,12 +78,6 @@ export async function sendCommunityIqDetection(args: DetectionTelemetryArgs): Pr
 		return;
 	}
 
-	const { toolType, content } = normalizeDetectionTelemetryContext(
-		args.agentRuntime,
-		args.toolName,
-		args.toolInput,
-	);
-
 	const envelope = buildSageProxyEnvelope({
 		iid,
 		versionApp: VERSION,
@@ -233,16 +90,24 @@ export async function sendCommunityIqDetection(args: DetectionTelemetryArgs): Pr
 		...envelope,
 		block_event: {
 			hook_type: args.hookType ?? "PreToolUse",
-			tool_type: toolType,
+			// `args.toolName` is canonical (`CanonicalToolType`) — connectors
+			// canonicalize before calling `evaluateToolCall`, so no further
+			// mapping is needed here.
+			tool_type: args.toolName,
 			verdict: "deny",
 			user_action: "blocked",
 			timestamp: new Date().toISOString(),
 			...(args.signals && Object.keys(args.signals).length > 0 ? { signals: args.signals } : {}),
-			content,
+			content: args.content ?? {},
 		},
 		event_id: args.eventId,
 		comment: "",
 	};
+
+	// Optional extended-info enrichment. Fail-open: any error inside the
+	// loader yields `null`, leaving the payload unchanged.
+	const extendedInfo = await loadExtendedInfo(undefined, logger).catch(() => null);
+	const enriched = mergeExtendedInfo(payload as unknown as Record<string, unknown>, extendedInfo);
 
 	const timeoutMs = resolveTimeoutMs();
 
@@ -250,7 +115,7 @@ export async function sendCommunityIqDetection(args: DetectionTelemetryArgs): Pr
 		const response = await fetch(resolveEndpoint("/v2/detection"), {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(payload),
+			body: JSON.stringify(enriched),
 			signal: AbortSignal.timeout(timeoutMs),
 		});
 

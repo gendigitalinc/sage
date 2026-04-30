@@ -7,6 +7,7 @@ export default defineProject({
 		exclude: [
 			...configDefaults.exclude,
 			"src/__tests__/e2e.test.ts",
+			"src/__tests__/e2e-copilot-cli.test.ts",
 			".e2e-artifacts/**",
 		],
 	},

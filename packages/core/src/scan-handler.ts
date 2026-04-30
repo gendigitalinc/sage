@@ -4,14 +4,19 @@
  * OpenCode/OpenClaw startup-scan files.
  */
 
-import { defaultBranding } from "./branding.js";
-import { formatSessionStartMessage } from "./format.js";
+import { defaultBranding } from "./brands.js";
+import { formatSessionStartMessage, type ThreatBannerStyle } from "./format.js";
 import { runSessionStart } from "./session-start.js";
 import type { AgentRuntime, Branding, Logger, PluginInfo } from "./types.js";
 
 /**
  * Run a plugin scan with the given plugins and return a formatted status message.
  * Always returns a message (clean or findings) — callers can always show the result.
+ *
+ * `style` controls the threat-banner layout and defaults to `"verbose"` for
+ * backwards compatibility with existing CLI hosts (Claude Code, OpenClaw).
+ * IDE connectors that surface the result through a small toast (Cursor /
+ * VS Code) should pass `"compact"`.
  */
 export async function runPluginScan(
 	logger: Logger,
@@ -22,8 +27,10 @@ export async function runPluginScan(
 	version: string,
 	agentRuntime: AgentRuntime,
 	branding: Branding = defaultBranding,
+	modelDownloadWorkerPath?: string,
+	style: ThreatBannerStyle = "verbose",
 ): Promise<string> {
-	logger.info(`${branding.product_name} plugin scan started (${context})`, {
+	logger.info(`${branding.name} plugin scan started (${context})`, {
 		threatsDir,
 		allowlistsDir,
 	});
@@ -35,14 +42,15 @@ export async function runPluginScan(
 		version,
 		logger,
 		agentRuntime,
+		modelDownloadWorkerPath,
 	});
 
-	logger.info(`${branding.product_name} plugin scan (${context}) complete`, {
+	logger.info(`${branding.name} plugin scan (${context}) complete`, {
 		findings: result.scanResults.length,
 		updateAvailable: result.versionCheck?.updateAvailable ?? false,
 	});
 
-	return formatSessionStartMessage(version, result, branding);
+	return formatSessionStartMessage(version, result, branding, style);
 }
 
 /**
@@ -59,6 +67,10 @@ export interface ScanHandlerOptions {
 	agentRuntime: AgentRuntime;
 	branding?: Branding;
 	onResult?: (msg: string) => void;
+	/** Connector-bundled `dist/model-download-worker.cjs` (see runSessionStart). */
+	modelDownloadWorkerPath?: string;
+	/** Threat-banner style passed through to `runPluginScan`. Defaults to verbose. */
+	style?: ThreatBannerStyle;
 }
 
 export function createScanHandler(options: ScanHandlerOptions): () => Promise<void> {
@@ -73,6 +85,8 @@ export function createScanHandler(options: ScanHandlerOptions): () => Promise<vo
 		agentRuntime,
 		branding = defaultBranding,
 		onResult,
+		modelDownloadWorkerPath,
+		style = "verbose",
 	} = options;
 
 	return async () => {
@@ -82,7 +96,7 @@ export function createScanHandler(options: ScanHandlerOptions): () => Promise<vo
 
 			if (plugins.length === 0) {
 				logger.warn(
-					`${branding.product_name} plugin scan (${context}): no plugins to scan after filtering`,
+					`${branding.name} plugin scan (${context}): no plugins to scan after filtering`,
 				);
 			}
 
@@ -95,10 +109,12 @@ export function createScanHandler(options: ScanHandlerOptions): () => Promise<vo
 				version,
 				agentRuntime,
 				branding,
+				modelDownloadWorkerPath,
+				style,
 			);
 			onResult?.(msg);
 		} catch (e) {
-			logger.error(`${branding.product_name} ${context} scan failed`, { error: String(e) });
+			logger.error(`${branding.name} ${context} scan failed`, { error: String(e) });
 		}
 	};
 }

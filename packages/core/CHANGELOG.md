@@ -1,5 +1,38 @@
 # @gendigital/sage-core
 
+## 0.9.0
+
+### Minor Changes
+
+- Bundle brand definitions internally and resolve via `config.brand_key`. Replaces `product_name`/`banner_text` with `name` (full) and `short_name` (for space-constrained notification bubbles).
+- Migrate VS Code extension from Claude Code hooks to Copilot's native hook system. Add tool name canonicalization to core. Fix toolInput field normalization across all connectors so evaluator AMSI scanning and package-reputation checks work correctly for non-Claude-Code platforms.
+  - **core**: Add `CanonicalToolType` vocabulary and `canonicalizeToolName()` helper
+
+- Restrict ML pi_check to WebFetch pre-fetch with content-type filtering
+
+  Move the ML prompt-injection classifier from a broad post-tool-use scan (all tools) to a targeted pre-tool-use pre-fetch on WebFetch only. Sage now fetches URL content itself, checks it against an extension allowlist and content-sniffing heuristics, then runs the PI classifier before the agent sees the page.
+
+  - Add ContentFetchClient for HTTP pre-fetching with MIME filtering
+  - Raise thresholds: high-risk 0.5→0.99 (deny), medium-risk 0.1→0.5 (warn)
+  - Extension allowlist gates which URLs get scanned
+  - Content sniffing fallback for extensionless URLs
+  - Force-log audit entries when any signals fire, even on allow verdicts
+
+- Improve PI detection UX and add relaxed-mode suppression
+
+  - Separate raw snippets from score formatting in BundledPiProvider findings
+  - Add richer PI reason strings with file basenames, scores, and content snippets
+  - Suppress medium-risk PI signals under sensitivity=relaxed (engine, evaluator, PostToolUse connectors)
+
+- Add skill analyzer: content-addressable skill ID computation and skill-check API client for detecting risky skill packages during plugin scanning
+- Add ML-based prompt injection detection (heuristic rules + ONNX model)
+- improve audit log and telemetry to produce accurate data for verdict tracking and reporting issues
+
+### Patch Changes
+
+- 13c21ce: Add session-start plugin scanning to VS Code/Cursor extension, aligning with Claude Code, OpenClaw, and OpenCode connectors. Scan co-installed extensions for threat patterns at IDE activation and surface findings via native notifications.
+- fd96942: fix pi-deps-installer treating partial/broken onnxruntime-node directories as valid installs
+
 ## 0.8.0
 
 ### Minor Changes

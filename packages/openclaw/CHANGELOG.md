@@ -1,5 +1,25 @@
 # @gendigital/sage-openclaw
 
+## 0.9.0
+
+### Minor Changes
+
+- Bundle brand definitions internally and resolve via `config.brand_key`. Replaces `product_name`/`banner_text` with `name` (full) and `short_name` (for space-constrained notification bubbles).
+- improve audit log and telemetry to produce accurate data for verdict tracking and reporting issues
+
+### Patch Changes
+
+- Migrate VS Code extension from Claude Code hooks to Copilot's native hook system. Add tool name canonicalization to core. Fix toolInput field normalization across all connectors so evaluator AMSI scanning and package-reputation checks work correctly for non-Claude-Code platforms.
+
+  - **openclaw**: Normalize `path` to `file_path` in write/edit toolInput
+
+- Isolate HOME in openclaw tests to prevent branding config leakage.
+- Improve PI detection UX and add relaxed-mode suppression
+
+  - Separate raw snippets from score formatting in BundledPiProvider findings
+  - Add richer PI reason strings with file basenames, scores, and content snippets
+  - Suppress medium-risk PI signals under sensitivity=relaxed (engine, evaluator, PostToolUse connectors)
+
 ## 0.8.0
 
 ### Minor Changes

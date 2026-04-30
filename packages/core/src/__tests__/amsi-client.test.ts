@@ -147,12 +147,12 @@ describe("AmsiClient", () => {
 
 		// Scan returns clean (0)
 		mockScanResult(proc, "0");
-		const result = await client.scanString("safe content", "test:name");
+		const result = await client.scanString("Bash", "test:name", "safe content");
 		expect(result).not.toBeNull();
 		expect(result?.isDetected).toBe(false);
 		expect(result?.isBlockedByAdmin).toBe(false);
 		expect(result?.amsiResult).toBe(0);
-		expect(result?.contentName).toBe("test:name");
+		expect(result?.contentName).toBe("[Sage:Bash]:test:name");
 		client.close();
 	});
 
@@ -167,7 +167,7 @@ describe("AmsiClient", () => {
 
 		// 32768 = AMSI_RESULT_DETECTED
 		mockScanResult(proc, "32768");
-		const result = await client.scanString("malicious", "test:malware");
+		const result = await client.scanString("Bash", "test:malware", "malicious");
 		expect(result).not.toBeNull();
 		expect(result?.isDetected).toBe(true);
 		expect(result?.isBlockedByAdmin).toBe(false);
@@ -186,7 +186,7 @@ describe("AmsiClient", () => {
 
 		// 16384 = AMSI_RESULT_BLOCKED_BY_ADMIN_START
 		mockScanResult(proc, "16384");
-		const result = await client.scanString("blocked content", "test:blocked");
+		const result = await client.scanString("Bash", "test:blocked", "blocked content");
 		expect(result).not.toBeNull();
 		expect(result?.isDetected).toBe(false);
 		expect(result?.isBlockedByAdmin).toBe(true);
@@ -207,7 +207,7 @@ describe("AmsiClient", () => {
 			queueMicrotask(() => proc.emit("exit", 1, null));
 			return true;
 		});
-		const result = await client.scanString("content", "test:fail");
+		const result = await client.scanString("Bash", "test:fail", "content");
 		expect(result).toBeNull();
 	});
 
@@ -221,7 +221,7 @@ describe("AmsiClient", () => {
 		await client.init();
 
 		mockScanResult(proc, "not-a-number");
-		const result = await client.scanString("content", "test:invalid");
+		const result = await client.scanString("Bash", "test:invalid", "content");
 		expect(result).toBeNull();
 		client.close();
 	});
@@ -237,16 +237,32 @@ describe("AmsiClient", () => {
 
 		mockScanResult(proc, "0");
 		const longContent = "x".repeat(300);
-		const result = await client.scanString(longContent, "test:long");
+		const result = await client.scanString("Bash", "test:long", longContent);
 		expect(result).not.toBeNull();
 		expect(result?.content).toHaveLength(203); // 200 + "..."
 		expect(result?.content.endsWith("...")).toBe(true);
 		client.close();
 	});
 
+	it("scanString formats contentName with scanType prefix", async () => {
+		vi.spyOn(process, "platform", "get").mockReturnValue("win32" as NodeJS.Platform);
+		const proc = createMockProcess();
+		mockSpawn.mockReturnValue(proc as never);
+		emitReady(proc);
+
+		const client = new AmsiClient(mockLogger);
+		await client.init();
+
+		mockScanResult(proc, "0");
+		const result = await client.scanString("Write", "/tmp/test.sh", "safe content");
+		expect(result).not.toBeNull();
+		expect(result?.contentName).toBe("[Sage:Write]:/tmp/test.sh");
+		client.close();
+	});
+
 	it("scanString returns null when not available", async () => {
 		const client = new AmsiClient(nullLogger);
-		const result = await client.scanString("test content", "test:name");
+		const result = await client.scanString("Bash", "test:name", "test content");
 		expect(result).toBeNull();
 	});
 
@@ -286,7 +302,7 @@ describe("AmsiClient", () => {
 		const client = new AmsiClient(mockLogger);
 		await client.init();
 		client.close();
-		const result = await client.scanString("content", "test:closed");
+		const result = await client.scanString("Bash", "test:closed", "content");
 		expect(result).toBeNull();
 	});
 
@@ -389,7 +405,7 @@ describe("AmsiClient", () => {
 				}
 			});
 
-			const result = await client.scanString("safe content", "test:wsl");
+			const result = await client.scanString("Bash", "test:wsl", "safe content");
 			expect(result).not.toBeNull();
 			expect(result?.isDetected).toBe(false);
 			expect(result?.amsiResult).toBe(0);
@@ -414,7 +430,7 @@ describe("AmsiClient", () => {
 				}
 			});
 
-			const result = await client.scanString("malicious", "test:wsl-malware");
+			const result = await client.scanString("Bash", "test:wsl-malware", "malicious");
 			expect(result).not.toBeNull();
 			expect(result?.isDetected).toBe(true);
 			expect(result?.amsiResult).toBe(32768);
@@ -434,7 +450,7 @@ describe("AmsiClient", () => {
 				}
 			});
 
-			const result = await client.scanString("content", "test:wsl-error");
+			const result = await client.scanString("Bash", "test:wsl-error", "content");
 			expect(result).toBeNull();
 			client.close();
 		});

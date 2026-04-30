@@ -331,6 +331,87 @@ describe("VerdictCache", () => {
 		expect(result?.verdict).toBe("deny");
 	});
 
+	it("round-trips urlSignalLabels through putUrl/getUrl", async () => {
+		const cache = new VerdictCache(makeConfig({ path: join(dir, "cache.json") }));
+		await cache.load();
+		const v = makeVerdict({
+			verdict: "deny",
+			severity: "critical",
+			source: "url_check",
+			urlSignalLabels: ["Phishing:Example", "URL:Mal"],
+		});
+		cache.putUrl("http://evil.com", v, true);
+		const result = cache.getUrl("http://evil.com");
+		expect(result?.urlSignalLabels).toStrictEqual(["Phishing:Example", "URL:Mal"]);
+	});
+
+	it("getUrl omits urlSignalLabels when not stored", async () => {
+		const cache = new VerdictCache(makeConfig({ path: join(dir, "cache.json") }));
+		await cache.load();
+		cache.putUrl("http://evil.com", makeVerdict({ verdict: "deny" }), true);
+		const result = cache.getUrl("http://evil.com");
+		expect(result).not.toBeNull();
+		expect(result).not.toHaveProperty("urlSignalLabels");
+	});
+
+	it("persists urlSignalLabels in cache JSON for URL entries", async () => {
+		const cachePath = join(dir, "cache.json");
+		const cache = new VerdictCache(makeConfig({ path: cachePath }));
+		await cache.load();
+		cache.putUrl(
+			"http://evil.com",
+			makeVerdict({ verdict: "deny", urlSignalLabels: ["URL:Mal"] }),
+			true,
+		);
+		await cache.save();
+
+		const raw = await readFile(cachePath, "utf-8");
+		const data = JSON.parse(raw);
+		expect(data.urls["http://evil.com/"].urlSignalLabels).toStrictEqual(["URL:Mal"]);
+	});
+
+	it("strips urlSignalLabels from putCommand (URL-cache only field)", async () => {
+		const cachePath = join(dir, "cache.json");
+		const cache = new VerdictCache(makeConfig({ path: cachePath }));
+		await cache.load();
+		const hash = hashCommand("dangerous");
+		cache.putCommand(
+			hash,
+			makeVerdict({ verdict: "deny", urlSignalLabels: ["should-not-be-stored"] }),
+		);
+		await cache.save();
+
+		const raw = await readFile(cachePath, "utf-8");
+		const data = JSON.parse(raw);
+		expect(data.commands[hash]).toBeDefined();
+		expect(data.commands[hash]).not.toHaveProperty("urlSignalLabels");
+
+		const result = cache.getCommand(hash);
+		expect(result?.verdict).toBe("deny");
+		expect(result).not.toHaveProperty("urlSignalLabels");
+	});
+
+	it("strips urlSignalLabels from putPackage (URL-cache only field)", async () => {
+		const cachePath = join(dir, "cache.json");
+		const cache = new VerdictCache(makeConfig({ path: cachePath }));
+		await cache.load();
+		cache.putPackage(
+			"npm:evil-pkg",
+			makeVerdict({ verdict: "deny", urlSignalLabels: ["should-not-be-stored"] }),
+			null,
+		);
+		await cache.save();
+
+		const raw = await readFile(cachePath, "utf-8");
+		const data = JSON.parse(raw);
+		expect(data.packages["npm:evil-pkg"]).toBeDefined();
+		expect(data.packages["npm:evil-pkg"]).not.toHaveProperty("urlSignalLabels");
+
+		const result = cache.getPackage("npm:evil-pkg");
+		expect(result?.verdict).toBe("deny");
+		expect(result).not.toHaveProperty("urlSignalLabels");
+	});
+
 	it("save prunes stale entries from disk", async () => {
 		const cachePath = join(dir, "cache.json");
 		const farFuture = "9999-12-31T23:59:59+00:00";

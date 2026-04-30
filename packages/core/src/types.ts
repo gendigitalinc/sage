@@ -92,7 +92,6 @@ export interface UrlCheckResult {
 	isMalicious: boolean;
 	detections: string[];
 	findings: UrlCheckFinding[];
-	flags: string[];
 }
 
 // ── Verdict ─────────────────────────────────────────────────────────
@@ -112,6 +111,8 @@ export interface Verdict {
 	artifacts: string[];
 	matchedThreatId: string | null;
 	reasons: string[];
+	/** Medium-risk PI results — for connector-level warning injection. */
+	piWarnings?: PiCheckResult[];
 }
 
 // ── Package check ──────────────────────────────────────────────────
@@ -130,6 +131,8 @@ export interface PackageCheckResult {
 
 // ── AMSI Check ─────────────────────────────────────────────────────
 
+export type AmsiScanType = "Bash" | "Write" | "Edit" | "ApplyPatch" | "Plugin";
+
 export interface AmsiCheckResult {
 	content: string;
 	contentName: string;
@@ -138,11 +141,33 @@ export interface AmsiCheckResult {
 	isBlockedByAdmin: boolean;
 }
 
+// ── PI Check (ML-based prompt-injection) ───────────────────────────
+
+export interface PiCheckResult {
+	risk: number;
+	/**
+	 * Raw snippets of the highest-scoring chunk(s), each capped at roughly
+	 * 80 characters. Empty when the score is below the medium-risk floor.
+	 * Producer leaves these as raw text; consumers format risk and
+	 * structural framing themselves so producer and presentation stay
+	 * separated.
+	 */
+	findings: string[];
+	contentName: string;
+	/** Model identifier for telemetry (derived from model directory name) */
+	modelId: string;
+	/** Full highest-scoring chunk (up to 512 tokens) for telemetry. */
+	contentSnippet?: string;
+}
+
 export interface SignalSources {
 	heuristicMatches: HeuristicMatch[];
 	urlCheckResults: UrlCheckResult[];
 	packageCheckResults?: PackageCheckResult[];
 	amsiCheckResults?: AmsiCheckResult[];
+	piCheckResults?: PiCheckResult[];
+	/** Thresholds for PI check signal classification (from config) */
+	piThresholds?: { highRisk: number; mediumRisk: number };
 }
 
 // ── Audit signal metadata (for FP reporting) ────────────────────────
@@ -166,6 +191,34 @@ export interface AuditSignals {
 		package_version?: string;
 		package_registry: string;
 	}[];
+	pi_checks?: {
+		risk: number;
+		model_id: string;
+		content_name: string;
+		content_snippet?: string;
+	}[];
+	/**
+	 * AMSI scan results. Win32 AMSI returns only a numeric threat level, not a
+	 * named detection — so `detection_name` is synthesized from the result code:
+	 *   - `"AMSI|DETECTED"`        for `amsi_result >= 0x8000`
+	 *   - `"AMSI|BLOCKED_BY_ADMIN"` for `0x4000 <= amsi_result < 0x8000`
+	 * (Same convention as `package_checks` synthesizing `"PKG|malicious|..."`.)
+	 *
+	 * `content_name` identifies what was scanned (e.g. `"Bash:command"`,
+	 * `"Write:/path/to/file"`). Home directories are scrubbed by the signal
+	 * builder before storage.
+	 *
+	 * `content_snippet` is a hard-capped (200 char), home-scrubbed slice of the
+	 * scanned content. Other signal types carry their own identifying artifact
+	 * (`url`, `package_name`); AMSI signals need this snippet to be equivalently
+	 * self-contained for FP triage.
+	 */
+	amsi_checks?: {
+		detection_name: string;
+		content_name: string;
+		content_snippet?: string;
+		amsi_result: number;
+	}[];
 }
 
 // ── Cache ───────────────────────────────────────────────────────────
@@ -175,12 +228,26 @@ export interface CachedVerdict {
 	severity: VerdictSeverity;
 	reasons: string[];
 	source: string;
+	/**
+	 * URL-cache only: detection labels (e.g. "Phishing:Example") preserved from the
+	 * original malicious URL response. Populated by `cacheUrlResults` in the
+	 * evaluator for entries with `verdict === "deny"` (possibly as an empty array
+	 * if the response carried no detection names). Used to rebuild
+	 * `auditSignals.url_checks` on cached deny paths so the FP tool sees the same
+	 * signal data as on a live malicious URL response.
+	 *
+	 * Strictly URL-cache only — `cache.putCommand` and `cache.putPackage` strip
+	 * this field on write. Do not populate or read it for command/package entries.
+	 */
+	urlSignalLabels?: string[];
 }
 
 export interface CachedEntry extends CachedVerdict {
 	checkedAt: string;
 	expiresAt: string;
 	sageVersion?: string;
+	/** See `CachedVerdict.urlSignalLabels`. URL-cache only. */
+	urlSignalLabels?: string[];
 }
 
 export interface CacheStore {
@@ -240,6 +307,23 @@ export const AmsiCheckConfigSchema = z.object({
 });
 export type AmsiCheckConfig = z.infer<typeof AmsiCheckConfigSchema>;
 
+/**
+ * Default risk-score thresholds for ML prompt-injection (PI) detection.
+ * Single source of truth — schema defaults, engine fallback, pi-check
+ * provider, and the eval script all reference these so they never drift.
+ */
+export const DEFAULT_PI_HIGH_RISK_THRESHOLD = 0.99;
+export const DEFAULT_PI_MEDIUM_RISK_THRESHOLD = 0.5;
+
+export const PiCheckConfigSchema = z.object({
+	enabled: z.boolean().default(false),
+	max_content_length: z.number().default(16384),
+	model_path: z.string().optional(),
+	high_risk_threshold: z.number().default(DEFAULT_PI_HIGH_RISK_THRESHOLD),
+	medium_risk_threshold: z.number().default(DEFAULT_PI_MEDIUM_RISK_THRESHOLD),
+});
+export type PiCheckConfig = z.infer<typeof PiCheckConfigSchema>;
+
 // ── Exceptions ─────────────────────────────────────────────────────
 
 export const ExceptionDecisionSchema = z.enum(["allow", "deny"]);
@@ -273,6 +357,7 @@ export const ConfigSchema = z.object({
 	file_check: FileCheckConfigSchema.default({}),
 	package_check: PackageCheckConfigSchema.default({}),
 	amsi_check: AmsiCheckConfigSchema.default({}),
+	pi_check: PiCheckConfigSchema.default({}),
 	heuristics_enabled: z.boolean().default(true),
 	cache: CacheConfigSchema.default({}),
 	allowlist: AllowlistConfigSchema.default({}),
@@ -280,6 +365,12 @@ export const ConfigSchema = z.object({
 	logging: LoggingConfigSchema.default({}),
 	sensitivity: SensitivitySchema.default("balanced"),
 	disabled_threats: z.array(z.string()).default([]),
+	brand_key: z
+		.string()
+		.min(1)
+		.max(32)
+		.regex(/^[a-z0-9_-]+$/u)
+		.optional(),
 	community_iq: z.boolean().default(true),
 });
 
@@ -329,6 +420,7 @@ export interface PluginFinding {
 	action: string;
 	artifact: string;
 	sourceFile: string;
+	recommendations?: string[];
 }
 
 export interface PluginScanResult {
@@ -353,6 +445,7 @@ export interface PluginFindingData {
 	action: string;
 	artifact: string;
 	source_file: string;
+	recommendations?: string[];
 }
 
 export interface PluginScanCache {
@@ -362,34 +455,11 @@ export interface PluginScanCache {
 
 // ── Branding ───────────────────────────────────────────────────────
 
-const brandString = z
-	.string()
-	.min(1)
-	.max(64)
-	.regex(/^[^\p{Cc}]+$/u, "No control characters");
-
-export const BrandingSchema = z
-	.object({
-		product_name: brandString.default("Sage"),
-		banner_text: z
-			.string()
-			.min(1)
-			.max(128)
-			.regex(/^[^\p{Cc}]+$/u)
-			.optional(),
-		brand_key: z
-			.string()
-			.min(1)
-			.max(32)
-			.regex(/^[a-z0-9_-]+$/u)
-			.optional(),
-	})
-	.transform((b) => ({
-		...b,
-		banner_text: b.banner_text ?? b.product_name,
-	}));
-
-export type Branding = z.output<typeof BrandingSchema>;
+export interface Branding {
+	name: string;
+	short_name: string;
+	brand_key?: string;
+}
 
 // ── Agent runtime ──────────────────────────────────────────────────
 

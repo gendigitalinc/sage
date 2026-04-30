@@ -4,6 +4,7 @@
  */
 
 import { logPluginScan } from "./audit-log.js";
+import { AmsiClient, isAmsiSupported } from "./clients/amsi.js";
 import { loadConfig } from "./config.js";
 import { findPluginAllowException, findPluginDenyException, loadExceptions } from "./exceptions.js";
 import {
@@ -14,9 +15,9 @@ import {
 	storeResult,
 } from "./plugin-scan-cache.js";
 import { scanPlugin } from "./plugin-scanner.js";
-import { loadThreats } from "./threat-loader.js";
-import { loadTrustedDomains } from "./trusted-domains.js";
 import type {
+	Config,
+	ExceptionRule,
 	Logger,
 	PluginFinding,
 	PluginFindingData,
@@ -46,6 +47,7 @@ export function fromCachedFinding(finding: PluginFindingData): PluginFinding {
 		action: finding.action,
 		artifact: finding.artifact,
 		sourceFile: finding.source_file,
+		recommendations: finding.recommendations,
 	};
 }
 
@@ -58,6 +60,7 @@ export function toFindingData(finding: PluginFinding): PluginFindingData {
 		action: finding.action,
 		artifact: finding.artifact,
 		source_file: finding.sourceFile,
+		recommendations: finding.recommendations,
 	};
 }
 
@@ -71,11 +74,7 @@ export async function runSessionStartScan(
 ): Promise<PluginScanResult[]> {
 	const logger = context.logger ?? nullLogger;
 
-	const threats = await loadThreats(context.threatsDir, logger);
-	const trustedDomains = await loadTrustedDomains(context.allowlistsDir, logger);
-	if (threats.length === 0) {
-		return [];
-	}
+	const sageConfig = await loadConfig(context.configPath, logger);
 
 	const plugins = context.plugins;
 	if (plugins.length === 0) {
@@ -83,14 +82,44 @@ export async function runSessionStartScan(
 	}
 
 	// Load exceptions for plugin allow/deny rules
-	let exceptions: import("./types.js").ExceptionRule[] = [];
+	let exceptions: ExceptionRule[] = [];
 	try {
-		const sageConfig = await loadConfig(context.configPath, logger);
 		exceptions = await loadExceptions(sageConfig.exceptions, logger);
 	} catch {
 		// Fail open — proceed without exceptions.
 	}
 
+	// Initialize AMSI once, reuse across all plugins
+	let amsiClient: AmsiClient | null = null;
+	if (sageConfig.amsi_check.enabled && isAmsiSupported()) {
+		try {
+			amsiClient = new AmsiClient(logger);
+			await amsiClient.init();
+			if (!amsiClient.isAvailable) {
+				amsiClient.close();
+				amsiClient = null;
+			}
+		} catch {
+			amsiClient?.close();
+			amsiClient = null;
+		}
+	}
+
+	try {
+		return await scanAllPlugins(context, sageConfig, plugins, exceptions, amsiClient, logger);
+	} finally {
+		amsiClient?.close();
+	}
+}
+
+async function scanAllPlugins(
+	context: SessionStartScanContext,
+	config: Config,
+	plugins: PluginInfo[],
+	exceptions: ExceptionRule[],
+	amsiClient: AmsiClient | null,
+	logger: Logger,
+): Promise<PluginScanResult[]> {
 	const configHash = await computeConfigHash(
 		context.sageVersion ?? "",
 		context.threatsDir,
@@ -141,10 +170,10 @@ export async function runSessionStartScan(
 		}
 
 		// 3. Scan (only reached on cache miss with no exception)
-		const result = await scanPlugin(plugin, threats, {
+		const result = await scanPlugin(plugin, {
 			checkUrls: context.checkUrls ?? true,
 			checkFileHashes: context.checkFileHashes ?? true,
-			trustedDomains,
+			amsiClient,
 			logger,
 		});
 
@@ -167,10 +196,9 @@ export async function runSessionStartScan(
 	}
 
 	try {
-		const sageConfig = await loadConfig(context.configPath, logger);
 		for (const result of resultsWithFindings) {
 			await logPluginScan(
-				sageConfig.logging,
+				config.logging,
 				result.plugin.key,
 				result.plugin.version,
 				result.findings.map(toAuditFindingData),

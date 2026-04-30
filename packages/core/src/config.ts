@@ -4,7 +4,7 @@
  */
 
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { getFileContent, getHomeDir } from "./file-utils.js";
+import { getFileContent, getFileContentSync, getHomeDir } from "./file-utils.js";
 import type { Config, Logger } from "./types.js";
 import { ConfigSchema, nullLogger } from "./types.js";
 
@@ -89,6 +89,24 @@ function normalizeStateFilePath(
 	return fallbackPath;
 }
 
+const BRAND_KEY_RE = /^[a-z0-9_-]+$/u;
+
+function sanitizeBrandKey(data: Record<string, unknown>, logger: Logger): Record<string, unknown> {
+	const brandKey = data.brand_key;
+	if (brandKey === undefined) return data;
+	if (
+		typeof brandKey === "string" &&
+		brandKey.length >= 1 &&
+		brandKey.length <= 32 &&
+		BRAND_KEY_RE.test(brandKey)
+	) {
+		return data;
+	}
+	logger.warn(`Invalid brand_key in config — ignoring`, { brand_key: brandKey });
+	const { brand_key: _, ...rest } = data;
+	return rest;
+}
+
 function sanitizeConfigPaths(config: Config, logger: Logger): Config {
 	const cachePath = defaultCachePath();
 	const allowlistPath = defaultAllowlistPath();
@@ -142,8 +160,48 @@ export async function loadConfig(
 		return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
 	}
 
+	const sanitized = sanitizeBrandKey(data as Record<string, unknown>, logger);
+
 	try {
-		return sanitizeConfigPaths(ConfigSchema.parse(data), logger);
+		return sanitizeConfigPaths(ConfigSchema.parse(sanitized), logger);
+	} catch (e) {
+		logger.warn(`Config validation failed, using defaults`, { error: String(e) });
+		return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+	}
+}
+
+/**
+ * Synchronous config loader. Required because branding resolution depends on
+ * config, and some callers (OpenClaw plugin registration, extension activation)
+ * need branding synchronously before any async init.
+ */
+export function loadConfigSync(configPath?: string, logger: Logger = nullLogger): Config {
+	const path = configPath ?? defaultConfigPath();
+
+	let raw: string;
+	try {
+		raw = getFileContentSync(path);
+	} catch {
+		return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+	}
+
+	let data: unknown;
+	try {
+		data = JSON.parse(raw);
+	} catch (e) {
+		logger.warn(`Failed to parse config from ${path}`, { error: String(e) });
+		return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+	}
+
+	if (typeof data !== "object" || data === null || Array.isArray(data)) {
+		logger.warn(`Config file ${path} does not contain a JSON object`);
+		return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+	}
+
+	const sanitized = sanitizeBrandKey(data as Record<string, unknown>, logger);
+
+	try {
+		return sanitizeConfigPaths(ConfigSchema.parse(sanitized), logger);
 	} catch (e) {
 		logger.warn(`Config validation failed, using defaults`, { error: String(e) });
 		return sanitizeConfigPaths(ConfigSchema.parse({}), logger);

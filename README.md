@@ -10,6 +10,7 @@ Sage intercepts tool calls (Bash commands, URL fetches, file writes) via hook sy
 
 - **URL reputation** - cloud-based malware, phishing, and scam detection
 - **Local heuristics** - YAML-based threat definitions for dangerous patterns
+- **Prompt injection detection** - two-tier defense against prompt injection attacks using heuristic rules and a fine-tuned ML model. See [Prompt Injection Detection](docs/prompt-injection.md)
 - **Package supply-chain checks** - registry existence, file reputation, and age analysis for npm/PyPI packages
 - **Plugin scanning** - scans other installed plugins for threats at session start
 
@@ -82,9 +83,11 @@ See [Getting Started](docs/getting-started.md) for detailed instructions.
 | [Threat Rules](docs/threat-rules.md)             | YAML rule format and what gets checked         |
 | [Package Protection](docs/package-protection.md) | npm/PyPI supply-chain checks                   |
 | [Plugin Scanning](docs/plugin-scanning.md)       | Session-start plugin scanning                  |
+| [Prompt Injection](docs/prompt-injection.md)     | ML + heuristic prompt injection detection      |
 | [AMSI Scanning](docs/amsi-scanning.md)           | Windows antimalware scanning via AMSI          |
 | [Architecture](docs/architecture.md)             | Monorepo structure, packages, design decisions |
 | [MCP Server](docs/mcp.md)                        | Shared MCP server architecture + auto-install  |
+| [Audit Log](docs/audit-log.md)                   | On-disk JSONL schema (entries, signals, content) |
 | [Development](docs/development.md)               | Building, testing, tooling, conventions        |
 | [FAQ](docs/faq.md)                               | Common questions                               |
 | [Privacy](docs/privacy.md)                       | What data is sent, what stays local            |

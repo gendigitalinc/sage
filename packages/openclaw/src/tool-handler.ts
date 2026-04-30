@@ -1,6 +1,11 @@
 /**
  * before_tool_call handler: extracts artifacts from tool calls,
  * evaluates them through guardToolCall, returns block/pass/requireApproval decisions.
+ *
+ * NOTE: OpenClaw has no PostToolUse phase — only before_tool_call. Medium-risk
+ * PI warnings (detected during WebFetch pre-fetch) cannot be surfaced here
+ * because the warning must arrive after the tool executes. This is a platform
+ * limitation; Claude Code and Cursor connectors handle this via PostToolUse.
  */
 
 import {
@@ -8,6 +13,8 @@ import {
 	type Artifact,
 	addException,
 	type Branding,
+	type CanonicalToolType,
+	canonicalizeToolName,
 	defaultBranding,
 	extractFromBash,
 	extractFromEdit,
@@ -18,6 +25,16 @@ import {
 	type Logger,
 	summarizeArtifacts,
 } from "@gendigital/sage-core";
+
+const OPENCLAW_TOOL_MAP: Record<string, CanonicalToolType> = {
+	bash: "Bash",
+	exec: "Bash",
+	web_fetch: "WebFetch",
+	write: "Write",
+	edit: "Edit",
+	read: "Read",
+	apply_patch: "ApplyPatch",
+};
 
 export interface ToolCallEvent {
 	toolName: string;
@@ -54,6 +71,27 @@ function extractFilePaths(patch: string): Artifact[] {
 		}
 	}
 	return artifacts;
+}
+
+function normalizeToolInput(
+	toolName: string,
+	params: Record<string, unknown>,
+): Record<string, unknown> {
+	switch (toolName) {
+		case "write":
+			return {
+				...params,
+				file_path: (params.path ?? "") as string,
+				content: (params.content ?? "") as string,
+			};
+		case "edit":
+			return {
+				...params,
+				file_path: (params.path ?? "") as string,
+			};
+		default:
+			return params;
+	}
 }
 
 function mapToolToArtifacts(toolName: string, params: Record<string, unknown>): Artifact[] | null {
@@ -106,8 +144,8 @@ export function createToolCallHandler(
 					sessionId,
 					conversationId: sessionId,
 					agentRuntime: "openclaw",
-					toolName,
-					toolInput: params,
+					toolName: canonicalizeToolName(OPENCLAW_TOOL_MAP, toolName),
+					toolInput: normalizeToolInput(toolName, params),
 					artifacts,
 				},
 				{ threatsDir, allowlistsDir, logger },
@@ -129,7 +167,7 @@ export function createToolCallHandler(
 			return {
 				requireApproval: {
 					id: actionId as string,
-					title: `${branding.product_name}: ${verdict.category}`,
+					title: `${branding.name}: ${verdict.category}`,
 					description: [
 						`Severity: ${verdict.severity}`,
 						`Reason: ${reasons}`,

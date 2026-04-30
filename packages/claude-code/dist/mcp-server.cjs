@@ -34,11 +34,11 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 
 // ../core/dist/file-utils.js
-function getFileContent(path, encoding = "utf-8") {
-  return fsPromises[name1 + name2](path, encoding);
+function getFileContent(path2, encoding = "utf-8") {
+  return fsPromises[name1 + name2](path2, encoding);
 }
-function getFileContentSync(path, encoding = "utf-8") {
-  return fs[`${name1 + name2}Sync`](path, encoding);
+function getFileContentSync(path2, encoding = "utf-8") {
+  return fs[`${name1 + name2}Sync`](path2, encoding);
 }
 function getProcEnv() {
   return process["env"];
@@ -470,8 +470,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path, errorMaps, issueData } = params;
-      const fullPath = [...path, ...issueData.path || []];
+      const { data, path: path2, errorMaps, issueData } = params;
+      const fullPath = [...path2, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -779,11 +779,11 @@ var init_types = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path, key) {
+      constructor(parent, value, path2, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path;
+        this._path = path2;
         this._key = key;
       }
       get path() {
@@ -4165,7 +4165,7 @@ var init_zod = __esm({
 });
 
 // ../core/dist/types.js
-var nullLogger, ArtifactTypeSchema, ArtifactSchema, SeveritySchema, ActionSchema, ThreatSchema, DecisionSchema, VerdictSeveritySchema, SensitivitySchema, UrlCheckConfigSchema, CacheConfigSchema, AllowlistConfigSchema, LoggingConfigSchema, FileCheckConfigSchema, PackageCheckConfigSchema, AmsiCheckConfigSchema, ExceptionDecisionSchema, ExceptionMatchSchema, ExceptionRuleSchema, ExceptionsFileSchema, ExceptionsConfigSchema, ConfigSchema, brandString, BrandingSchema, HookTypeSchema;
+var nullLogger, ArtifactTypeSchema, ArtifactSchema, SeveritySchema, ActionSchema, ThreatSchema, DecisionSchema, VerdictSeveritySchema, SensitivitySchema, UrlCheckConfigSchema, CacheConfigSchema, AllowlistConfigSchema, LoggingConfigSchema, FileCheckConfigSchema, PackageCheckConfigSchema, AmsiCheckConfigSchema, DEFAULT_PI_HIGH_RISK_THRESHOLD, DEFAULT_PI_MEDIUM_RISK_THRESHOLD, PiCheckConfigSchema, ExceptionDecisionSchema, ExceptionMatchSchema, ExceptionRuleSchema, ExceptionsFileSchema, ExceptionsConfigSchema, ConfigSchema, HookTypeSchema;
 var init_types2 = __esm({
   "../core/dist/types.js"() {
     "use strict";
@@ -4239,6 +4239,15 @@ var init_types2 = __esm({
     AmsiCheckConfigSchema = external_exports.object({
       enabled: external_exports.boolean().default(true)
     });
+    DEFAULT_PI_HIGH_RISK_THRESHOLD = 0.99;
+    DEFAULT_PI_MEDIUM_RISK_THRESHOLD = 0.5;
+    PiCheckConfigSchema = external_exports.object({
+      enabled: external_exports.boolean().default(false),
+      max_content_length: external_exports.number().default(16384),
+      model_path: external_exports.string().optional(),
+      high_risk_threshold: external_exports.number().default(DEFAULT_PI_HIGH_RISK_THRESHOLD),
+      medium_risk_threshold: external_exports.number().default(DEFAULT_PI_MEDIUM_RISK_THRESHOLD)
+    });
     ExceptionDecisionSchema = external_exports.enum(["allow", "deny"]);
     ExceptionMatchSchema = external_exports.enum(["executable", "domain", "path", "plugin", "regex"]);
     ExceptionRuleSchema = external_exports.object({
@@ -4259,6 +4268,7 @@ var init_types2 = __esm({
       file_check: FileCheckConfigSchema.default({}),
       package_check: PackageCheckConfigSchema.default({}),
       amsi_check: AmsiCheckConfigSchema.default({}),
+      pi_check: PiCheckConfigSchema.default({}),
       heuristics_enabled: external_exports.boolean().default(true),
       cache: CacheConfigSchema.default({}),
       allowlist: AllowlistConfigSchema.default({}),
@@ -4266,17 +4276,9 @@ var init_types2 = __esm({
       logging: LoggingConfigSchema.default({}),
       sensitivity: SensitivitySchema.default("balanced"),
       disabled_threats: external_exports.array(external_exports.string()).default([]),
+      brand_key: external_exports.string().min(1).max(32).regex(/^[a-z0-9_-]+$/u).optional(),
       community_iq: external_exports.boolean().default(true)
     });
-    brandString = external_exports.string().min(1).max(64).regex(/^[^\p{Cc}]+$/u, "No control characters");
-    BrandingSchema = external_exports.object({
-      product_name: brandString.default("Sage"),
-      banner_text: external_exports.string().min(1).max(128).regex(/^[^\p{Cc}]+$/u).optional(),
-      brand_key: external_exports.string().min(1).max(32).regex(/^[a-z0-9_-]+$/u).optional()
-    }).transform((b) => ({
-      ...b,
-      banner_text: b.banner_text ?? b.product_name
-    }));
     HookTypeSchema = external_exports.enum([
       "PreToolUse",
       "PostToolUse",
@@ -4350,6 +4352,17 @@ function normalizeStateFilePath(configuredPath, fallbackPath, field, logger2) {
   });
   return fallbackPath;
 }
+function sanitizeBrandKey(data, logger2) {
+  const brandKey = data.brand_key;
+  if (brandKey === void 0)
+    return data;
+  if (typeof brandKey === "string" && brandKey.length >= 1 && brandKey.length <= 32 && BRAND_KEY_RE.test(brandKey)) {
+    return data;
+  }
+  logger2.warn(`Invalid brand_key in config \u2014 ignoring`, { brand_key: brandKey });
+  const { brand_key: _, ...rest } = data;
+  return rest;
+}
 function sanitizeConfigPaths(config2, logger2) {
   const cachePath = defaultCachePath();
   const allowlistPath = defaultAllowlistPath();
@@ -4376,10 +4389,10 @@ function sanitizeConfigPaths(config2, logger2) {
   };
 }
 async function loadConfig(configPath, logger2 = nullLogger) {
-  const path = configPath ?? defaultConfigPath();
+  const path2 = configPath ?? defaultConfigPath();
   let raw;
   try {
-    raw = await getFileContent(path);
+    raw = await getFileContent(path2);
   } catch {
     return sanitizeConfigPaths(ConfigSchema.parse({}), logger2);
   }
@@ -4387,21 +4400,22 @@ async function loadConfig(configPath, logger2 = nullLogger) {
   try {
     data = JSON.parse(raw);
   } catch (e) {
-    logger2.warn(`Failed to parse config from ${path}`, { error: String(e) });
+    logger2.warn(`Failed to parse config from ${path2}`, { error: String(e) });
     return sanitizeConfigPaths(ConfigSchema.parse({}), logger2);
   }
   if (typeof data !== "object" || data === null || Array.isArray(data)) {
-    logger2.warn(`Config file ${path} does not contain a JSON object`);
+    logger2.warn(`Config file ${path2} does not contain a JSON object`);
     return sanitizeConfigPaths(ConfigSchema.parse({}), logger2);
   }
+  const sanitized = sanitizeBrandKey(data, logger2);
   try {
-    return sanitizeConfigPaths(ConfigSchema.parse(data), logger2);
+    return sanitizeConfigPaths(ConfigSchema.parse(sanitized), logger2);
   } catch (e) {
     logger2.warn(`Config validation failed, using defaults`, { error: String(e) });
     return sanitizeConfigPaths(ConfigSchema.parse({}), logger2);
   }
 }
-var import_node_path, SAGE_DIR;
+var import_node_path, SAGE_DIR, BRAND_KEY_RE;
 var init_config = __esm({
   "../core/dist/config.js"() {
     "use strict";
@@ -4409,6 +4423,7 @@ var init_config = __esm({
     init_file_utils();
     init_types2();
     SAGE_DIR = "~/.sage";
+    BRAND_KEY_RE = /^[a-z0-9_-]+$/u;
   }
 });
 
@@ -5354,7 +5369,7 @@ var require_range = __commonJS({
       parseRange(range) {
         const memoOpts = (this.options.includePrerelease && FLAG_INCLUDE_PRERELEASE) | (this.options.loose && FLAG_LOOSE);
         const memoKey = memoOpts + ":" + range;
-        const cached2 = cache.get(memoKey);
+        const cached2 = cache2.get(memoKey);
         if (cached2) {
           return cached2;
         }
@@ -5388,7 +5403,7 @@ var require_range = __commonJS({
           rangeMap.delete("");
         }
         const result = [...rangeMap.values()];
-        cache.set(memoKey, result);
+        cache2.set(memoKey, result);
         return result;
       }
       intersects(range, options) {
@@ -5427,7 +5442,7 @@ var require_range = __commonJS({
     };
     module2.exports = Range;
     var LRU = require_lrucache();
-    var cache = new LRU();
+    var cache2 = new LRU();
     var parseOptions = require_parse_options();
     var Comparator = require_comparator();
     var debug = require_debug();
@@ -6342,6 +6357,14 @@ var require_semver2 = __commonJS({
   }
 });
 
+// ../core/dist/clients/pi-deps-installer.js
+var init_pi_deps_installer = __esm({
+  "../core/dist/clients/pi-deps-installer.js"() {
+    "use strict";
+    init_types2();
+  }
+});
+
 // ../../node_modules/.pnpm/yaml@2.8.2/node_modules/yaml/dist/nodes/identity.js
 var require_identity = __commonJS({
   "../../node_modules/.pnpm/yaml@2.8.2/node_modules/yaml/dist/nodes/identity.js"(exports2) {
@@ -6419,17 +6442,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path) {
-      const ctrl = callVisitor(key, node, visitor, path);
+    function visit_(key, node, visitor, path2) {
+      const ctrl = callVisitor(key, node, visitor, path2);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path, ctrl);
-        return visit_(key, ctrl, visitor, path);
+        replaceNode(key, path2, ctrl);
+        return visit_(key, ctrl, visitor, path2);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path = Object.freeze(path.concat(node));
+          path2 = Object.freeze(path2.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path);
+            const ci = visit_(i, node.items[i], visitor, path2);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -6440,13 +6463,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path = Object.freeze(path.concat(node));
-          const ck = visit_("key", node.key, visitor, path);
+          path2 = Object.freeze(path2.concat(node));
+          const ck = visit_("key", node.key, visitor, path2);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path);
+          const cv = visit_("value", node.value, visitor, path2);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -6467,17 +6490,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path) {
-      const ctrl = await callVisitor(key, node, visitor, path);
+    async function visitAsync_(key, node, visitor, path2) {
+      const ctrl = await callVisitor(key, node, visitor, path2);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path, ctrl);
-        return visitAsync_(key, ctrl, visitor, path);
+        replaceNode(key, path2, ctrl);
+        return visitAsync_(key, ctrl, visitor, path2);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path = Object.freeze(path.concat(node));
+          path2 = Object.freeze(path2.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path);
+            const ci = await visitAsync_(i, node.items[i], visitor, path2);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -6488,13 +6511,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path = Object.freeze(path.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path);
+          path2 = Object.freeze(path2.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path2);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path);
+          const cv = await visitAsync_("value", node.value, visitor, path2);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -6521,23 +6544,23 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path) {
+    function callVisitor(key, node, visitor, path2) {
       if (typeof visitor === "function")
-        return visitor(key, node, path);
+        return visitor(key, node, path2);
       if (identity.isMap(node))
-        return visitor.Map?.(key, node, path);
+        return visitor.Map?.(key, node, path2);
       if (identity.isSeq(node))
-        return visitor.Seq?.(key, node, path);
+        return visitor.Seq?.(key, node, path2);
       if (identity.isPair(node))
-        return visitor.Pair?.(key, node, path);
+        return visitor.Pair?.(key, node, path2);
       if (identity.isScalar(node))
-        return visitor.Scalar?.(key, node, path);
+        return visitor.Scalar?.(key, node, path2);
       if (identity.isAlias(node))
-        return visitor.Alias?.(key, node, path);
+        return visitor.Alias?.(key, node, path2);
       return void 0;
     }
-    function replaceNode(key, path, node) {
-      const parent = path[path.length - 1];
+    function replaceNode(key, path2, node) {
+      const parent = path2[path2.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -7145,10 +7168,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path, value) {
+    function collectionFromPath(schema, path2, value) {
       let v = value;
-      for (let i = path.length - 1; i >= 0; --i) {
-        const k = path[i];
+      for (let i = path2.length - 1; i >= 0; --i) {
+        const k = path2[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -7167,7 +7190,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path) => path == null || typeof path === "object" && !!path[Symbol.iterator]().next().done;
+    var isEmptyPath = (path2) => path2 == null || typeof path2 === "object" && !!path2[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -7197,11 +7220,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path, value) {
-        if (isEmptyPath(path))
+      addIn(path2, value) {
+        if (isEmptyPath(path2))
           this.add(value);
         else {
-          const [key, ...rest] = path;
+          const [key, ...rest] = path2;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -7215,8 +7238,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path) {
-        const [key, ...rest] = path;
+      deleteIn(path2) {
+        const [key, ...rest] = path2;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -7230,8 +7253,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path, keepScalar) {
-        const [key, ...rest] = path;
+      getIn(path2, keepScalar) {
+        const [key, ...rest] = path2;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -7249,8 +7272,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path) {
-        const [key, ...rest] = path;
+      hasIn(path2) {
+        const [key, ...rest] = path2;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -7260,8 +7283,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path, value) {
-        const [key, ...rest] = path;
+      setIn(path2, value) {
+        const [key, ...rest] = path2;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -9765,9 +9788,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path, value) {
+      addIn(path2, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path, value);
+          this.contents.addIn(path2, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -9842,14 +9865,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path) {
-        if (Collection.isEmptyPath(path)) {
+      deleteIn(path2) {
+        if (Collection.isEmptyPath(path2)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path2) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -9864,10 +9887,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path, keepScalar) {
-        if (Collection.isEmptyPath(path))
+      getIn(path2, keepScalar) {
+        if (Collection.isEmptyPath(path2))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path2, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -9878,10 +9901,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path) {
-        if (Collection.isEmptyPath(path))
+      hasIn(path2) {
+        if (Collection.isEmptyPath(path2))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path2) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -9898,13 +9921,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path, value) {
-        if (Collection.isEmptyPath(path)) {
+      setIn(path2, value) {
+        if (Collection.isEmptyPath(path2)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path2), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path, value);
+          this.contents.setIn(path2, value);
         }
       }
       /**
@@ -11856,9 +11879,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path) => {
+    visit.itemAtPath = (cst, path2) => {
       let item = cst;
-      for (const [field, index] of path) {
+      for (const [field, index] of path2) {
         const tok = item?.[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -11867,23 +11890,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path) => {
-      const parent = visit.itemAtPath(cst, path.slice(0, -1));
-      const field = path[path.length - 1][0];
+    visit.parentCollection = (cst, path2) => {
+      const parent = visit.itemAtPath(cst, path2.slice(0, -1));
+      const field = path2[path2.length - 1][0];
       const coll = parent?.[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path, item, visitor) {
-      let ctrl = visitor(item, path);
+    function _visit(path2, item, visitor) {
+      let ctrl = visitor(item, path2);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path2.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -11894,10 +11917,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path);
+            ctrl = ctrl(item, path2);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path2) : ctrl;
     }
     exports2.visit = visit;
   }
@@ -16824,8 +16847,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path) {
-      let input = path;
+    function removeDotSegments(path2) {
+      let input = path2;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -17024,8 +17047,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path && path !== "/" ? path : void 0;
+        const [path2, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path2 && path2 !== "/" ? path2 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -20663,8 +20686,8 @@ var require_req = __commonJS({
       if (req.originalUrl) {
         _req.url = req.originalUrl;
       } else {
-        const path = req.path;
-        _req.url = typeof path === "string" ? path : req.url ? req.url.path || req.url : void 0;
+        const path2 = req.path;
+        _req.url = typeof path2 === "string" ? path2 : req.url ? req.url.path || req.url : void 0;
       }
       if (req.query) {
         _req.query = req.query;
@@ -20829,14 +20852,14 @@ var require_redact = __commonJS({
       }
       return obj;
     }
-    function parsePath(path) {
+    function parsePath(path2) {
       const parts = [];
       let current = "";
       let inBrackets = false;
       let inQuotes = false;
       let quoteChar = "";
-      for (let i = 0; i < path.length; i++) {
-        const char = path[i];
+      for (let i = 0; i < path2.length; i++) {
+        const char = path2[i];
         if (!inBrackets && char === ".") {
           if (current) {
             parts.push(current);
@@ -20967,10 +20990,10 @@ var require_redact = __commonJS({
       return current;
     }
     function redactPaths(obj, paths, censor, remove = false) {
-      for (const path of paths) {
-        const parts = parsePath(path);
+      for (const path2 of paths) {
+        const parts = parsePath(path2);
         if (parts.includes("*")) {
-          redactWildcardPath(obj, parts, censor, path, remove);
+          redactWildcardPath(obj, parts, censor, path2, remove);
         } else {
           if (remove) {
             removeKey(obj, parts);
@@ -21055,8 +21078,8 @@ var require_redact = __commonJS({
           }
         } else {
           if (afterWildcard.includes("*")) {
-            const wrappedCensor = typeof censor === "function" ? (value, path) => {
-              const fullPath = [...pathArray.slice(0, pathLength), ...path];
+            const wrappedCensor = typeof censor === "function" ? (value, path2) => {
+              const fullPath = [...pathArray.slice(0, pathLength), ...path2];
               return censor(value, fullPath);
             } : censor;
             redactWildcardPath(current, afterWildcard, wrappedCensor, originalPath, remove);
@@ -21091,8 +21114,8 @@ var require_redact = __commonJS({
         return null;
       }
       const pathStructure = /* @__PURE__ */ new Map();
-      for (const path of pathsToClone) {
-        const parts = parsePath(path);
+      for (const path2 of pathsToClone) {
+        const parts = parsePath(path2);
         let current = pathStructure;
         for (let i = 0; i < parts.length; i++) {
           const part = parts[i];
@@ -21144,24 +21167,24 @@ var require_redact = __commonJS({
       }
       return cloneSelectively(obj, pathStructure);
     }
-    function validatePath(path) {
-      if (typeof path !== "string") {
+    function validatePath(path2) {
+      if (typeof path2 !== "string") {
         throw new Error("Paths must be (non-empty) strings");
       }
-      if (path === "") {
+      if (path2 === "") {
         throw new Error("Invalid redaction path ()");
       }
-      if (path.includes("..")) {
-        throw new Error(`Invalid redaction path (${path})`);
+      if (path2.includes("..")) {
+        throw new Error(`Invalid redaction path (${path2})`);
       }
-      if (path.includes(",")) {
-        throw new Error(`Invalid redaction path (${path})`);
+      if (path2.includes(",")) {
+        throw new Error(`Invalid redaction path (${path2})`);
       }
       let bracketCount = 0;
       let inQuotes = false;
       let quoteChar = "";
-      for (let i = 0; i < path.length; i++) {
-        const char = path[i];
+      for (let i = 0; i < path2.length; i++) {
+        const char = path2[i];
         if ((char === '"' || char === "'") && bracketCount > 0) {
           if (!inQuotes) {
             inQuotes = true;
@@ -21175,20 +21198,20 @@ var require_redact = __commonJS({
         } else if (char === "]" && !inQuotes) {
           bracketCount--;
           if (bracketCount < 0) {
-            throw new Error(`Invalid redaction path (${path})`);
+            throw new Error(`Invalid redaction path (${path2})`);
           }
         }
       }
       if (bracketCount !== 0) {
-        throw new Error(`Invalid redaction path (${path})`);
+        throw new Error(`Invalid redaction path (${path2})`);
       }
     }
     function validatePaths(paths) {
       if (!Array.isArray(paths)) {
         throw new TypeError("paths must be an array");
       }
-      for (const path of paths) {
-        validatePath(path);
+      for (const path2 of paths) {
+        validatePath(path2);
       }
     }
     function slowRedact(options = {}) {
@@ -21356,8 +21379,8 @@ var require_redaction = __commonJS({
         if (shape[k] === null) {
           o[k] = (value) => topCensor(value, [k]);
         } else {
-          const wrappedCensor = typeof censor === "function" ? (value, path) => {
-            return censor(value, [k, ...path]);
+          const wrappedCensor = typeof censor === "function" ? (value, path2) => {
+            return censor(value, [k, ...path2]);
           } : censor;
           o[k] = Redact({
             paths: shape[k],
@@ -21578,7 +21601,7 @@ var require_sonic_boom = __commonJS({
     var fs2 = require("fs");
     var EventEmitter = require("events");
     var inherits = require("util").inherits;
-    var path = require("path");
+    var path2 = require("path");
     var sleep = require_atomic_sleep();
     var assert2 = require("assert");
     var BUSY_WRITE_TIMEOUT = 100;
@@ -21632,7 +21655,7 @@ var require_sonic_boom = __commonJS({
       const mode = sonic.mode;
       if (sonic.sync) {
         try {
-          if (sonic.mkdir) fs2.mkdirSync(path.dirname(file), { recursive: true });
+          if (sonic.mkdir) fs2.mkdirSync(path2.dirname(file), { recursive: true });
           const fd = fs2.openSync(file, flags, mode);
           fileOpened(null, fd);
         } catch (err) {
@@ -21640,7 +21663,7 @@ var require_sonic_boom = __commonJS({
           throw err;
         }
       } else if (sonic.mkdir) {
-        fs2.mkdir(path.dirname(file), { recursive: true }, (err) => {
+        fs2.mkdir(path2.dirname(file), { recursive: true }, (err) => {
           if (err) return fileOpened(err);
           fs2.open(file, flags, mode, fileOpened);
         });
@@ -23345,12 +23368,12 @@ var require_levels = __commonJS({
     function genLsCache(instance) {
       const formatter = instance[formattersSym].level;
       const { labels } = instance.levels;
-      const cache = {};
+      const cache2 = {};
       for (const label in labels) {
         const level = formatter(labels[label], Number(label));
-        cache[label] = JSON.stringify(level).slice(0, -1);
+        cache2[label] = JSON.stringify(level).slice(0, -1);
       }
-      instance[lsCacheSym] = cache;
+      instance[lsCacheSym] = cache2;
       return instance;
     }
     function isStandardLevel(level, useOnlyCustomLevels) {
@@ -24721,9 +24744,9 @@ var APPROVED_TTL_MS = 10 * 60 * 1e3;
 init_config();
 init_file_utils();
 async function getRecentEntries(config2, limit = 100) {
-  const path = resolvePath(config2.path);
+  const path2 = resolvePath(config2.path);
   try {
-    const content = await getFileContent(path);
+    const content = await getFileContent(path2);
     const lines = content.trim().split("\n");
     const recent = lines.slice(-limit);
     const entries = [];
@@ -24739,43 +24762,20 @@ async function getRecentEntries(config2, limit = 100) {
   }
 }
 
-// ../core/dist/branding.js
-var import_node_path2 = require("node:path");
-init_config();
-init_file_utils();
-init_types2();
-var defaultBranding = BrandingSchema.parse({});
-function defaultBrandingPath() {
-  return (0, import_node_path2.join)(resolvePath(SAGE_DIR), "branding.json");
-}
-function loadBrandingSync(logger2 = nullLogger, brandingPath) {
-  const path = brandingPath ?? defaultBrandingPath();
-  let raw;
-  try {
-    raw = getFileContentSync(path);
-  } catch {
+// ../core/dist/brands.js
+var defaultBranding = { name: "Sage", short_name: "Sage" };
+var BRANDS = {
+  norton: { name: "Norton AI Agent Protection", short_name: "Norton" }
+};
+function resolveBranding(brandKey, logger2) {
+  if (!brandKey)
+    return defaultBranding;
+  const entry = BRANDS[brandKey];
+  if (!entry) {
+    logger2?.warn(`Unknown brand_key "${brandKey}" in config \u2014 using default branding`);
     return defaultBranding;
   }
-  return parseBranding(raw, path, logger2);
-}
-function parseBranding(raw, path, logger2) {
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch (e) {
-    logger2.warn(`Failed to parse branding from ${path}`, { error: String(e) });
-    return defaultBranding;
-  }
-  if (typeof data !== "object" || data === null || Array.isArray(data)) {
-    logger2.warn(`Branding file ${path} does not contain a JSON object`);
-    return defaultBranding;
-  }
-  try {
-    return BrandingSchema.parse(data);
-  } catch (e) {
-    logger2.warn("Branding validation failed, using defaults", { error: String(e) });
-    return defaultBranding;
-  }
+  return { ...entry, brand_key: brandKey };
 }
 
 // ../core/dist/cache.js
@@ -24816,34 +24816,45 @@ public class SageAmsi {
     static extern void AmsiUninitialize(IntPtr ctx);
 
     private static IntPtr _ctx;
-    private static IntPtr _session;
     private static bool _initialized;
 
     public static bool Init() {
         int hr = AmsiInitialize("Sage", out _ctx);
         if (hr != 0) return false;
-        hr = AmsiOpenSession(_ctx, out _session);
+        // Verify we can open a session, then close it immediately.
+        // Actual sessions are opened per-scan to avoid cross-file tainting.
+        IntPtr sess;
+        hr = AmsiOpenSession(_ctx, out sess);
         if (hr != 0) {
             AmsiUninitialize(_ctx);
             return false;
         }
+        AmsiCloseSession(_ctx, sess);
         _initialized = true;
         return true;
     }
 
     public static int Scan(string content, string contentName) {
         if (!_initialized) return -1;
-        byte[] bytes = Encoding.UTF8.GetBytes(content);
-        int result;
-        int hr = AmsiScanBuffer(_ctx, bytes, (uint)bytes.Length,
-                                contentName, _session, out result);
+        // Open a fresh session per scan so a detection in one file
+        // does not taint subsequent scans (sessions are correlation scopes).
+        IntPtr session;
+        int hr = AmsiOpenSession(_ctx, out session);
         if (hr != 0) return -1;
-        return result;
+        try {
+            byte[] bytes = Encoding.UTF8.GetBytes(content);
+            int result;
+            hr = AmsiScanBuffer(_ctx, bytes, (uint)bytes.Length,
+                                    contentName, session, out result);
+            if (hr != 0) return -1;
+            return result;
+        } finally {
+            AmsiCloseSession(_ctx, session);
+        }
     }
 
     public static void Shutdown() {
         if (!_initialized) return;
-        AmsiCloseSession(_ctx, _session);
         AmsiUninitialize(_ctx);
         _initialized = false;
     }
@@ -24911,19 +24922,22 @@ ${AMSI_CSHARP_TYPE}
 }
 `;
 
+// ../core/dist/clients/content-fetch.js
+init_types2();
+
 // ../core/dist/clients/file-check.js
 init_types2();
 
 // ../core/dist/version.js
-var import_node_path3 = require("node:path");
+var import_node_path2 = require("node:path");
 var import_node_url = require("node:url");
 init_file_utils();
 var import_meta = {};
 function resolveVersion() {
   if (true)
-    return "0.8.0";
+    return "0.9.0";
   try {
-    const pkgPath = (0, import_node_path3.join)((0, import_node_path3.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
+    const pkgPath = (0, import_node_path2.join)((0, import_node_path2.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
     const pkg = JSON.parse(getFileContentSync(pkgPath));
     if (typeof pkg.version === "string")
       return pkg.version;
@@ -24933,68 +24947,12 @@ function resolveVersion() {
 }
 var VERSION = resolveVersion();
 
-// ../core/dist/clients/package-registry.js
-var import_semver = __toESM(require_semver2(), 1);
-init_types2();
-
-// ../core/dist/clients/url-check.js
-init_types2();
-var SERVICE_NAME = "sage";
-function getProviderTld() {
-  return "com";
-}
-function getProviderName() {
-  return "avast";
-}
-function getSubdomain() {
-  return "svc";
-}
-function buildDomain() {
-  return [getSubdomain(), getProviderName(), getProviderTld()].join(".");
-}
-function resolveEndpoint(path) {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `https://${SERVICE_NAME}-proxy.${buildDomain()}${normalizedPath}`;
-}
-
-// ../core/dist/index.js
+// ../core/dist/model-storage.js
 init_config();
 
-// ../core/dist/installation-id.js
-var import_node_crypto = require("node:crypto");
-var import_promises = require("node:fs/promises");
-var import_node_path4 = require("node:path");
-init_config();
-init_file_utils();
-async function getInstallationId(sageDirPath) {
-  const sageDir = sageDirPath ?? resolvePath("~/.sage");
-  const idPath = (0, import_node_path4.join)(sageDir, "installation-id");
-  let fileExists = false;
-  try {
-    const existing = await getFileContent(idPath, "utf-8");
-    const trimmed = existing.trim();
-    if (trimmed.length > 0)
-      return trimmed;
-    fileExists = true;
-  } catch {
-  }
-  try {
-    const id = (0, import_node_crypto.randomUUID)();
-    await (0, import_promises.mkdir)(sageDir, { recursive: true, mode: 448 });
-    await (0, import_promises.writeFile)(idPath, id, { encoding: "utf-8", mode: 384, flag: fileExists ? "w" : "wx" });
-    return id;
-  } catch (err) {
-    if (err.code === "EEXIST") {
-      try {
-        const existing = await getFileContent(idPath, "utf-8");
-        return existing.trim() || void 0;
-      } catch {
-        return void 0;
-      }
-    }
-    return void 0;
-  }
-}
+// ../core/dist/clients/model-downloader.js
+init_types2();
+var STALE_LOCK_MS = 60 * 60 * 1e3;
 
 // ../core/dist/sage-proxy.js
 function mapSageProxyOs(platform) {
@@ -25027,7 +24985,229 @@ function buildSageProxyEnvelope(args) {
   };
 }
 
+// ../core/dist/clients/model-manifest.js
+init_types2();
+
+// ../core/dist/clients/url-check.js
+init_types2();
+var SERVICE_NAME = "sage";
+function getProviderTld() {
+  return "com";
+}
+function getProviderName() {
+  return "avast";
+}
+function getSubdomain() {
+  return "svc";
+}
+function buildDomain() {
+  return [getSubdomain(), getProviderName(), getProviderTld()].join(".");
+}
+function resolveEndpoint(path2) {
+  const normalizedPath = path2.startsWith("/") ? path2 : `/${path2}`;
+  return `https://${SERVICE_NAME}-proxy.${buildDomain()}${normalizedPath}`;
+}
+
+// ../core/dist/clients/package-registry.js
+var import_semver = __toESM(require_semver2(), 1);
+init_types2();
+
+// ../core/dist/clients/pi-check.js
+init_types2();
+
+// ../core/dist/index.js
+init_pi_deps_installer();
+
+// ../core/dist/clients/skill-check.js
+init_types2();
+
+// ../core/dist/index.js
+init_config();
+
+// ../core/dist/content-snapshot.js
+var CONTENT_FIELD_LIMITS = Object.freeze({
+  command: 512,
+  url: 512,
+  file_path: 512,
+  package_name: 256,
+  package_version: 128,
+  package_registry: 128
+});
+function safeTruncate(value, maxLen) {
+  if (maxLen <= 0)
+    return "";
+  if (value.length <= maxLen)
+    return value;
+  const cutIndex = maxLen;
+  const codeUnit = value.charCodeAt(cutIndex - 1);
+  if (codeUnit >= 55296 && codeUnit <= 56319) {
+    return value.slice(0, cutIndex - 1);
+  }
+  return value.slice(0, cutIndex);
+}
+
+// ../core/dist/extended-info.js
+var import_promises = require("node:fs/promises");
+var import_node_os2 = require("node:os");
+var import_node_path3 = require("node:path");
+init_file_utils();
+init_types2();
+var EXTENDED_INFO_FILE_MAX_BYTES = 1024;
+var EXTENDED_INFO_MAX_GROUPS = 16;
+var EXTENDED_INFO_MAX_KEYS_PER_GROUP = 32;
+var EXTENDED_INFO_MAX_LEAF_CHARS = 256;
+var EXTENDED_INFO_FILENAME = "extended-info.json";
+var cache = /* @__PURE__ */ new Map();
+function isPlainObjectValue(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function sanitizeLeaves(groupKey, rawGroup, logger2) {
+  const entries = Object.entries(rawGroup);
+  const overflow = entries.length > EXTENDED_INFO_MAX_KEYS_PER_GROUP;
+  const retained = overflow ? entries.slice(0, EXTENDED_INFO_MAX_KEYS_PER_GROUP) : entries;
+  if (overflow) {
+    logger2.debug(`extended-info: dropped overflow keys in group '${groupKey}' (kept first ${EXTENDED_INFO_MAX_KEYS_PER_GROUP} of ${entries.length})`);
+  }
+  const out = {};
+  for (const [leafKey, leafValue] of retained) {
+    if (typeof leafValue === "string") {
+      out[leafKey] = safeTruncate(leafValue, EXTENDED_INFO_MAX_LEAF_CHARS);
+      continue;
+    }
+    if (typeof leafValue === "number" || typeof leafValue === "boolean") {
+      out[leafKey] = leafValue;
+      continue;
+    }
+    logger2.debug(`extended-info: dropped non-scalar leaf '${groupKey}.${leafKey}' (type ${typeof leafValue})`);
+  }
+  return out;
+}
+function sanitizeDocument(parsed, logger2) {
+  const out = {};
+  for (const [groupKey, groupValue] of Object.entries(parsed)) {
+    if (!isPlainObjectValue(groupValue)) {
+      logger2.debug(`extended-info: dropped non-object group '${groupKey}'`);
+      continue;
+    }
+    out[groupKey] = sanitizeLeaves(groupKey, groupValue, logger2);
+  }
+  return out;
+}
+async function loadExtendedInfo(sageDirPath, logger2 = nullLogger) {
+  const sageDir = sageDirPath ?? (0, import_node_path3.join)((0, import_node_os2.homedir)(), ".sage");
+  const filePath = (0, import_node_path3.join)(sageDir, EXTENDED_INFO_FILENAME);
+  const cached2 = cache.get(filePath);
+  if (cached2)
+    return cached2.value;
+  const value = await loadExtendedInfoUncached(filePath, logger2);
+  cache.set(filePath, { value });
+  return value;
+}
+async function loadExtendedInfoUncached(filePath, logger2) {
+  let size;
+  try {
+    const info = await (0, import_promises.stat)(filePath);
+    if (!info.isFile()) {
+      logger2.debug(`extended-info: not a regular file at ${filePath}`);
+      return null;
+    }
+    size = info.size;
+  } catch {
+    return null;
+  }
+  if (size > EXTENDED_INFO_FILE_MAX_BYTES) {
+    logger2.debug(`extended-info: file size ${size} exceeds cap ${EXTENDED_INFO_FILE_MAX_BYTES}; ignoring`);
+    return null;
+  }
+  let raw;
+  try {
+    raw = await getFileContent(filePath, "utf-8");
+  } catch {
+    return null;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    logger2.debug(`extended-info: invalid JSON: ${err}`);
+    return null;
+  }
+  if (!isPlainObjectValue(parsed)) {
+    logger2.debug("extended-info: top-level value is not a non-null object");
+    return null;
+  }
+  const groupCount = Object.keys(parsed).length;
+  if (groupCount > EXTENDED_INFO_MAX_GROUPS) {
+    logger2.debug(`extended-info: ${groupCount} top-level groups exceed cap ${EXTENDED_INFO_MAX_GROUPS}; rejecting whole file`);
+    return null;
+  }
+  return sanitizeDocument(parsed, logger2);
+}
+function mergeExtendedInfo(envelope, extendedInfo) {
+  const out = { ...envelope };
+  if (!extendedInfo)
+    return out;
+  for (const [groupKey, groupValue] of Object.entries(extendedInfo)) {
+    const existing = out[groupKey];
+    if (existing === void 0 || existing === null) {
+      out[groupKey] = { ...groupValue };
+      continue;
+    }
+    if (!isPlainObjectValue(existing)) {
+      continue;
+    }
+    const merged = { ...existing };
+    for (const [leafKey, leafValue] of Object.entries(groupValue)) {
+      const current = merged[leafKey];
+      if (current === void 0 || current === null) {
+        merged[leafKey] = leafValue;
+      }
+    }
+    out[groupKey] = merged;
+  }
+  return out;
+}
+
+// ../core/dist/installation-id.js
+var import_node_crypto = require("node:crypto");
+var import_promises2 = require("node:fs/promises");
+var import_node_path4 = require("node:path");
+init_config();
+init_file_utils();
+async function getInstallationId(sageDirPath) {
+  const sageDir = sageDirPath ?? resolvePath("~/.sage");
+  const idPath = (0, import_node_path4.join)(sageDir, "installation-id");
+  let fileExists = false;
+  try {
+    const existing = await getFileContent(idPath, "utf-8");
+    const trimmed = existing.trim();
+    if (trimmed.length > 0)
+      return trimmed;
+    fileExists = true;
+  } catch {
+  }
+  try {
+    const id = (0, import_node_crypto.randomUUID)();
+    await (0, import_promises2.mkdir)(sageDir, { recursive: true, mode: 448 });
+    await (0, import_promises2.writeFile)(idPath, id, { encoding: "utf-8", mode: 384, flag: fileExists ? "w" : "wx" });
+    return id;
+  } catch (err) {
+    if (err.code === "EEXIST") {
+      try {
+        const existing = await getFileContent(idPath, "utf-8");
+        return existing.trim() || void 0;
+      } catch {
+        return void 0;
+      }
+    }
+    return void 0;
+  }
+}
+
 // ../core/dist/detection-telemetry.js
+init_types2();
+
+// ../core/dist/engine.js
 init_types2();
 
 // ../core/dist/evaluator.js
@@ -25060,6 +25240,28 @@ var import_yaml2 = __toESM(require_dist(), 1);
 init_file_utils();
 init_types2();
 
+// ../core/dist/tool-names.js
+var CANONICAL_TOOLS = [
+  "Bash",
+  "WebFetch",
+  "Write",
+  "Edit",
+  "Read",
+  "Delete",
+  "ApplyPatch",
+  "Glob",
+  "Grep",
+  "List",
+  "CodeSearch",
+  "WebSearch",
+  "Question",
+  "Task",
+  "ReadLines",
+  "MCP",
+  "Unknown"
+];
+var CANONICAL_SET = new Set(CANONICAL_TOOLS);
+
 // ../core/dist/evaluator.js
 init_types2();
 
@@ -25073,6 +25275,9 @@ init_types2();
 // ../core/dist/marketplace-migration.js
 init_config();
 
+// ../core/dist/model-download.js
+init_types2();
+
 // ../core/dist/plugin-scan-cache.js
 var import_node_path5 = require("node:path");
 init_file_utils();
@@ -25085,11 +25290,26 @@ init_file_utils();
 init_types2();
 var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path6.join)(getHomeDir(), ".claude", "plugins", "installed_plugins.json");
 var MAX_FILE_SIZE = 512 * 1024;
-var STR_ARG = `(?:"((?:[^"\\\\]|\\\\.)*)"|'((?:[^'\\\\]|\\\\.)*)'|\`([^\`]*)\`)`;
-var JS_EXEC_RE = new RegExp(`\\bexec(?:File)?(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
-var JS_SPAWN_RE = new RegExp(`\\bspawn(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
-var JS_EXECA_RE = new RegExp(`\\bexeca\\s*\\(\\s*${STR_ARG}`, "g");
-var JS_BUN_SHELL_RE = new RegExp(`\\bBun\\.shell\\s*\\(\\s*${STR_ARG}`, "g");
+
+// ../core/dist/product-version.js
+var import_node_fs = require("node:fs");
+var import_node_path7 = __toESM(require("node:path"), 1);
+function readProductJsonVersion(appRoot) {
+  if (!appRoot)
+    return "unknown";
+  try {
+    const productJsonPath = import_node_path7.default.join(appRoot, "product.json");
+    const raw = (0, import_node_fs.readFileSync)(productJsonPath, "utf8");
+    const parsed = JSON.parse(raw);
+    const version2 = parsed.version;
+    if (typeof version2 === "string" && version2.length > 0) {
+      return version2;
+    }
+    return "unknown";
+  } catch {
+    return "unknown";
+  }
+}
 
 // ../core/dist/session-start.js
 init_config();
@@ -25304,10 +25524,10 @@ function assignProp(target, prop, value) {
     configurable: true
   });
 }
-function getElementAtPath(obj, path) {
-  if (!path)
+function getElementAtPath(obj, path2) {
+  if (!path2)
     return obj;
-  return path.reduce((acc, key) => acc?.[key], obj);
+  return path2.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -25627,11 +25847,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path, issues) {
+function prefixIssues(path2, issues) {
   return issues.map((iss) => {
     var _a;
     (_a = iss).path ?? (_a.path = []);
-    iss.path.unshift(path);
+    iss.path.unshift(path2);
     return iss;
   });
 }
@@ -35119,7 +35339,6 @@ var StdioServerTransport = class {
 
 // ../mcp/dist/tools/false-positive.js
 var import_node_crypto2 = require("node:crypto");
-var import_node_os2 = require("node:os");
 init_zod();
 
 // ../mcp/dist/tools/utils.js
@@ -35136,30 +35355,18 @@ function textResult(text, isError) {
 function asString(v) {
   return typeof v === "string" ? v : void 0;
 }
-function asStringArray(v) {
-  if (!Array.isArray(v))
+var HOST_AGENT_RUNTIME_VERSION = (() => {
+  const appRoot = process.env.SAGE_APP_ROOT;
+  if (!appRoot)
     return void 0;
-  const out = [];
-  for (const item of v) {
-    if (typeof item === "string")
-      out.push(item);
-  }
-  return out;
-}
-function scrubHomePath(value) {
-  const home = (0, import_node_os2.homedir)();
-  if (!home)
-    return value;
-  const normalizedHome = home.replace(/\\/g, "/").replace(/\/+$/, "");
-  const normalizedValue = value.replace(/\\/g, "/");
-  if (!normalizedHome)
-    return value;
-  if (normalizedValue === normalizedHome)
-    return "~";
-  if (normalizedValue.startsWith(`${normalizedHome}/`)) {
-    return `~/${normalizedValue.slice(normalizedHome.length + 1)}`;
-  }
-  return value;
+  const resolved = readProductJsonVersion(appRoot);
+  return resolved === "unknown" ? void 0 : resolved;
+})();
+function readContent(entry) {
+  const raw = entry.content;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw))
+    return {};
+  return raw;
 }
 function isRuntimeVerdictEntry(v) {
   if (!v || typeof v !== "object" || Array.isArray(v))
@@ -35196,12 +35403,14 @@ var ListInputSchema = external_exports.object({
   conversation_id: external_exports.string().optional().describe("Conversation id to filter audit entries; if omitted, uses the most recent one."),
   limit: external_exports.number().int().min(1).max(5e3).optional().describe("Max entries to scan and return.")
 });
+var MAX_IMPLICIT_ENTRIES = 3;
+var MAX_EXPLICIT_ENTRIES = 10;
 var ReportInputSchema = external_exports.object({
   conversation_id: external_exports.string().optional().describe("Conversation id to filter audit entries; if omitted, uses the most recent one."),
   description: external_exports.string().min(1).describe("Short description of what is a false positive."),
   reasoning: external_exports.string().min(1).describe("Reasoning for why this should be treated as a false positive."),
-  agent_runtime_version: external_exports.string().optional().describe("Optional agent runtime version override (Cursor/VS Code/Claude version). If omitted, uses env SAGE_AGENT_RUNTIME_VERSION or 'unknown'."),
-  entry_ids: external_exports.array(external_exports.string()).optional().describe("Optional list of audit entry ids to report."),
+  agent_runtime_version: external_exports.string().optional().describe("Optional agent runtime version override (Cursor/VS Code/Claude version). If omitted, the server resolves the host version from SAGE_APP_ROOT (the application root injected by the Sage extension at MCP-server install time, used to read product.json), then falls back to SAGE_AGENT_RUNTIME_VERSION env, then 'unknown'."),
+  entry_ids: external_exports.array(external_exports.string()).optional().describe(`REQUIRED in normal use: list of specific audit entry_ids to report as false positives. ALWAYS call sage_list_audit_entries first to inspect the audit log and identify the exact deny/ask verdict the user considers a false positive, then pass its entry_id here. Up to ${MAX_EXPLICIT_ENTRIES} entry_ids may be provided per call. Omitting this parameter is a fallback that submits up to ${MAX_IMPLICIT_ENTRIES} most recent deny/ask entries for the conversation, which may include irrelevant verdicts and should only be used when entry_id discovery is impossible.`),
   dry_run: external_exports.boolean().optional().describe("If true, do not POST; just show the payload.")
 });
 function parseAuditSignals(raw) {
@@ -35212,6 +35421,8 @@ function parseAuditSignals(raw) {
   const urlChecksRaw = obj.url_checks;
   const fileChecksRaw = obj.file_checks;
   const packageChecksRaw = obj.package_checks;
+  const piChecksRaw = obj.pi_checks;
+  const amsiChecksRaw = obj.amsi_checks;
   const heuristics = Array.isArray(heuristicsRaw) ? heuristicsRaw.map((h) => {
     if (!h || typeof h !== "object" || Array.isArray(h))
       return null;
@@ -35254,11 +35465,41 @@ function parseAuditSignals(raw) {
       return null;
     return { detection_name, package_name, package_version, package_registry };
   }).filter(Boolean) : void 0;
+  const pi_checks = Array.isArray(piChecksRaw) ? piChecksRaw.map((m) => {
+    if (!m || typeof m !== "object" || Array.isArray(m))
+      return null;
+    const rec = m;
+    const risk = typeof rec.risk === "number" ? rec.risk : void 0;
+    const model_id = asString(rec.model_id);
+    const content_name = asString(rec.content_name);
+    if (risk === void 0 || !model_id || !content_name)
+      return null;
+    return { risk, model_id, content_name };
+  }).filter(Boolean) : void 0;
+  const amsi_checks = Array.isArray(amsiChecksRaw) ? amsiChecksRaw.map((a) => {
+    if (!a || typeof a !== "object" || Array.isArray(a))
+      return null;
+    const rec = a;
+    const detection_name = asString(rec.detection_name);
+    const content_name = asString(rec.content_name);
+    const content_snippet = asString(rec.content_snippet);
+    const amsi_result = typeof rec.amsi_result === "number" ? Math.trunc(rec.amsi_result) : void 0;
+    if (!detection_name || !content_name || amsi_result === void 0)
+      return null;
+    return {
+      detection_name,
+      content_name,
+      amsi_result,
+      ...content_snippet ? { content_snippet } : {}
+    };
+  }).filter(Boolean) : void 0;
   return {
     heuristics: heuristics && heuristics.length > 0 ? heuristics : void 0,
     url_checks: url_checks && url_checks.length > 0 ? url_checks : void 0,
     file_checks: file_checks && file_checks.length > 0 ? file_checks : void 0,
-    package_checks: package_checks && package_checks.length > 0 ? package_checks : void 0
+    package_checks: package_checks && package_checks.length > 0 ? package_checks : void 0,
+    pi_checks: pi_checks && pi_checks.length > 0 ? pi_checks : void 0,
+    amsi_checks: amsi_checks && amsi_checks.length > 0 ? amsi_checks : void 0
   };
 }
 function registerFalsePositiveTools(server, opts) {
@@ -35266,8 +35507,8 @@ function registerFalsePositiveTools(server, opts) {
   const versionApp = opts.versionApp;
   const branding = opts.branding ?? defaultBranding;
   server.registerTool("sage_list_audit_entries", {
-    title: `${branding.product_name}: List Audit Entries`,
-    description: `List recent ${branding.product_name} audit log entries, optionally scoped to a conversation id. Useful for selecting entry_ids to report as false positives.`,
+    title: `${branding.name}: List Audit Entries`,
+    description: `List recent ${branding.name} audit log entries, optionally scoped to a conversation id. Useful for selecting entry_ids to report as false positives.`,
     inputSchema: ListInputSchema
   }, async ({ conversation_id, limit }) => {
     try {
@@ -35291,7 +35532,8 @@ function registerFalsePositiveTools(server, opts) {
         severity: asString(e.severity),
         source: asString(e.source),
         user_override: e.user_override,
-        signals: parseAuditSignals(e.signals)
+        signals: parseAuditSignals(e.signals),
+        content: readContent(e)
       }));
       return textResult(JSON.stringify({ conversation_id: inferredConversationId, entries: out }, null, 2));
     } catch (e) {
@@ -35299,8 +35541,13 @@ function registerFalsePositiveTools(server, opts) {
     }
   });
   server.registerTool("sage_report_false_positive", {
-    title: `${branding.product_name}: Report False Positive`,
-    description: `Report ${branding.product_name} audit log entries as false positives to the backend, scoped to the current conversation.`,
+    title: `${branding.name}: Report False Positive`,
+    description: `Report ${branding.name} audit log entries as false positives to the backend, scoped to the current conversation.
+
+USAGE \u2014 IMPORTANT:
+1. ALWAYS call \`sage_list_audit_entries\` FIRST to inspect the audit log and locate the specific deny/ask verdict the user considers a false positive.
+2. ALWAYS pass the \`entry_ids\` parameter with just the relevant deny/ask entry id(s). Up to ${MAX_EXPLICIT_ENTRIES} entry_ids may be reported per call.
+3. Only when entry_id discovery is impossible should \`entry_ids\` be omitted; in that fallback at most ${MAX_IMPLICIT_ENTRIES} most recent deny/ask entries for the conversation are submitted, which may include irrelevant verdicts and floods the backend with noise.`,
     inputSchema: ReportInputSchema
   }, async ({ conversation_id, description, reasoning, agent_runtime_version, entry_ids, dry_run }) => {
     try {
@@ -35321,21 +35568,33 @@ function registerFalsePositiveTools(server, opts) {
           const id = getEntryId(e);
           return id ? wanted.has(id) : false;
         });
+        if (filtered.length > MAX_EXPLICIT_ENTRIES) {
+          return textResult(`Too many entry_ids (${filtered.length}). Provide at most ${MAX_EXPLICIT_ENTRIES} specific entry_ids per report call.`, true);
+        }
+      } else {
+        filtered = filtered.filter((e) => {
+          const v = asString(e.verdict);
+          return v === "deny" || v === "ask";
+        });
+        if (filtered.length > MAX_IMPLICIT_ENTRIES) {
+          filtered = filtered.slice(-MAX_IMPLICIT_ENTRIES);
+        }
       }
       if (filtered.length === 0) {
         if (entry_ids && entry_ids.length > 0) {
           return textResult("No matching audit entries found for the provided entry_ids in this conversation. Run sage_list_audit_entries first.", true);
         }
-        return textResult("No runtime_verdict entries found for this conversation to report.", true);
+        return textResult("No runtime_verdict deny/ask entries found for this conversation to report.", true);
       }
       const iid = await getInstallationId().catch(() => void 0);
       if (!iid) {
-        return textResult(`Failed to retrieve installation id; FP reporting requires a working ${branding.product_name} install.`, true);
+        return textResult(`Failed to retrieve installation id; FP reporting requires a working ${branding.name} install.`, true);
       }
-      const runtimeVersion = agent_runtime_version ?? process.env.SAGE_AGENT_RUNTIME_VERSION ?? "unknown";
+      const runtimeVersion = agent_runtime_version ?? HOST_AGENT_RUNTIME_VERSION ?? process.env.SAGE_AGENT_RUNTIME_VERSION ?? "unknown";
       const comment = `${description}
 
 ${reasoning}`;
+      const extendedInfo = await loadExtendedInfo(void 0, logger2).catch(() => null);
       const reports = filtered.map((e) => {
         const entry_id = getEntryId(e);
         const timestamp = asString(e.timestamp) ?? (/* @__PURE__ */ new Date()).toISOString();
@@ -35344,29 +35603,8 @@ ${reasoning}`;
         const verdict = asString(e.verdict) ?? "deny";
         const user_action = e.user_override === true ? "allowed" : "blocked";
         const hook_type = asHookType(e.hook_type) ?? "PreToolUse";
-        const artifacts = asStringArray(e.artifacts) ?? [];
         const signals = parseAuditSignals(e.signals);
-        const urlFromArtifacts = artifacts.find((a) => typeof a === "string" && /^https?:\/\//i.test(a));
-        const commandFromSummary = asString(e.tool_input_summary) ?? "";
-        const content = {};
-        if (tool_type === "Bash") {
-          content.command = scrubHomePath(commandFromSummary);
-        }
-        if (tool_type === "Write" || tool_type === "Edit" || tool_type === "Read" || tool_type === "Delete") {
-          content.file_path = scrubHomePath(commandFromSummary);
-        }
-        if (tool_type === "WebFetch" && urlFromArtifacts) {
-          content.url = urlFromArtifacts;
-        }
-        if (signals.url_checks && signals.url_checks.length === 1) {
-          content.url = signals.url_checks[0]?.url;
-        }
-        if (signals.package_checks && signals.package_checks.length === 1) {
-          const p = signals.package_checks[0];
-          content.package_name = p?.package_name;
-          content.package_version = p?.package_version;
-          content.package_registry = p?.package_registry;
-        }
+        const content = readContent(e);
         const bestEffortSignals = {};
         if (signals.heuristics)
           bestEffortSignals.heuristics = signals.heuristics;
@@ -35376,7 +35614,11 @@ ${reasoning}`;
           bestEffortSignals.file_checks = signals.file_checks;
         if (signals.package_checks)
           bestEffortSignals.package_checks = signals.package_checks;
-        const reportPayload = {
+        if (signals.pi_checks)
+          bestEffortSignals.pi_checks = signals.pi_checks;
+        if (signals.amsi_checks)
+          bestEffortSignals.amsi_checks = signals.amsi_checks;
+        const baseReportPayload = {
           ...buildSageProxyEnvelope({
             iid,
             versionApp,
@@ -35395,6 +35637,7 @@ ${reasoning}`;
           comment,
           event_id: entry_id ?? (0, import_node_crypto2.randomUUID)()
         };
+        const reportPayload = mergeExtendedInfo(baseReportPayload, extendedInfo);
         return { entry_id, payload: reportPayload };
       }).filter((r) => r.payload);
       if (dry_run) {
@@ -35441,14 +35684,14 @@ function createSageMcpServer(options) {
   const logger2 = options.logger ?? nullLogger;
   const branding = options.branding ?? defaultBranding;
   const server = new McpServer({
-    name: options.name ?? branding.product_name.toLowerCase(),
+    name: options.name ?? branding.name.toLowerCase(),
     version: options.version
   });
   registerFalsePositiveTools(server, { logger: logger2, versionApp: options.version, branding });
   return server;
 }
 async function runSageMcpServerStdio(options) {
-  const branding = options.branding ?? loadBrandingSync(options.logger);
+  const branding = options.branding ?? defaultBranding;
   const server = createSageMcpServer({ ...options, branding });
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -35458,9 +35701,12 @@ async function runSageMcpServerStdio(options) {
 var import_pino = __toESM(require_pino(), 1);
 var logger = (0, import_pino.default)({ level: "warn" }, import_pino.default.destination(2));
 async function main() {
+  const config2 = await loadConfig(void 0, logger);
+  const branding = resolveBranding(config2.brand_key, logger);
   await runSageMcpServerStdio({
-    version: "0.8.0",
-    logger
+    version: "0.9.0",
+    logger,
+    branding
   });
 }
 main().catch((e) => {

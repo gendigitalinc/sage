@@ -1,5 +1,23 @@
 # @gendigital/sage-claude-code
 
+## 0.9.0
+
+### Minor Changes
+
+- Bundle brand definitions internally and resolve via `config.brand_key`. Replaces `product_name`/`banner_text` with `name` (full) and `short_name` (for space-constrained notification bubbles).
+- Add ML-based prompt injection detection (heuristic rules + ONNX model)
+- improve audit log and telemetry to produce accurate data for verdict tracking and reporting issues
+
+### Patch Changes
+
+- Reduce E2E test flakiness: resolve branding dynamically in skill test, fix cross-test plugin contamination, fix missing Sage in isolated home test, tighten OpenCode system prompt, add retry tolerance
+- Detect Sage integration in wrapper statusline scripts. When a user's custom statusLine command points to a script that already calls sage-statusline.cjs, suppress the spurious integration hint.
+- Clean up status line after plugin uninstall. The statusline script now outputs nothing when no session data exists, and self-cleans the settings.json entry and stale status files when the plugin is confirmed uninstalled.
+- Improve PI detection UX and add relaxed-mode suppression
+  - Separate raw snippets from score formatting in BundledPiProvider findings
+  - Add richer PI reason strings with file basenames, scores, and content snippets
+  - Suppress medium-risk PI signals under sensitivity=relaxed (engine, evaluator, PostToolUse connectors)
+
 ## 0.8.0
 
 ### Minor Changes

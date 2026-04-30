@@ -1,6 +1,6 @@
 # Plugin Scanning
 
-Sage scans other installed plugins for threats at every session start. Each plugin's files are run through the same threat definitions and URL checks used for runtime tool interception.
+Sage scans other installed plugins for threats at every session start. Each plugin's files are run through the same threat definitions and URL checks used for runtime tool interception, and any skill packages bundled with the plugin are checked against the Sage skill-check service.
 
 ## Supported Platforms
 

@@ -1,20 +1,24 @@
-import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { type Branding, defaultBranding, HOOK_TIMEOUT_SECONDS } from "@gendigital/sage-core";
 import * as vscode from "vscode";
-import type {
-	ManagedHookHealth,
-	ManagedHookInstallOptions,
-	ManagedHookScope,
-} from "./managedHooks.js";
+import {
+	appendManaged,
+	collectManagedCommands,
+	createHookShim,
+	type HookMap,
+	isManagedEntry,
+	quote,
+	resolveNodeRuntimePath,
+	resolveRunnerPath,
+	safeArray,
+	writeHooksFile,
+} from "./hook_installer_shared.js";
+import type { ManagedHookHealth, ManagedHookInstallOptions } from "./managedHooks.js";
 
 const MANAGED_MARKER = "--managed-by sage-cursor";
-const UNSAFE_SHIM_PATH_PATTERN = /["`$;&|<>\r\n\0%!]/;
-
-type HookEntry = Record<string, unknown> & { command?: string };
-type HookMap = Record<string, HookEntry[]>;
 
 interface CursorHooksFile {
 	version: number;
@@ -25,31 +29,31 @@ export async function installManagedHooks(
 	options: ManagedHookInstallOptions,
 	_branding: Branding = defaultBranding,
 ): Promise<ManagedHookHealth> {
-	const configPath = await resolveHooksPath(options.scope);
+	const configPath = resolveHooksPath();
 	await mkdir(path.dirname(configPath), { recursive: true });
 
 	const runnerPath = await resolveRunnerPath(options.context);
 	const nodePath = resolveNodeRuntimePath();
-	const command = await buildHookCommand(configPath, nodePath, runnerPath);
+	const command = await buildHookCommand(configPath, nodePath, runnerPath, vscode.env.appRoot);
 
 	const hooksFile = await readHooksFile(configPath);
 	const updated = upsertManagedHooks(hooksFile, command);
 	await writeHooksFile(configPath, updated);
 
 	const installedEvents = Object.keys(updated.hooks).filter((name) =>
-		(updated.hooks[name] ?? []).some((entry) => isManagedEntry(entry)),
+		safeArray(updated.hooks[name]).some((entry) => isManagedEntry(entry, MANAGED_MARKER)),
 	);
 
 	return {
 		configPath,
 		runnerPath,
 		installedEvents,
-		managedCommands: collectManagedCommands(updated.hooks),
+		managedCommands: collectManagedCommands(updated.hooks, MANAGED_MARKER),
 	};
 }
 
-export async function removeManagedHooks(scope: ManagedHookScope): Promise<string> {
-	const configPath = await resolveHooksPath(scope);
+export async function removeManagedHooks(): Promise<string> {
+	const configPath = resolveHooksPath();
 	const hooksFile = await readHooksFile(configPath);
 	const updated = removeManagedEntries(hooksFile);
 	await writeHooksFile(configPath, updated);
@@ -59,177 +63,86 @@ export async function removeManagedHooks(scope: ManagedHookScope): Promise<strin
 export async function getHookHealth(
 	options: ManagedHookInstallOptions,
 ): Promise<ManagedHookHealth> {
-	const configPath = await resolveHooksPath(options.scope);
+	const configPath = resolveHooksPath();
 	const hooksFile = await readHooksFile(configPath);
 	const runnerPath = await resolveRunnerPath(options.context).catch(() => undefined);
 
 	const installedEvents = Object.keys(hooksFile.hooks).filter((eventName) =>
-		(hooksFile.hooks[eventName] ?? []).some((entry) => isManagedEntry(entry)),
+		safeArray(hooksFile.hooks[eventName]).some((entry) => isManagedEntry(entry, MANAGED_MARKER)),
 	);
 
 	return {
 		configPath,
 		runnerPath,
 		installedEvents,
-		managedCommands: collectManagedCommands(hooksFile.hooks),
+		managedCommands: collectManagedCommands(hooksFile.hooks, MANAGED_MARKER),
 	};
 }
 
-async function resolveHooksPath(scope: ManagedHookScope): Promise<string> {
-	if (scope === "user") {
-		return path.join(os.homedir(), ".cursor", "hooks.json");
-	}
-
-	const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-	if (!workspace) {
-		throw new Error("Open a workspace folder to install workspace hooks.");
-	}
-	return path.join(workspace, ".cursor", "hooks.json");
-}
-
-async function resolveRunnerPath(context: vscode.ExtensionContext): Promise<string> {
-	const configured =
-		vscode.workspace.getConfiguration().get<string>("sage.hookRunnerPath")?.trim() ?? "";
-	if (configured) {
-		await access(configured);
-		return configured;
-	}
-
-	const candidates = [
-		context.asAbsolutePath(path.join("dist", "sage-hook.cjs")),
-		context.asAbsolutePath(path.join("resources", "sage-hook.cjs")),
-	];
-
-	for (const candidate of candidates) {
-		try {
-			await access(candidate);
-			return candidate;
-		} catch {
-			// Try next candidate.
-		}
-	}
-
-	throw new Error(
-		"Unable to locate sage-hook runner. Build packages/extension or set sage.hookRunnerPath.",
-	);
-}
-
-function resolveNodeRuntimePath(): string {
-	return process.env.VSCODE_NODE_EXEC_PATH?.trim() || process.execPath;
+function resolveHooksPath(): string {
+	return path.join(os.homedir(), ".cursor", "hooks.json");
 }
 
 async function buildHookCommand(
 	configPath: string,
 	nodePath: string,
 	runnerPath: string,
+	appRoot: string,
 ): Promise<string> {
 	const cursorConfigDir = path.dirname(configPath);
-	const shimPath = await createHookShim(cursorConfigDir, nodePath, runnerPath);
+	const shimPath = await createHookShim(
+		path.join(cursorConfigDir, "hooks"),
+		nodePath,
+		runnerPath,
+		appRoot,
+	);
 	if (process.platform === "win32") {
 		return `& ${quote(shimPath)} cursor ${MANAGED_MARKER}`;
 	}
 	return `${quote(shimPath)} cursor ${MANAGED_MARKER}`;
 }
 
-async function createHookShim(
-	cursorConfigDir: string,
-	nodePath: string,
-	runnerPath: string,
-): Promise<string> {
-	assertSafePathForShim(nodePath, "Node runtime");
-	assertSafePathForShim(runnerPath, "Hook runner");
-
-	const hooksDir = path.join(cursorConfigDir, "hooks");
-	const posixShim = path.join(hooksDir, "sage-hook");
-	const windowsShim = path.join(hooksDir, "sage-hook.cmd");
-
-	await mkdir(hooksDir, { recursive: true });
-	await writeFile(
-		posixShim,
-		`#!/usr/bin/env sh\nexport ELECTRON_RUN_AS_NODE=1\n"${nodePath}" "${runnerPath}" "$@"\n`,
-		"utf8",
-	);
-	await chmod(posixShim, 0o755);
-
-	await writeFile(
-		windowsShim,
-		`@echo off\r\nsetlocal\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${nodePath}" "${runnerPath}" %*\r\n`,
-		"utf8",
-	);
-
-	return process.platform === "win32" ? windowsShim : posixShim;
-}
-
-function assertSafePathForShim(pathValue: string, label: string): void {
-	if (!pathValue) {
-		throw new Error(`${label} path is empty.`);
-	}
-	if (UNSAFE_SHIM_PATH_PATTERN.test(pathValue)) {
-		throw new Error(`${label} path contains unsupported characters for generated hook shims.`);
-	}
-}
-
 function upsertManagedHooks(existing: CursorHooksFile, command: string): CursorHooksFile {
 	const hooks = { ...existing.hooks };
 
-	hooks.beforeShellExecution = appendManaged(hooks.beforeShellExecution, {
-		command,
-		timeout: HOOK_TIMEOUT_SECONDS,
-	});
-	hooks.preToolUse = appendManaged(hooks.preToolUse, {
-		matcher: "Write|Delete|Edit|WebFetch",
-		command,
-		timeout: HOOK_TIMEOUT_SECONDS,
-	});
-	hooks.beforeMCPExecution = appendManaged(hooks.beforeMCPExecution, {
-		command,
-		timeout: HOOK_TIMEOUT_SECONDS,
-	});
-	hooks.beforeReadFile = appendManaged(hooks.beforeReadFile, {
-		command,
-		timeout: HOOK_TIMEOUT_SECONDS,
-	});
+	hooks.beforeShellExecution = appendManaged(
+		hooks.beforeShellExecution,
+		{ command, timeout: HOOK_TIMEOUT_SECONDS },
+		MANAGED_MARKER,
+	);
+	hooks.preToolUse = appendManaged(
+		hooks.preToolUse,
+		{ matcher: "Write|Delete|Edit|WebFetch", command, timeout: HOOK_TIMEOUT_SECONDS },
+		MANAGED_MARKER,
+	);
+	hooks.beforeMCPExecution = appendManaged(
+		hooks.beforeMCPExecution,
+		{ command, timeout: HOOK_TIMEOUT_SECONDS },
+		MANAGED_MARKER,
+	);
+	hooks.beforeReadFile = appendManaged(
+		hooks.beforeReadFile,
+		{ command, timeout: HOOK_TIMEOUT_SECONDS },
+		MANAGED_MARKER,
+	);
+	hooks.postToolUse = appendManaged(
+		hooks.postToolUse,
+		{ command, timeout: HOOK_TIMEOUT_SECONDS },
+		MANAGED_MARKER,
+	);
 
-	return {
-		version: 1,
-		hooks,
-	};
+	return { version: 1, hooks };
 }
 
 function removeManagedEntries(existing: CursorHooksFile): CursorHooksFile {
 	const hooks: HookMap = {};
 	for (const [eventName, entries] of Object.entries(existing.hooks)) {
-		const filtered = (entries ?? []).filter((entry) => !isManagedEntry(entry));
+		const filtered = safeArray(entries).filter((entry) => !isManagedEntry(entry, MANAGED_MARKER));
 		if (filtered.length > 0) {
 			hooks[eventName] = filtered;
 		}
 	}
-	return {
-		version: existing.version || 1,
-		hooks,
-	};
-}
-
-function appendManaged(entries: HookEntry[] | undefined, managedEntry: HookEntry): HookEntry[] {
-	const retained = (entries ?? []).filter((entry) => !isManagedEntry(entry));
-	return [...retained, managedEntry];
-}
-
-function collectManagedCommands(hooks: HookMap): string[] {
-	const commands = new Set<string>();
-	for (const entries of Object.values(hooks)) {
-		for (const entry of entries ?? []) {
-			if (!isManagedEntry(entry) || typeof entry.command !== "string") {
-				continue;
-			}
-			commands.add(entry.command);
-		}
-	}
-	return [...commands];
-}
-
-function isManagedEntry(entry: HookEntry): boolean {
-	return typeof entry.command === "string" && entry.command.includes(MANAGED_MARKER);
+	return { version: existing.version || 1, hooks };
 }
 
 async function readHooksFile(filePath: string): Promise<CursorHooksFile> {
@@ -240,18 +153,6 @@ async function readHooksFile(filePath: string): Promise<CursorHooksFile> {
 			hooks: parsed.hooks ?? {},
 		};
 	} catch {
-		return {
-			version: 1,
-			hooks: {},
-		};
+		return { version: 1, hooks: {} };
 	}
-}
-
-async function writeHooksFile(filePath: string, data: CursorHooksFile): Promise<void> {
-	await mkdir(path.dirname(filePath), { recursive: true });
-	await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-}
-
-function quote(value: string): string {
-	return `"${value.replace(/"/g, '\\"')}"`;
 }

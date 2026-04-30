@@ -56,4 +56,16 @@ await esbuild.build({
 	plugins: [stripYamlProcessRefs],
 });
 
+await esbuild.build({
+	bundle: true,
+	platform: "node",
+	target: "node18",
+	format: "cjs",
+	sourcemap: true,
+	external: ["koffi"],
+	entryPoints: ["../core/src/model-download-worker.ts"],
+	outfile: "dist/model-download-worker.cjs",
+	define: { __SAGE_VERSION__: JSON.stringify(pkg.version) },
+});
+
 console.log("Build complete.");

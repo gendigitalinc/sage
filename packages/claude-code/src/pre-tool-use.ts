@@ -11,6 +11,7 @@ import {
 	type Artifact,
 	allowVerdict,
 	type Branding,
+	BundledPiProvider,
 	defaultBranding,
 	evaluateToolCall,
 	extractFromBash,
@@ -19,7 +20,8 @@ import {
 	extractFromWebFetch,
 	extractFromWrite,
 	type Logger,
-	loadBranding,
+	loadConfig,
+	resolveBranding,
 	type Verdict,
 } from "@gendigital/sage-core";
 import pino from "pino";
@@ -39,7 +41,7 @@ function makeResponse(verdict: Verdict, branding: Branding): Record<string, unkn
 			hookSpecificOutput: {
 				hookEventName: "PreToolUse",
 				permissionDecision: "deny",
-				permissionDecisionReason: `Blocked by ${branding.product_name}`,
+				permissionDecisionReason: `Blocked by ${branding.name}`,
 			},
 		};
 	}
@@ -61,7 +63,8 @@ function getPluginRoot(): string {
 }
 
 async function main(): Promise<void> {
-	const branding = await loadBranding(logger);
+	const config = await loadConfig(undefined, logger);
+	const branding = resolveBranding(config.brand_key, logger);
 
 	let rawInput: string;
 	try {
@@ -118,10 +121,6 @@ async function main(): Promise<void> {
 			return;
 	}
 
-	if (artifacts.length === 0) {
-		process.stdout.write("{}\n");
-		return;
-	}
 	const verdict = await evaluateToolCall(
 		{
 			sessionId,
@@ -131,6 +130,7 @@ async function main(): Promise<void> {
 			toolName,
 			toolInput,
 			artifacts,
+			toolUseId,
 		},
 		{
 			threatsDir: join(pluginRoot, "threats"),
@@ -163,6 +163,7 @@ async function main(): Promise<void> {
 	}
 
 	process.stdout.write(`${JSON.stringify(makeResponse(verdict, branding))}\n`);
+	BundledPiProvider.exitIfModelLoaded();
 }
 
 main().catch((e) => {

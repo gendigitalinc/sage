@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { DISABLE_GRACE_MS, disabledUntilKey, shouldAutoEnable } from "../auto_enable_logic.js";
 
 describe("disabledUntilKey", () => {
-	it("builds a scoped key from host and scope", () => {
-		expect(disabledUntilKey("Cursor", "user")).toBe("sage.disabledUntil.Cursor.user");
-		expect(disabledUntilKey("VS Code", "workspace")).toBe("sage.disabledUntil.VS Code.workspace");
+	it("builds a key from host name", () => {
+		expect(disabledUntilKey("Cursor")).toBe("sage.disabledUntil.Cursor");
+		expect(disabledUntilKey("VS Code")).toBe("sage.disabledUntil.VS Code");
 	});
 });
 

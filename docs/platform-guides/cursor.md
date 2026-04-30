@@ -55,12 +55,10 @@ The extension installs managed hooks into the Cursor/VS Code agent system. When 
 
 ## Scope
 
-The extension supports a configurable scope setting:
+Hooks are installed at user scope:
 
-- **User** - Hooks apply globally for the current user
-- **Workspace** - Hooks apply only to the current workspace
-
-Configure via `sage.cursor.scope` (Cursor) or `sage.vscode.scope` (VS Code) in settings.
+- **Cursor** — `~/.cursor/hooks.json`
+- **VS Code (Copilot)** — `~/.copilot/hooks/hooks.json` — this path is shared with **Copilot CLI**, so protection extends to CLI agent sessions on the same machine automatically.
 
 ## E2E Testing
 

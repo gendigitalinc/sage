@@ -89,4 +89,50 @@ export async function pruneOrphanedTmpFiles(
 	} catch {
 		// Dir doesn't exist or unreadable — nothing to clean
 	}
+
+	// Also prune transient model-download artefacts (in-flight archives and
+	// half-extracted dirs) under <sageDir>/models/.download/. Old schema-version
+	// trees under <sageDir>/models/<schema>/ are deliberately left in place
+	// — see docs/model-update.md §3.7.
+	await pruneOrphanedModelDownloads(join(resolvedDir, "models", ".download"));
+}
+
+/**
+ * Remove stale archives and partial extract directories left over by
+ * interrupted model downloads.
+ *
+ * Threshold is 1 h (matches the lock-file staleness window in
+ * `model-downloader.ts`). Anything younger is presumed to be an in-flight
+ * download owned by another live worker. Always best-effort.
+ */
+async function pruneOrphanedModelDownloads(
+	stagingDir: string,
+	maxAgeMs = 60 * 60 * 1_000, // 1 h
+): Promise<void> {
+	let entries: string[];
+	try {
+		entries = await fsPromises.readdir(stagingDir);
+	} catch {
+		// Staging dir doesn't exist — nothing to do.
+		return;
+	}
+	const now = Date.now();
+	for (const entry of entries) {
+		const fullPath = join(stagingDir, entry);
+		const isArchive = entry.endsWith(".tar.gz");
+		const isPartial = entry.endsWith(".partial");
+		const isStaging = entry.startsWith("stage-");
+		if (!isArchive && !isPartial && !isStaging) continue;
+		try {
+			const s = await fsPromises.stat(fullPath);
+			if (now - s.mtimeMs <= maxAgeMs) continue;
+			if (s.isDirectory()) {
+				await fsPromises.rm(fullPath, { recursive: true, force: true });
+			} else {
+				await fsPromises.unlink(fullPath);
+			}
+		} catch {
+			// Best-effort
+		}
+	}
 }

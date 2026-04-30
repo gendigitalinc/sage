@@ -16,6 +16,7 @@ import { type ExecFileSyncOptions, execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { loadConfigSync, resolveBranding } from "@gendigital/sage-core";
 import { describe, expect, it } from "vitest";
 
 const PLUGIN_ROOT = resolve(__dirname, "..", "..", "..", "..");
@@ -203,18 +204,24 @@ describe("E2E: Sage plugin in Claude CLI", { timeout: 180_000 }, () => {
 	});
 
 	it("security-awareness skill is loaded into model context", () => {
+		const branding = resolveBranding(loadConfigSync().brand_key);
+		const brandKeywords = [
+			branding.name.toLowerCase(),
+			branding.short_name.toLowerCase(),
+			"sage",
+			"safety for agents",
+		];
+
 		const { messages } = runClaude(
-			"What security plugin is protecting this environment? Just name it.",
+			"What is the name of the security plugin protecting this environment? Reply with only the name.",
 			{ maxTurns: 1 },
 		);
 		const allText = (getResultMessage(messages)?.result as string).toLowerCase() ?? "";
-		// SKILL.md says "protected by Sage, a security plugin" — model should reference it
-		const knowsSage = allText.includes("sage");
-		// Fallback: model references security concepts from the skill without naming Sage
-		const knowsSecurityContext = ["security plugin", "security awareness", "anti-malware"].some(
-			(kw) => allText.includes(kw),
-		);
-		expect(knowsSage || knowsSecurityContext).toBe(true);
+		const found = brandKeywords.some((kw) => allText.includes(kw));
+		expect(
+			found,
+			`Model did not reference the security plugin. Expected one of: ${brandKeywords.join(", ")}. Response: "${allText.slice(0, 300)}"`,
+		).toBe(true);
 	});
 
 	it("blocks canary command via dummy rule", () => {

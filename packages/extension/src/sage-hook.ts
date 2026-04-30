@@ -5,7 +5,11 @@ import {
 	type AgentRuntime,
 	type Artifact,
 	type Branding,
+	BundledPiProvider,
+	type CanonicalToolType,
+	canonicalizeToolName,
 	evaluateToolCall,
+	evaluateToolOutput,
 	extractFromBash,
 	extractFromDelete,
 	extractFromEdit,
@@ -13,13 +17,58 @@ import {
 	extractFromWebFetch,
 	extractFromWrite,
 	extractUrls,
+	findPiWarningInAuditLog,
+	formatPiWarning,
 	type HookType,
-	loadBrandingSync,
+	loadConfigSync,
+	MAX_CONTENT_SIZE,
+	readProductJsonVersion,
+	resolveBranding,
 	type Verdict,
 } from "@gendigital/sage-core";
 
+/**
+ * Resolved once at module load — child processes have no access to
+ * `vscode.version` / `vscode.env.appRoot`, so the extension injects the host
+ * application root into `SAGE_APP_ROOT` at hook-shim install time and we read
+ * `product.json` from there. Both Cursor and VS Code ship a `product.json`
+ * with a top-level `version` field, so a single read covers both hosts.
+ *
+ * Resolving once (rather than per call) avoids paying the disk-read cost on
+ * every hook invocation; the value cannot change without a host restart, and
+ * a host restart re-spawns the hook child process anyway.
+ */
+const HOST_AGENT_RUNTIME_VERSION = process.env.SAGE_APP_ROOT
+	? readProductJsonVersion(process.env.SAGE_APP_ROOT)
+	: "unknown";
+
+// ── Platform-specific tool name maps ──────────────────────────────
+
+const CURSOR_TOOL_MAP: Record<string, CanonicalToolType> = {
+	Shell: "Bash",
+};
+
+const VSCODE_TOOL_MAP: Record<string, CanonicalToolType> = {
+	run_in_terminal: "Bash",
+	bash: "Bash",
+	write_bash: "Bash",
+	create_file: "Write",
+	create: "Write",
+	replace_string_in_file: "Edit",
+	insert_edit_into_file: "Edit",
+	edit: "Edit",
+	multi_replace_string_in_file: "Edit",
+	apply_patch: "ApplyPatch",
+	read_file: "Read",
+	view: "Read",
+	grep: "Grep",
+	fetch_webpage: "WebFetch",
+	web_fetch: "WebFetch",
+};
+
 type CursorEventName =
 	| "preToolUse"
+	| "postToolUse"
 	| "beforeShellExecution"
 	| "beforeMCPExecution"
 	| "beforeReadFile";
@@ -30,17 +79,17 @@ interface NormalizedHookCall {
 	conversationId: string;
 	agentRuntime: AgentRuntime;
 	hookType: HookType;
-	toolName: string;
+	toolName: CanonicalToolType;
 	toolInput: Record<string, unknown>;
 	artifacts: Artifact[];
+	toolUseId?: string;
 }
-
-const MAX_CONTENT_SIZE = 64 * 1024;
 
 export async function runCli(argv: string[] = process.argv.slice(2)): Promise<void> {
 	const mode = argv[0] as HookMode | undefined;
 	const payload = await readStdinJson();
-	const branding = loadBrandingSync();
+	const config = loadConfigSync();
+	const branding = resolveBranding(config.brand_key);
 
 	if (mode === "cursor") {
 		await handleCursor(payload, branding);
@@ -62,12 +111,24 @@ async function handleCursor(payload: unknown, branding: Branding): Promise<void>
 		return;
 	}
 
+	// PostToolUse: scan tool output for prompt injection
+	if (eventName === "postToolUse") {
+		const warning = await handlePostToolUse(payload);
+		if (warning) {
+			writeJson({ additional_context: warning });
+		} else {
+			writeJson({});
+		}
+		BundledPiProvider.exitIfModelLoaded();
+		return;
+	}
+
 	const normalized = normalizeCursorCall(payload, eventName);
 	if (!normalized) {
 		writeJson(
 			internalCursorResponse(
 				"allow",
-				`${branding.product_name} could not normalize hook payload.`,
+				`${branding.name} could not normalize hook payload.`,
 				branding,
 			),
 		);
@@ -77,11 +138,12 @@ async function handleCursor(payload: unknown, branding: Branding): Promise<void>
 	try {
 		const verdict = await evaluateNormalizedCall(normalized);
 		writeJson(toCursorResponse(verdict, branding));
+		BundledPiProvider.exitIfModelLoaded();
 	} catch {
 		writeJson(
 			internalCursorResponse(
 				"allow",
-				`${branding.product_name} internal error; default allow policy applied.`,
+				`${branding.name} internal error; default allow policy applied.`,
 				branding,
 			),
 		);
@@ -98,6 +160,7 @@ async function handleVsCode(payload: unknown, branding: Branding): Promise<void>
 	try {
 		const verdict = await evaluateNormalizedCall(normalized);
 		writeJson(toVsCodeResponse(verdict, branding));
+		BundledPiProvider.exitIfModelLoaded();
 	} catch {
 		writeJson({});
 	}
@@ -110,10 +173,12 @@ async function evaluateNormalizedCall(call: NormalizedHookCall): Promise<Verdict
 			sessionId: call.sessionId,
 			conversationId: call.conversationId,
 			agentRuntime: call.agentRuntime,
+			agentRuntimeVersion: HOST_AGENT_RUNTIME_VERSION,
 			hookType: call.hookType,
 			toolName: call.toolName,
 			toolInput: call.toolInput,
 			artifacts: call.artifacts,
+			toolUseId: call.toolUseId,
 		},
 		{ threatsDir, allowlistsDir },
 	);
@@ -130,11 +195,12 @@ function detectCursorEvent(payload: unknown): CursorEventName | undefined {
 	}
 	if (typeof input.command === "string" && input.tool_name === undefined) {
 		return "beforeShellExecution";
-	}
-	if (typeof input.file_path === "string" && input.tool_name === undefined) {
+	} else if (typeof input.file_path === "string" && input.tool_name === undefined) {
 		return "beforeReadFile";
-	}
-	if (input.tool_name !== undefined && input.tool_input !== undefined) {
+	} else if (input.tool_output !== undefined || input.tool_response !== undefined) {
+		// PostToolUse: has tool_output or tool_response (result from executed tool)
+		return "postToolUse";
+	} else if (input.tool_name !== undefined && input.tool_input !== undefined) {
 		const toolName = asString(input.tool_name) ?? "";
 		if (toolName === "MCP") {
 			return "beforeMCPExecution";
@@ -161,6 +227,7 @@ function normalizeCursorCall(
 		"cursor";
 	const sessionId =
 		asString(input.session_id) ?? asString(input.sessionId) ?? conversationId ?? "cursor";
+	const toolUseId = asString(input.tool_use_id);
 
 	if (eventName === "beforeShellExecution") {
 		const command = asString(input.command) ?? "";
@@ -176,6 +243,7 @@ function normalizeCursorCall(
 			toolName: "Bash",
 			toolInput,
 			artifacts: command ? extractFromBash(command) : [],
+			toolUseId,
 		};
 	}
 
@@ -195,6 +263,7 @@ function normalizeCursorCall(
 			toolName: "Read",
 			toolInput,
 			artifacts: extractFromRead(toolInput),
+			toolUseId,
 		};
 	}
 
@@ -215,20 +284,22 @@ function normalizeCursorCall(
 			toolName: "MCP",
 			toolInput,
 			artifacts: extractFromMcp(toolInput),
+			toolUseId,
 		};
 	}
 
 	const toolName = asString(input.tool_name) ?? "";
 	const rawToolInput = parseUnknownObject(input.tool_input);
-	const toolInput = normalizeFileToolInput(toolName, rawToolInput);
+	const toolInput = normalizeCursorToolInput(toolName, rawToolInput);
 	return {
 		sessionId,
 		conversationId,
 		agentRuntime: "cursor",
 		hookType: "PreToolUse",
-		toolName: mapCursorToolToClaudeTool(toolName),
+		toolName: canonicalizeToolName(CURSOR_TOOL_MAP, toolName),
 		toolInput,
 		artifacts: extractFromCursorTool(toolName, toolInput),
+		toolUseId,
 	};
 }
 
@@ -244,7 +315,7 @@ function normalizeVsCodeCall(payload: unknown): NormalizedHookCall | undefined {
 	}
 
 	const rawToolInput = parseUnknownObject(input.tool_input);
-	const toolInput = normalizeFileToolInput(toolName, rawToolInput);
+	const toolInput = normalizeVsCodeToolInput(toolName, rawToolInput);
 	const conversationId =
 		asString(input.conversation_id) ??
 		asString(input.conversationId) ??
@@ -253,40 +324,143 @@ function normalizeVsCodeCall(payload: unknown): NormalizedHookCall | undefined {
 		"vscode";
 	const sessionId =
 		asString(input.session_id) ?? asString(input.sessionId) ?? conversationId ?? "vscode";
+	const toolUseId = asString(input.tool_use_id);
 
 	return {
 		sessionId,
 		conversationId,
 		agentRuntime: "vscode",
 		hookType: "PreToolUse",
-		toolName,
+		toolName: canonicalizeToolName(VSCODE_TOOL_MAP, toolName),
 		toolInput,
 		artifacts: extractFromVsCodeTool(toolName, toolInput),
+		toolUseId,
 	};
 }
 
+/**
+ * Map tool names to artifact extractors for VS Code Copilot Chat and Copilot CLI.
+ *
+ * Both products route through the `vscode` hook mode and send PreToolUse hooks
+ * with snake_case fields (tool_name, tool_input) when hooks.json uses the
+ * PascalCase event name "PreToolUse". They use different tool names.
+ *
+ * VS Code Copilot Chat tool names:
+ *   ToolName enum in microsoft/vscode-copilot-chat
+ *   https://github.com/microsoft/vscode-copilot-chat/blob/main/src/extension/tools/common/toolNames.ts
+ *   Input schemas: https://github.com/microsoft/vscode-copilot-chat/tree/main/src/extension/tools/node
+ *
+ * Copilot CLI tool names:
+ *   https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference
+ *   Payload format: https://docs.github.com/en/copilot/reference/hooks-configuration
+ */
 function extractFromVsCodeTool(toolName: string, toolInput: Record<string, unknown>): Artifact[] {
 	switch (toolName) {
-		case "Bash":
+		// --- Terminal / shell ---
+		case "run_in_terminal": // VS Code: CoreRunInTerminal — {command, explanation, goal}
+		case "bash": // Copilot CLI — {command, description}
+		case "write_bash": // Copilot CLI — {shellId, input, delay}
 			return extractFromBash(asString(toolInput.command) ?? "");
-		case "WebFetch":
-			return extractFromWebFetch(toolInput);
-		case "Write":
+
+		// --- File create ---
+		case "create_file": // VS Code: CreateFile — {filePath, content}
+		case "create": // Copilot CLI — {path, content}
 			return extractFromWrite(toolInput);
-		case "Edit":
+
+		// --- File edit ---
+		case "replace_string_in_file": // VS Code: ReplaceString — {filePath, oldString, newString}
+		case "insert_edit_into_file": // VS Code: EditFile — {filePath, code}
+		case "edit": // Copilot CLI — {path, old_string, new_string}
 			return extractFromEdit(toolInput);
-		case "Read":
+		case "multi_replace_string_in_file": // VS Code: MultiReplaceString — {replacements: [{filePath, oldString, newString}]}
+			return extractFromMultiReplace(toolInput);
+
+		// --- File read ---
+		case "read_file": // VS Code: ReadFile — {filePath}
+		case "view": // Copilot CLI — {path}
+		case "grep": // Copilot CLI — {pattern, path}
 			return extractFromRead(toolInput);
-		case "Delete":
-			return extractFromDelete(toolInput);
+
+		// --- URL fetch ---
+		case "fetch_webpage": // VS Code: FetchWebPage — {urls: [], query}
+			return extractFromFetchWebpage(toolInput);
+		case "web_fetch": // Copilot CLI — {url}
+			return extractFromWebFetch(toolInput);
+
+		// --- Patch ---
+		case "apply_patch": // VS Code: ApplyPatch — {input}; Copilot CLI — {patch}
+			return extractFromApplyPatch(toolInput);
+
 		default:
 			return [];
 	}
 }
 
-function mapCursorToolToClaudeTool(toolName: string): string {
-	if (toolName === "Shell") return "Bash";
-	return toolName || "Unknown";
+/** VS Code fetch_webpage sends `urls` (array) instead of single `url`. */
+function extractFromFetchWebpage(toolInput: Record<string, unknown>): Artifact[] {
+	if (typeof toolInput.url === "string") {
+		return extractFromWebFetch(toolInput);
+	}
+	const urls = toolInput.urls;
+	if (Array.isArray(urls)) {
+		return urls
+			.filter((u): u is string => typeof u === "string")
+			.map((u) => ({ type: "url" as const, value: u, context: "webfetch" as const }));
+	}
+	return [];
+}
+
+/** VS Code multi_replace_string_in_file sends {replacements: [{filePath, oldString, newString}]}. */
+function extractFromMultiReplace(toolInput: Record<string, unknown>): Artifact[] {
+	const replacements = toolInput.replacements;
+	if (!Array.isArray(replacements)) return [];
+
+	const artifacts: Artifact[] = [];
+	for (const entry of replacements) {
+		if (!entry || typeof entry !== "object") continue;
+		const r = entry as Record<string, unknown>;
+		const normalized = normalizeEditLikeInput(r);
+		artifacts.push(...extractFromEdit(normalized));
+	}
+	return artifacts;
+}
+
+/** Extract file paths from patch text (VS Code: {input}; Copilot CLI: {patch}). */
+function extractFromApplyPatch(toolInput: Record<string, unknown>): Artifact[] {
+	const patchText = asString(toolInput.input) ?? asString(toolInput.patch) ?? "";
+	if (!patchText) return [];
+
+	const artifacts: Artifact[] = [];
+	const headerPattern = /\*{3}\s+(?:Add|Update|Delete)\s+File:\s*(.+)/g;
+	for (const match of patchText.matchAll(headerPattern)) {
+		const filePath = match[1]?.trim();
+		if (filePath) {
+			artifacts.push({ type: "file_path", value: filePath, context: "edit" });
+		}
+	}
+	const renamePattern = /\*{3}\s+(?:Move\s+to|Rename\s+File):\s*(.+)/gi;
+	for (const match of patchText.matchAll(renamePattern)) {
+		const raw = match[1]?.trim();
+		if (!raw) continue;
+		const arrow = raw.indexOf(" -> ");
+		if (arrow !== -1) {
+			const src = raw.slice(0, arrow).trim();
+			const dst = raw.slice(arrow + 4).trim();
+			if (src) artifacts.push({ type: "file_path", value: src, context: "edit" });
+			if (dst) artifacts.push({ type: "file_path", value: dst, context: "edit" });
+		} else {
+			artifacts.push({ type: "file_path", value: raw, context: "edit" });
+		}
+	}
+	// Also scan the full patch content for URLs.
+	const capped = patchText.slice(0, MAX_CONTENT_SIZE);
+	for (const url of extractUrls(capped)) {
+		artifacts.push({ type: "url", value: url, context: "from_edit_content" });
+	}
+	if (capped.trim()) {
+		artifacts.push({ type: "content", value: capped, context: "edit" });
+	}
+	return artifacts;
 }
 
 function extractFromCursorTool(toolName: string, toolInput: Record<string, unknown>): Artifact[] {
@@ -329,6 +503,7 @@ function normalizeEditLikeInput(toolInput: Record<string, unknown>): Record<stri
 	const newString =
 		asString(toolInput.new_string) ??
 		asString(toolInput.newString) ??
+		asString(toolInput.code) ?? // VS Code insert_edit_into_file
 		asString(toolInput.streamContent) ??
 		asString(toolInput.stream_content) ??
 		asString(toolInput.content) ??
@@ -340,7 +515,7 @@ function normalizeEditLikeInput(toolInput: Record<string, unknown>): Record<stri
 	};
 }
 
-function normalizeFileToolInput(
+function normalizeCursorToolInput(
 	toolName: string,
 	toolInput: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -348,6 +523,57 @@ function normalizeFileToolInput(
 		return { ...toolInput, file_path: readFilePath(toolInput) ?? "" };
 	}
 	return toolInput;
+}
+
+function normalizeVsCodeToolInput(
+	toolName: string,
+	toolInput: Record<string, unknown>,
+): Record<string, unknown> {
+	switch (toolName) {
+		case "run_in_terminal":
+		case "bash":
+		case "write_bash":
+			return {
+				...toolInput,
+				command: asString(toolInput.command) ?? asString(toolInput.input) ?? "",
+			};
+		case "create_file":
+		case "create":
+			return normalizeWriteLikeInput(toolInput);
+		case "replace_string_in_file":
+		case "insert_edit_into_file":
+		case "edit":
+			return normalizeEditLikeInput(toolInput);
+		case "multi_replace_string_in_file":
+			return normalizeMultiReplaceTopLevel(toolInput);
+		case "read_file":
+		case "view":
+		case "grep":
+			return { ...toolInput, file_path: readFilePath(toolInput) ?? "" };
+		default:
+			return toolInput;
+	}
+}
+
+function normalizeMultiReplaceTopLevel(
+	toolInput: Record<string, unknown>,
+): Record<string, unknown> {
+	const replacements = toolInput.replacements;
+	if (!Array.isArray(replacements)) return toolInput;
+	const parts: { filePath: string; newString: string }[] = [];
+	for (const entry of replacements) {
+		if (!entry || typeof entry !== "object") continue;
+		const r = entry as Record<string, unknown>;
+		parts.push({
+			filePath: readFilePath(r) ?? "",
+			newString: asString(r.new_string) ?? asString(r.newString) ?? asString(r.code) ?? "",
+		});
+	}
+	return {
+		...toolInput,
+		file_path: parts[0]?.filePath ?? "",
+		new_string: parts.map((p) => p.newString).join("\n"),
+	};
 }
 
 function extractFromMcp(toolInput: Record<string, unknown>): Artifact[] {
@@ -429,7 +655,7 @@ function toCursorResponse(verdict: Verdict, branding: Branding): Record<string, 
 	}
 
 	const reason = truncateReason(verdict, branding);
-	const agentMessage = `${branding.product_name} ${verdict.decision === "deny" ? "blocked" : "flagged"} this action (${verdict.severity}).`;
+	const agentMessage = `${branding.name} ${verdict.decision === "deny" ? "blocked" : "flagged"} this action (${verdict.severity}).`;
 
 	return {
 		decision: verdict.decision === "ask" ? "ask" : "deny",
@@ -465,13 +691,13 @@ function internalCursorResponse(
 		reason,
 		user_message: reason,
 		agent_message:
-			decision === "allow" ? undefined : `${branding.product_name} internal error policy applied.`,
+			decision === "allow" ? undefined : `${branding.name} internal error policy applied.`,
 	};
 }
 
 function truncateReason(verdict: Verdict, branding: Branding): string {
 	if (verdict.reasons.length === 0) {
-		return `${branding.product_name} flagged this action (${verdict.category}).`;
+		return `${branding.name} flagged this action (${verdict.category}).`;
 	}
 	const joined = verdict.reasons.slice(0, 5).join("; ");
 	return joined.length <= 350 ? joined : `${joined.slice(0, 347)}...`;
@@ -488,10 +714,60 @@ function getBundledDataDirs(): { threatsDir: string; allowlistsDir: string } {
 function isCursorEvent(value: string): value is CursorEventName {
 	return (
 		value === "preToolUse" ||
+		value === "postToolUse" ||
 		value === "beforeShellExecution" ||
 		value === "beforeMCPExecution" ||
 		value === "beforeReadFile"
 	);
+}
+
+async function handlePostToolUse(payload: unknown): Promise<string | null> {
+	try {
+		if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+		const input = payload as Record<string, unknown>;
+		const toolName = asString(input.tool_name) ?? "";
+
+		const parts: string[] = [];
+		const config = loadConfigSync();
+		const branding = resolveBranding(config.brand_key);
+
+		// PI warning injection from PreToolUse audit log (medium-risk WebFetch)
+		const toolUseId = asString(input.tool_use_id) ?? "";
+		if (
+			toolName === "WebFetch" &&
+			toolUseId &&
+			config.logging.enabled &&
+			config.sensitivity !== "relaxed"
+		) {
+			try {
+				const piWarning = await findPiWarningInAuditLog(config.logging, toolUseId, config.pi_check);
+				if (piWarning) {
+					parts.push(`🛡️ ${formatPiWarning(piWarning, branding)}`);
+				}
+			} catch {
+				// Best-effort
+			}
+		}
+
+		// Heuristic content scanning on tool output
+		const sessionId = asString(input.session_id) ?? "unknown";
+		const { threatsDir, allowlistsDir } = getBundledDataDirs();
+		const warnings = await evaluateToolOutput(toolName, input, {
+			threatsDir,
+			allowlistsDir,
+			agentRuntime: "cursor",
+			sessionId,
+		});
+
+		for (const w of warnings) {
+			parts.push(`🛡️ ${w.message}`);
+		}
+
+		if (parts.length === 0) return null;
+		return parts.join("\n\n");
+	} catch {
+		return null; // Fail open
+	}
 }
 
 function asString(value: unknown): string | undefined {

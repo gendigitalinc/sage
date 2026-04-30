@@ -1,4 +1,4 @@
-import { access, cp, mkdir, readdir, rm } from "node:fs/promises";
+import { access, cp, mkdir, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,8 +18,12 @@ await assertReadableDir(sourceAllowlists);
 
 await rm(resourcesDir, { recursive: true, force: true });
 await mkdir(resourcesDir, { recursive: true });
-await cpFiltered(sourceThreats, targetThreats, /^dummy.*\.yaml$/);
+await cp(sourceThreats, targetThreats, { recursive: true, force: true });
 await cp(sourceAllowlists, targetAllowlists, { recursive: true, force: true });
+
+// ML models are downloaded on demand into ~/.sage/models/<schema>/<name>/
+// at session start; the extension no longer ships them in the VSIX.
+// See docs/model-update.md.
 
 console.log("Synced extension assets (threats + allowlists).");
 
@@ -28,13 +32,5 @@ async function assertReadableDir(path) {
 		await access(path);
 	} catch {
 		throw new Error(`Missing required directory: ${path}`);
-	}
-}
-
-async function cpFiltered(srcDir, destDir, excludePattern) {
-	await mkdir(destDir, { recursive: true });
-	for (const entry of await readdir(srcDir)) {
-		if (excludePattern.test(entry)) continue;
-		await cp(join(srcDir, entry), join(destDir, entry), { recursive: true, force: true });
 	}
 }

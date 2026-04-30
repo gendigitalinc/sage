@@ -22,7 +22,16 @@ function getCursorMcpApi(): CursorMcpApi | undefined {
 
 function resolveNodeCommand(): { command: string; env: Record<string, string> } {
 	const command = process.env.VSCODE_NODE_EXEC_PATH?.trim() || process.execPath;
-	return { command, env: { ELECTRON_RUN_AS_NODE: "1" } };
+	// SAGE_APP_ROOT is consumed by the MCP server child process to resolve the
+	// agent runtime version at runtime (via `readProductJsonVersion`), avoiding
+	// a stale value baked at install time. The MCP server is launched directly
+	// by the IDE — not through the hook shim — so it receives `SAGE_APP_ROOT`
+	// here rather than via `createHookShim`.
+	const env: Record<string, string> = { ELECTRON_RUN_AS_NODE: "1" };
+	if (vscode.env.appRoot) {
+		env.SAGE_APP_ROOT = vscode.env.appRoot;
+	}
+	return { command, env };
 }
 
 async function resolveMcpServerScriptPath(context: vscode.ExtensionContext): Promise<string> {

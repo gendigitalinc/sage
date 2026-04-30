@@ -6,6 +6,7 @@ import {
 	type ToolCallEvent,
 	type ToolCallResult,
 } from "../tool-handler.js";
+import { useIsolatedHome } from "./test-helpers.js";
 
 vi.mock("@gendigital/sage-core", async (importOriginal) => {
 	const actual = (await importOriginal()) as Record<string, unknown>;
@@ -30,6 +31,7 @@ vi.mock("@gendigital/sage-core", async (importOriginal) => {
 describe("createToolCallHandler", () => {
 	let approvalStore: ApprovalStore;
 	let handler: (event: ToolCallEvent, ctx?: ToolCallContext) => Promise<ToolCallResult | undefined>;
+	useIsolatedHome("openclaw-handler");
 
 	function setup() {
 		approvalStore = new ApprovalStore();
@@ -61,6 +63,29 @@ describe("createToolCallHandler", () => {
 		const result = await handler({ toolName: "bash", params: { command: "ls -la" } });
 		expect(result).toBeUndefined();
 		expect(guardToolCall).toHaveBeenCalled();
+	});
+
+	it("write tool normalizes path to file_path in toolInput", async () => {
+		setup();
+		const { guardToolCall } = await import("@gendigital/sage-core");
+		await handler({ toolName: "write", params: { path: "/etc/passwd", content: "hack" } });
+		expect(guardToolCall).toHaveBeenCalled();
+		const call = (guardToolCall as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		expect(call.toolInput.file_path).toBe("/etc/passwd");
+		expect(call.toolInput.content).toBe("hack");
+	});
+
+	it("edit tool normalizes path to file_path in toolInput", async () => {
+		setup();
+		const { guardToolCall } = await import("@gendigital/sage-core");
+		await handler({
+			toolName: "edit",
+			params: { path: "/etc/hosts", new_string: "injected" },
+		});
+		expect(guardToolCall).toHaveBeenCalled();
+		const call = (guardToolCall as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		expect(call.toolInput.file_path).toBe("/etc/hosts");
+		expect(call.toolInput.new_string).toBe("injected");
 	});
 
 	it("deny verdict → block with formatted message", async () => {

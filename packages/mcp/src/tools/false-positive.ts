@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { homedir } from "node:os";
 import {
 	type Branding,
 	buildSageProxyEnvelope,
@@ -9,6 +8,9 @@ import {
 	type HookType,
 	type Logger,
 	loadConfig,
+	loadExtendedInfo,
+	mergeExtendedInfo,
+	readProductJsonVersion,
 	resolveEndpoint,
 } from "@gendigital/sage-core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -31,6 +33,7 @@ type AuditRuntimeVerdictEntry = {
 	source?: unknown;
 	user_override?: unknown;
 	signals?: unknown;
+	content?: unknown;
 	hook_type?: unknown;
 };
 
@@ -38,26 +41,48 @@ function asString(v: unknown): string | undefined {
 	return typeof v === "string" ? v : undefined;
 }
 
-function asStringArray(v: unknown): string[] | undefined {
-	if (!Array.isArray(v)) return undefined;
-	const out: string[] = [];
-	for (const item of v) {
-		if (typeof item === "string") out.push(item);
-	}
-	return out;
-}
+/**
+ * Resolve the host agent runtime version once at module load.
+ *
+ * The MCP server runs as a child process spawned by the IDE; it has no access
+ * to `vscode.version` or `vscode.env.appRoot`. Instead the extension injects
+ * the application root via the `SAGE_APP_ROOT` env var (see
+ * `mcp_config_installer.ts`), and we read `product.json` from there. This
+ * matches the resolution strategy used by the hook runner (`sage-hook.ts`),
+ * so heartbeats, detection telemetry, and FP reports all converge on the
+ * same value for a given host install.
+ *
+ * `readProductJsonVersion` is fail-open and returns the string `"unknown"`
+ * when `product.json` is missing, unreadable, malformed, or lacks a `version`
+ * field. We collapse that sentinel into `undefined` here so the downstream
+ * `?? process.env.SAGE_AGENT_RUNTIME_VERSION ?? "unknown"` cascade can fall
+ * through to the env-var override; otherwise a stale or stripped `appRoot`
+ * would pin every FP report's `agent_runtime_version` to `"unknown"` and
+ * silently break runtime-version correlation in the backend.
+ *
+ * Resolved once because the value cannot change without a host restart, and
+ * a host restart re-spawns the MCP server.
+ */
+const HOST_AGENT_RUNTIME_VERSION = (() => {
+	const appRoot = process.env.SAGE_APP_ROOT;
+	if (!appRoot) return undefined;
+	const resolved = readProductJsonVersion(appRoot);
+	return resolved === "unknown" ? undefined : resolved;
+})();
 
-function scrubHomePath(value: string): string {
-	const home = homedir();
-	if (!home) return value;
-	const normalizedHome = home.replace(/\\/g, "/").replace(/\/+$/, "");
-	const normalizedValue = value.replace(/\\/g, "/");
-	if (!normalizedHome) return value;
-	if (normalizedValue === normalizedHome) return "~";
-	if (normalizedValue.startsWith(`${normalizedHome}/`)) {
-		return `~/${normalizedValue.slice(normalizedHome.length + 1)}`;
-	}
-	return value;
+/**
+ * Read the structured `content` snapshot stored in a runtime_verdict audit
+ * entry. The snapshot is produced by `buildContentSnapshot` in core (caps,
+ * home-path scrubbing, deterministic multi-value selection all applied
+ * upstream) and persisted verbatim by `logVerdict`. The FP tool reads it
+ * directly with no reconstruction — legacy entries without a `content` field
+ * produce an empty object rather than a heuristic rebuild, which is acceptable
+ * because audit logs rotate naturally via `max_bytes` / `max_files`.
+ */
+function readContent(entry: AuditRuntimeVerdictEntry): Record<string, unknown> {
+	const raw = entry.content;
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+	return raw as Record<string, unknown>;
 }
 
 function isRuntimeVerdictEntry(v: unknown): v is AuditRuntimeVerdictEntry {
@@ -114,6 +139,9 @@ const ListInputSchema = z.object({
 	limit: z.number().int().min(1).max(5000).optional().describe("Max entries to scan and return."),
 });
 
+const MAX_IMPLICIT_ENTRIES = 3;
+const MAX_EXPLICIT_ENTRIES = 10;
+
 const ReportInputSchema = z.object({
 	conversation_id: z
 		.string()
@@ -128,9 +156,14 @@ const ReportInputSchema = z.object({
 		.string()
 		.optional()
 		.describe(
-			"Optional agent runtime version override (Cursor/VS Code/Claude version). If omitted, uses env SAGE_AGENT_RUNTIME_VERSION or 'unknown'.",
+			"Optional agent runtime version override (Cursor/VS Code/Claude version). If omitted, the server resolves the host version from SAGE_APP_ROOT (the application root injected by the Sage extension at MCP-server install time, used to read product.json), then falls back to SAGE_AGENT_RUNTIME_VERSION env, then 'unknown'.",
 		),
-	entry_ids: z.array(z.string()).optional().describe("Optional list of audit entry ids to report."),
+	entry_ids: z
+		.array(z.string())
+		.optional()
+		.describe(
+			`REQUIRED in normal use: list of specific audit entry_ids to report as false positives. ALWAYS call sage_list_audit_entries first to inspect the audit log and identify the exact deny/ask verdict the user considers a false positive, then pass its entry_id here. Up to ${MAX_EXPLICIT_ENTRIES} entry_ids may be provided per call. Omitting this parameter is a fallback that submits up to ${MAX_IMPLICIT_ENTRIES} most recent deny/ask entries for the conversation, which may include irrelevant verdicts and should only be used when entry_id discovery is impossible.`,
+		),
 	dry_run: z.boolean().optional().describe("If true, do not POST; just show the payload."),
 });
 
@@ -144,6 +177,17 @@ function parseAuditSignals(raw: unknown): {
 		package_version?: string;
 		package_registry: string;
 	}[];
+	pi_checks?: {
+		risk: number;
+		model_id: string;
+		content_name: string;
+	}[];
+	amsi_checks?: {
+		detection_name: string;
+		content_name: string;
+		content_snippet?: string;
+		amsi_result: number;
+	}[];
 } {
 	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
 	const obj = raw as Record<string, unknown>;
@@ -152,6 +196,8 @@ function parseAuditSignals(raw: unknown): {
 	const urlChecksRaw = obj.url_checks;
 	const fileChecksRaw = obj.file_checks;
 	const packageChecksRaw = obj.package_checks;
+	const piChecksRaw = obj.pi_checks;
+	const amsiChecksRaw = obj.amsi_checks;
 
 	const heuristics = Array.isArray(heuristicsRaw)
 		? heuristicsRaw
@@ -208,6 +254,47 @@ function parseAuditSignals(raw: unknown): {
 				.filter(Boolean)
 		: undefined;
 
+	const pi_checks = Array.isArray(piChecksRaw)
+		? piChecksRaw
+				.map((m) => {
+					if (!m || typeof m !== "object" || Array.isArray(m)) return null;
+					const rec = m as Record<string, unknown>;
+					const risk = typeof rec.risk === "number" ? rec.risk : undefined;
+					const model_id = asString(rec.model_id);
+					const content_name = asString(rec.content_name);
+					if (risk === undefined || !model_id || !content_name) return null;
+					return { risk, model_id, content_name };
+				})
+				.filter(Boolean)
+		: undefined;
+
+	// AMSI signals carry a synthesized `detection_name` (the Win32 AMSI API only
+	// returns a numeric threat level, so `evaluator.ts:buildAmsiSignal` derives
+	// the label from `amsi_result`). Forwarding this entry preserves that
+	// synthesized name in the FP payload so the backend can triage AMSI-driven
+	// denies; otherwise the only AMSI evidence available downstream would be
+	// the free-text reasons string.
+	const amsi_checks = Array.isArray(amsiChecksRaw)
+		? amsiChecksRaw
+				.map((a) => {
+					if (!a || typeof a !== "object" || Array.isArray(a)) return null;
+					const rec = a as Record<string, unknown>;
+					const detection_name = asString(rec.detection_name);
+					const content_name = asString(rec.content_name);
+					const content_snippet = asString(rec.content_snippet);
+					const amsi_result =
+						typeof rec.amsi_result === "number" ? Math.trunc(rec.amsi_result) : undefined;
+					if (!detection_name || !content_name || amsi_result === undefined) return null;
+					return {
+						detection_name,
+						content_name,
+						amsi_result,
+						...(content_snippet ? { content_snippet } : {}),
+					};
+				})
+				.filter(Boolean)
+		: undefined;
+
 	return {
 		heuristics:
 			heuristics && heuristics.length > 0
@@ -230,6 +317,19 @@ function parseAuditSignals(raw: unknown): {
 						package_registry: string;
 					}[])
 				: undefined,
+		pi_checks:
+			pi_checks && pi_checks.length > 0
+				? (pi_checks as { risk: number; model_id: string; content_name: string }[])
+				: undefined,
+		amsi_checks:
+			amsi_checks && amsi_checks.length > 0
+				? (amsi_checks as {
+						detection_name: string;
+						content_name: string;
+						content_snippet?: string;
+						amsi_result: number;
+					}[])
+				: undefined,
 	};
 }
 
@@ -244,8 +344,8 @@ export function registerFalsePositiveTools(
 	server.registerTool(
 		"sage_list_audit_entries",
 		{
-			title: `${branding.product_name}: List Audit Entries`,
-			description: `List recent ${branding.product_name} audit log entries, optionally scoped to a conversation id. Useful for selecting entry_ids to report as false positives.`,
+			title: `${branding.name}: List Audit Entries`,
+			description: `List recent ${branding.name} audit log entries, optionally scoped to a conversation id. Useful for selecting entry_ids to report as false positives.`,
 			inputSchema: ListInputSchema,
 		},
 		async ({ conversation_id, limit }) => {
@@ -281,6 +381,7 @@ export function registerFalsePositiveTools(
 					source: asString(e.source),
 					user_override: e.user_override,
 					signals: parseAuditSignals(e.signals),
+					content: readContent(e),
 				}));
 
 				return textResult(
@@ -295,8 +396,13 @@ export function registerFalsePositiveTools(
 	server.registerTool(
 		"sage_report_false_positive",
 		{
-			title: `${branding.product_name}: Report False Positive`,
-			description: `Report ${branding.product_name} audit log entries as false positives to the backend, scoped to the current conversation.`,
+			title: `${branding.name}: Report False Positive`,
+			description:
+				`Report ${branding.name} audit log entries as false positives to the backend, scoped to the current conversation.\n\n` +
+				`USAGE — IMPORTANT:\n` +
+				`1. ALWAYS call \`sage_list_audit_entries\` FIRST to inspect the audit log and locate the specific deny/ask verdict the user considers a false positive.\n` +
+				`2. ALWAYS pass the \`entry_ids\` parameter with just the relevant deny/ask entry id(s). Up to ${MAX_EXPLICIT_ENTRIES} entry_ids may be reported per call.\n` +
+				`3. Only when entry_id discovery is impossible should \`entry_ids\` be omitted; in that fallback at most ${MAX_IMPLICIT_ENTRIES} most recent deny/ask entries for the conversation are submitted, which may include irrelevant verdicts and floods the backend with noise.`,
 			inputSchema: ReportInputSchema,
 		},
 		async ({
@@ -335,6 +441,20 @@ export function registerFalsePositiveTools(
 						const id = getEntryId(e);
 						return id ? wanted.has(id) : false;
 					});
+					if (filtered.length > MAX_EXPLICIT_ENTRIES) {
+						return textResult(
+							`Too many entry_ids (${filtered.length}). Provide at most ${MAX_EXPLICIT_ENTRIES} specific entry_ids per report call.`,
+							true,
+						);
+					}
+				} else {
+					filtered = filtered.filter((e) => {
+						const v = asString(e.verdict);
+						return v === "deny" || v === "ask";
+					});
+					if (filtered.length > MAX_IMPLICIT_ENTRIES) {
+						filtered = filtered.slice(-MAX_IMPLICIT_ENTRIES);
+					}
 				}
 
 				if (filtered.length === 0) {
@@ -345,7 +465,7 @@ export function registerFalsePositiveTools(
 						);
 					}
 					return textResult(
-						"No runtime_verdict entries found for this conversation to report.",
+						"No runtime_verdict deny/ask entries found for this conversation to report.",
 						true,
 					);
 				}
@@ -353,14 +473,22 @@ export function registerFalsePositiveTools(
 				const iid = await getInstallationId().catch(() => undefined);
 				if (!iid) {
 					return textResult(
-						`Failed to retrieve installation id; FP reporting requires a working ${branding.product_name} install.`,
+						`Failed to retrieve installation id; FP reporting requires a working ${branding.name} install.`,
 						true,
 					);
 				}
 				const runtimeVersion =
-					agent_runtime_version ?? process.env.SAGE_AGENT_RUNTIME_VERSION ?? "unknown";
+					agent_runtime_version ??
+					HOST_AGENT_RUNTIME_VERSION ??
+					process.env.SAGE_AGENT_RUNTIME_VERSION ??
+					"unknown";
 
 				const comment = `${description}\n\n${reasoning}`;
+
+				// Optional extended-info enrichment. Loaded once per FP-tool invocation
+				// and applied to every report payload. Fail-open: any error inside the
+				// loader yields `null`, leaving payloads unchanged.
+				const extendedInfo = await loadExtendedInfo(undefined, logger).catch(() => null);
 
 				const reports = filtered
 					.map((e) => {
@@ -372,45 +500,18 @@ export function registerFalsePositiveTools(
 						const user_action = e.user_override === true ? "allowed" : "blocked";
 						const hook_type = asHookType(e.hook_type) ?? "PreToolUse";
 
-						const artifacts = asStringArray(e.artifacts) ?? [];
 						const signals = parseAuditSignals(e.signals);
-
-						const urlFromArtifacts = artifacts.find(
-							(a) => typeof a === "string" && /^https?:\/\//i.test(a),
-						);
-						const commandFromSummary = asString(e.tool_input_summary) ?? "";
-						const content: Record<string, unknown> = {};
-						if (tool_type === "Bash") {
-							content.command = scrubHomePath(commandFromSummary);
-						}
-						if (
-							tool_type === "Write" ||
-							tool_type === "Edit" ||
-							tool_type === "Read" ||
-							tool_type === "Delete"
-						) {
-							content.file_path = scrubHomePath(commandFromSummary);
-						}
-						if (tool_type === "WebFetch" && urlFromArtifacts) {
-							content.url = urlFromArtifacts;
-						}
-						if (signals.url_checks && signals.url_checks.length === 1) {
-							content.url = signals.url_checks[0]?.url;
-						}
-						if (signals.package_checks && signals.package_checks.length === 1) {
-							const p = signals.package_checks[0];
-							content.package_name = p?.package_name;
-							content.package_version = p?.package_version;
-							content.package_registry = p?.package_registry;
-						}
+						const content = readContent(e);
 
 						const bestEffortSignals: Record<string, unknown> = {};
 						if (signals.heuristics) bestEffortSignals.heuristics = signals.heuristics;
 						if (signals.url_checks) bestEffortSignals.url_checks = signals.url_checks;
 						if (signals.file_checks) bestEffortSignals.file_checks = signals.file_checks;
 						if (signals.package_checks) bestEffortSignals.package_checks = signals.package_checks;
+						if (signals.pi_checks) bestEffortSignals.pi_checks = signals.pi_checks;
+						if (signals.amsi_checks) bestEffortSignals.amsi_checks = signals.amsi_checks;
 
-						const reportPayload = {
+						const baseReportPayload = {
 							...buildSageProxyEnvelope({
 								iid,
 								versionApp,
@@ -431,6 +532,11 @@ export function registerFalsePositiveTools(
 							comment,
 							event_id: entry_id ?? randomUUID(),
 						};
+
+						const reportPayload = mergeExtendedInfo(
+							baseReportPayload as unknown as Record<string, unknown>,
+							extendedInfo,
+						);
 
 						return { entry_id, payload: reportPayload };
 					})

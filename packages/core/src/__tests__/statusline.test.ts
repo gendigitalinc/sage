@@ -43,18 +43,18 @@ describe("updateSessionStatus", () => {
 
 		const status = await readSessionStatus("s1");
 		expect(status).not.toBeNull();
-		expect(status!.denied).toBe(1);
-		expect(status!.flagged).toBe(0);
-		expect(status!.lastCategory).toBe("malware");
-		expect(status!.lastReason).toBe("Pipe-to-shell detected");
+		expect(status?.denied).toBe(1);
+		expect(status?.flagged).toBe(0);
+		expect(status?.lastCategory).toBe("malware");
+		expect(status?.lastReason).toBe("Pipe-to-shell detected");
 	});
 
 	it("creates status file on first ask verdict", async () => {
 		await updateSessionStatus("s2", makeVerdict({ decision: "ask" }));
 
 		const status = await readSessionStatus("s2");
-		expect(status!.denied).toBe(0);
-		expect(status!.flagged).toBe(1);
+		expect(status?.denied).toBe(0);
+		expect(status?.flagged).toBe(1);
 	});
 
 	it("increments counters on subsequent calls", async () => {
@@ -63,8 +63,8 @@ describe("updateSessionStatus", () => {
 		await updateSessionStatus("s3", makeVerdict({ decision: "ask" }));
 
 		const status = await readSessionStatus("s3");
-		expect(status!.denied).toBe(2);
-		expect(status!.flagged).toBe(1);
+		expect(status?.denied).toBe(2);
+		expect(status?.flagged).toBe(1);
 	});
 
 	it("updates lastCategory and lastReason", async () => {
@@ -78,15 +78,15 @@ describe("updateSessionStatus", () => {
 		);
 
 		const status = await readSessionStatus("s4");
-		expect(status!.lastCategory).toBe("exfiltration");
-		expect(status!.lastReason).toBe("second");
+		expect(status?.lastCategory).toBe("exfiltration");
+		expect(status?.lastReason).toBe("second");
 	});
 
 	it("handles verdict with no reasons", async () => {
 		await updateSessionStatus("s5", makeVerdict({ decision: "deny", reasons: [] }));
 
 		const status = await readSessionStatus("s5");
-		expect(status!.lastReason).toBeNull();
+		expect(status?.lastReason).toBeNull();
 	});
 });
 
@@ -108,8 +108,8 @@ describe("initSessionStatus", () => {
 		await initSessionStatus("init1");
 
 		const status = await readSessionStatus("init1");
-		expect(status!.denied).toBe(0);
-		expect(status!.flagged).toBe(0);
+		expect(status?.denied).toBe(0);
+		expect(status?.flagged).toBe(0);
 	});
 
 	it("does not overwrite existing file", async () => {
@@ -117,7 +117,7 @@ describe("initSessionStatus", () => {
 		await initSessionStatus("init2");
 
 		const status = await readSessionStatus("init2");
-		expect(status!.denied).toBe(1);
+		expect(status?.denied).toBe(1);
 	});
 });
 

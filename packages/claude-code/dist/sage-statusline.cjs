@@ -4161,7 +4161,7 @@ var init_zod = __esm({
 });
 
 // ../core/dist/types.js
-var nullLogger, ArtifactTypeSchema, ArtifactSchema, SeveritySchema, ActionSchema, ThreatSchema, DecisionSchema, VerdictSeveritySchema, SensitivitySchema, UrlCheckConfigSchema, CacheConfigSchema, AllowlistConfigSchema, LoggingConfigSchema, FileCheckConfigSchema, PackageCheckConfigSchema, AmsiCheckConfigSchema, ExceptionDecisionSchema, ExceptionMatchSchema, ExceptionRuleSchema, ExceptionsFileSchema, ExceptionsConfigSchema, ConfigSchema, brandString, BrandingSchema, HookTypeSchema;
+var nullLogger, ArtifactTypeSchema, ArtifactSchema, SeveritySchema, ActionSchema, ThreatSchema, DecisionSchema, VerdictSeveritySchema, SensitivitySchema, UrlCheckConfigSchema, CacheConfigSchema, AllowlistConfigSchema, LoggingConfigSchema, FileCheckConfigSchema, PackageCheckConfigSchema, AmsiCheckConfigSchema, DEFAULT_PI_HIGH_RISK_THRESHOLD, DEFAULT_PI_MEDIUM_RISK_THRESHOLD, PiCheckConfigSchema, ExceptionDecisionSchema, ExceptionMatchSchema, ExceptionRuleSchema, ExceptionsFileSchema, ExceptionsConfigSchema, ConfigSchema, HookTypeSchema;
 var init_types2 = __esm({
   "../core/dist/types.js"() {
     "use strict";
@@ -4235,6 +4235,15 @@ var init_types2 = __esm({
     AmsiCheckConfigSchema = external_exports.object({
       enabled: external_exports.boolean().default(true)
     });
+    DEFAULT_PI_HIGH_RISK_THRESHOLD = 0.99;
+    DEFAULT_PI_MEDIUM_RISK_THRESHOLD = 0.5;
+    PiCheckConfigSchema = external_exports.object({
+      enabled: external_exports.boolean().default(false),
+      max_content_length: external_exports.number().default(16384),
+      model_path: external_exports.string().optional(),
+      high_risk_threshold: external_exports.number().default(DEFAULT_PI_HIGH_RISK_THRESHOLD),
+      medium_risk_threshold: external_exports.number().default(DEFAULT_PI_MEDIUM_RISK_THRESHOLD)
+    });
     ExceptionDecisionSchema = external_exports.enum(["allow", "deny"]);
     ExceptionMatchSchema = external_exports.enum(["executable", "domain", "path", "plugin", "regex"]);
     ExceptionRuleSchema = external_exports.object({
@@ -4255,6 +4264,7 @@ var init_types2 = __esm({
       file_check: FileCheckConfigSchema.default({}),
       package_check: PackageCheckConfigSchema.default({}),
       amsi_check: AmsiCheckConfigSchema.default({}),
+      pi_check: PiCheckConfigSchema.default({}),
       heuristics_enabled: external_exports.boolean().default(true),
       cache: CacheConfigSchema.default({}),
       allowlist: AllowlistConfigSchema.default({}),
@@ -4262,17 +4272,9 @@ var init_types2 = __esm({
       logging: LoggingConfigSchema.default({}),
       sensitivity: SensitivitySchema.default("balanced"),
       disabled_threats: external_exports.array(external_exports.string()).default([]),
+      brand_key: external_exports.string().min(1).max(32).regex(/^[a-z0-9_-]+$/u).optional(),
       community_iq: external_exports.boolean().default(true)
     });
-    brandString = external_exports.string().min(1).max(64).regex(/^[^\p{Cc}]+$/u, "No control characters");
-    BrandingSchema = external_exports.object({
-      product_name: brandString.default("Sage"),
-      banner_text: external_exports.string().min(1).max(128).regex(/^[^\p{Cc}]+$/u).optional(),
-      brand_key: external_exports.string().min(1).max(32).regex(/^[a-z0-9_-]+$/u).optional()
-    }).transform((b) => ({
-      ...b,
-      banner_text: b.banner_text ?? b.product_name
-    }));
     HookTypeSchema = external_exports.enum([
       "PreToolUse",
       "PostToolUse",
@@ -4285,6 +4287,24 @@ var init_types2 = __esm({
 });
 
 // ../core/dist/config.js
+function resolvedSageDir() {
+  return resolvePath(SAGE_DIR);
+}
+function defaultConfigPath() {
+  return (0, import_node_path.join)(resolvedSageDir(), "config.json");
+}
+function defaultCachePath() {
+  return (0, import_node_path.join)(resolvedSageDir(), "cache.json");
+}
+function defaultAllowlistPath() {
+  return (0, import_node_path.join)(resolvedSageDir(), "allowlist.json");
+}
+function defaultExceptionsPath() {
+  return (0, import_node_path.join)(resolvedSageDir(), "exceptions.json");
+}
+function defaultAuditPath() {
+  return (0, import_node_path.join)(resolvedSageDir(), "audit.jsonl");
+}
 function resolvePath(pathStr) {
   if (pathStr.startsWith("~/") || pathStr === "~") {
     const home = getHomeDir();
@@ -4292,7 +4312,106 @@ function resolvePath(pathStr) {
   }
   return pathStr;
 }
-var import_node_path, SAGE_DIR;
+function isWithinDirectory(baseDir, targetPath) {
+  const rel = (0, import_node_path.relative)(baseDir, targetPath);
+  if (rel === "")
+    return true;
+  if ((0, import_node_path.isAbsolute)(rel))
+    return false;
+  return rel !== ".." && !rel.startsWith(`..${import_node_path.sep}`);
+}
+function normalizeStateFilePath(configuredPath, fallbackPath, field, logger) {
+  const sageDir = resolvedSageDir();
+  const trimmed = configuredPath.trim();
+  if (trimmed === "") {
+    logger.warn(`Config ${field}.path is empty; using default`, {
+      configuredPath,
+      defaultPath: fallbackPath
+    });
+    return fallbackPath;
+  }
+  const expanded = resolvePath(trimmed);
+  const resolved = (0, import_node_path.isAbsolute)(expanded) ? (0, import_node_path.resolve)(expanded) : (0, import_node_path.resolve)(sageDir, expanded);
+  if (isWithinDirectory(sageDir, resolved)) {
+    if (resolved === sageDir) {
+      logger.warn(`Config ${field}.path must point to a file; using default`, {
+        configuredPath,
+        defaultPath: fallbackPath
+      });
+      return fallbackPath;
+    }
+    return resolved;
+  }
+  logger.warn(`Config ${field}.path escapes ${sageDir}; using default`, {
+    configuredPath,
+    defaultPath: fallbackPath
+  });
+  return fallbackPath;
+}
+function sanitizeBrandKey(data, logger) {
+  const brandKey = data.brand_key;
+  if (brandKey === void 0)
+    return data;
+  if (typeof brandKey === "string" && brandKey.length >= 1 && brandKey.length <= 32 && BRAND_KEY_RE.test(brandKey)) {
+    return data;
+  }
+  logger.warn(`Invalid brand_key in config \u2014 ignoring`, { brand_key: brandKey });
+  const { brand_key: _, ...rest } = data;
+  return rest;
+}
+function sanitizeConfigPaths(config, logger) {
+  const cachePath = defaultCachePath();
+  const allowlistPath = defaultAllowlistPath();
+  const exceptionsPath = defaultExceptionsPath();
+  const auditPath = defaultAuditPath();
+  return {
+    ...config,
+    cache: {
+      ...config.cache,
+      path: normalizeStateFilePath(config.cache.path, cachePath, "cache", logger)
+    },
+    allowlist: {
+      ...config.allowlist,
+      path: normalizeStateFilePath(config.allowlist.path, allowlistPath, "allowlist", logger)
+    },
+    exceptions: {
+      ...config.exceptions,
+      path: normalizeStateFilePath(config.exceptions.path, exceptionsPath, "exceptions", logger)
+    },
+    logging: {
+      ...config.logging,
+      path: normalizeStateFilePath(config.logging.path, auditPath, "logging", logger)
+    }
+  };
+}
+function loadConfigSync(configPath, logger = nullLogger) {
+  const path = configPath ?? defaultConfigPath();
+  let raw;
+  try {
+    raw = getFileContentSync(path);
+  } catch {
+    return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (e) {
+    logger.warn(`Failed to parse config from ${path}`, { error: String(e) });
+    return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+  }
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    logger.warn(`Config file ${path} does not contain a JSON object`);
+    return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+  }
+  const sanitized = sanitizeBrandKey(data, logger);
+  try {
+    return sanitizeConfigPaths(ConfigSchema.parse(sanitized), logger);
+  } catch (e) {
+    logger.warn(`Config validation failed, using defaults`, { error: String(e) });
+    return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+  }
+}
+var import_node_path, SAGE_DIR, BRAND_KEY_RE;
 var init_config = __esm({
   "../core/dist/config.js"() {
     "use strict";
@@ -4300,6 +4419,7 @@ var init_config = __esm({
     init_file_utils();
     init_types2();
     SAGE_DIR = "~/.sage";
+    BRAND_KEY_RE = /^[a-z0-9_-]+$/u;
   }
 });
 
@@ -6230,6 +6350,14 @@ var require_semver2 = __commonJS({
       compareIdentifiers: identifiers.compareIdentifiers,
       rcompareIdentifiers: identifiers.rcompareIdentifiers
     };
+  }
+});
+
+// ../core/dist/clients/pi-deps-installer.js
+var init_pi_deps_installer = __esm({
+  "../core/dist/clients/pi-deps-installer.js"() {
+    "use strict";
+    init_types2();
   }
 });
 
@@ -13524,7 +13652,7 @@ var require_dist = __commonJS({
 
 // src/sage-statusline.ts
 var import_node_fs = require("node:fs");
-var import_node_path6 = require("node:path");
+var import_node_path5 = require("node:path");
 
 // ../core/dist/allowlist.js
 init_config();
@@ -13542,43 +13670,20 @@ var APPROVED_TTL_MS = 10 * 60 * 1e3;
 init_config();
 init_file_utils();
 
-// ../core/dist/branding.js
-var import_node_path2 = require("node:path");
-init_config();
-init_file_utils();
-init_types2();
-var defaultBranding = BrandingSchema.parse({});
-function defaultBrandingPath() {
-  return (0, import_node_path2.join)(resolvePath(SAGE_DIR), "branding.json");
-}
-function loadBrandingSync(logger = nullLogger, brandingPath) {
-  const path = brandingPath ?? defaultBrandingPath();
-  let raw;
-  try {
-    raw = getFileContentSync(path);
-  } catch {
+// ../core/dist/brands.js
+var defaultBranding = { name: "Sage", short_name: "Sage" };
+var BRANDS = {
+  norton: { name: "Norton AI Agent Protection", short_name: "Norton" }
+};
+function resolveBranding(brandKey, logger) {
+  if (!brandKey)
+    return defaultBranding;
+  const entry = BRANDS[brandKey];
+  if (!entry) {
+    logger?.warn(`Unknown brand_key "${brandKey}" in config \u2014 using default branding`);
     return defaultBranding;
   }
-  return parseBranding(raw, path, logger);
-}
-function parseBranding(raw, path, logger) {
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch (e) {
-    logger.warn(`Failed to parse branding from ${path}`, { error: String(e) });
-    return defaultBranding;
-  }
-  if (typeof data !== "object" || data === null || Array.isArray(data)) {
-    logger.warn(`Branding file ${path} does not contain a JSON object`);
-    return defaultBranding;
-  }
-  try {
-    return BrandingSchema.parse(data);
-  } catch (e) {
-    logger.warn("Branding validation failed, using defaults", { error: String(e) });
-    return defaultBranding;
-  }
+  return { ...entry, brand_key: brandKey };
 }
 
 // ../core/dist/cache.js
@@ -13619,34 +13724,45 @@ public class SageAmsi {
     static extern void AmsiUninitialize(IntPtr ctx);
 
     private static IntPtr _ctx;
-    private static IntPtr _session;
     private static bool _initialized;
 
     public static bool Init() {
         int hr = AmsiInitialize("Sage", out _ctx);
         if (hr != 0) return false;
-        hr = AmsiOpenSession(_ctx, out _session);
+        // Verify we can open a session, then close it immediately.
+        // Actual sessions are opened per-scan to avoid cross-file tainting.
+        IntPtr sess;
+        hr = AmsiOpenSession(_ctx, out sess);
         if (hr != 0) {
             AmsiUninitialize(_ctx);
             return false;
         }
+        AmsiCloseSession(_ctx, sess);
         _initialized = true;
         return true;
     }
 
     public static int Scan(string content, string contentName) {
         if (!_initialized) return -1;
-        byte[] bytes = Encoding.UTF8.GetBytes(content);
-        int result;
-        int hr = AmsiScanBuffer(_ctx, bytes, (uint)bytes.Length,
-                                contentName, _session, out result);
+        // Open a fresh session per scan so a detection in one file
+        // does not taint subsequent scans (sessions are correlation scopes).
+        IntPtr session;
+        int hr = AmsiOpenSession(_ctx, out session);
         if (hr != 0) return -1;
-        return result;
+        try {
+            byte[] bytes = Encoding.UTF8.GetBytes(content);
+            int result;
+            hr = AmsiScanBuffer(_ctx, bytes, (uint)bytes.Length,
+                                    contentName, session, out result);
+            if (hr != 0) return -1;
+            return result;
+        } finally {
+            AmsiCloseSession(_ctx, session);
+        }
     }
 
     public static void Shutdown() {
         if (!_initialized) return;
-        AmsiCloseSession(_ctx, _session);
         AmsiUninitialize(_ctx);
         _initialized = false;
     }
@@ -13714,19 +13830,22 @@ ${AMSI_CSHARP_TYPE}
 }
 `;
 
+// ../core/dist/clients/content-fetch.js
+init_types2();
+
 // ../core/dist/clients/file-check.js
 init_types2();
 
 // ../core/dist/version.js
-var import_node_path3 = require("node:path");
+var import_node_path2 = require("node:path");
 var import_node_url = require("node:url");
 init_file_utils();
 var import_meta = {};
 function resolveVersion() {
   if (true)
-    return "0.8.0";
+    return "0.9.0";
   try {
-    const pkgPath = (0, import_node_path3.join)((0, import_node_path3.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
+    const pkgPath = (0, import_node_path2.join)((0, import_node_path2.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
     const pkg = JSON.parse(getFileContentSync(pkgPath));
     if (typeof pkg.version === "string")
       return pkg.version;
@@ -13736,21 +13855,57 @@ function resolveVersion() {
 }
 var VERSION = resolveVersion();
 
-// ../core/dist/clients/package-registry.js
-var import_semver = __toESM(require_semver2(), 1);
+// ../core/dist/model-storage.js
+init_config();
+
+// ../core/dist/clients/model-downloader.js
+init_types2();
+var STALE_LOCK_MS = 60 * 60 * 1e3;
+
+// ../core/dist/clients/model-manifest.js
 init_types2();
 
 // ../core/dist/clients/url-check.js
 init_types2();
 
+// ../core/dist/clients/package-registry.js
+var import_semver = __toESM(require_semver2(), 1);
+init_types2();
+
+// ../core/dist/clients/pi-check.js
+init_types2();
+
+// ../core/dist/index.js
+init_pi_deps_installer();
+
+// ../core/dist/clients/skill-check.js
+init_types2();
+
 // ../core/dist/index.js
 init_config();
+
+// ../core/dist/content-snapshot.js
+var CONTENT_FIELD_LIMITS = Object.freeze({
+  command: 512,
+  url: 512,
+  file_path: 512,
+  package_name: 256,
+  package_version: 128,
+  package_registry: 128
+});
+
+// ../core/dist/extended-info.js
+init_file_utils();
+init_types2();
 
 // ../core/dist/installation-id.js
 init_config();
 init_file_utils();
 
 // ../core/dist/detection-telemetry.js
+init_types2();
+
+// ../core/dist/engine.js
 init_types2();
 
 // ../core/dist/evaluator.js
@@ -13781,7 +13936,7 @@ function sanitizeSessionId(sessionId) {
   return sessionId.replace(/[^a-zA-Z0-9-]/g, "_");
 }
 function formatStatusLine(denied, flagged, lastReason, lastCategory, branding = defaultBranding) {
-  const name = branding.product_name;
+  const name = branding.name;
   if (denied > 0 || flagged > 0) {
     const parts = [];
     if (denied > 0)
@@ -13799,6 +13954,28 @@ var import_yaml2 = __toESM(require_dist(), 1);
 init_file_utils();
 init_types2();
 
+// ../core/dist/tool-names.js
+var CANONICAL_TOOLS = [
+  "Bash",
+  "WebFetch",
+  "Write",
+  "Edit",
+  "Read",
+  "Delete",
+  "ApplyPatch",
+  "Glob",
+  "Grep",
+  "List",
+  "CodeSearch",
+  "WebSearch",
+  "Question",
+  "Task",
+  "ReadLines",
+  "MCP",
+  "Unknown"
+];
+var CANONICAL_SET = new Set(CANONICAL_TOOLS);
+
 // ../core/dist/evaluator.js
 init_types2();
 
@@ -13812,23 +13989,43 @@ init_types2();
 // ../core/dist/marketplace-migration.js
 init_config();
 
+// ../core/dist/model-download.js
+init_types2();
+
 // ../core/dist/plugin-scan-cache.js
+var import_node_path3 = require("node:path");
+init_file_utils();
+init_types2();
+var DEFAULT_CACHE_PATH = (0, import_node_path3.join)(getHomeDir(), ".sage", "plugin_scan_cache.json");
+
+// ../core/dist/plugin-scanner.js
 var import_node_path4 = require("node:path");
 init_file_utils();
 init_types2();
-var DEFAULT_CACHE_PATH = (0, import_node_path4.join)(getHomeDir(), ".sage", "plugin_scan_cache.json");
-
-// ../core/dist/plugin-scanner.js
-var import_node_path5 = require("node:path");
-init_file_utils();
-init_types2();
-var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path5.join)(getHomeDir(), ".claude", "plugins", "installed_plugins.json");
+var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path4.join)(getHomeDir(), ".claude", "plugins", "installed_plugins.json");
 var MAX_FILE_SIZE = 512 * 1024;
-var STR_ARG = `(?:"((?:[^"\\\\]|\\\\.)*)"|'((?:[^'\\\\]|\\\\.)*)'|\`([^\`]*)\`)`;
-var JS_EXEC_RE = new RegExp(`\\bexec(?:File)?(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
-var JS_SPAWN_RE = new RegExp(`\\bspawn(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
-var JS_EXECA_RE = new RegExp(`\\bexeca\\s*\\(\\s*${STR_ARG}`, "g");
-var JS_BUN_SHELL_RE = new RegExp(`\\bBun\\.shell\\s*\\(\\s*${STR_ARG}`, "g");
+function isPluginInstalledSync(pluginName) {
+  let raw;
+  try {
+    raw = getFileContentSync(DEFAULT_PLUGINS_REGISTRY);
+  } catch (err) {
+    if (err && typeof err === "object" && "code" in err && err.code === "ENOENT") {
+      return false;
+    }
+    return null;
+  }
+  try {
+    const data = JSON.parse(raw);
+    const plugins = data.plugins ?? {};
+    return Object.keys(plugins).some((key) => {
+      const lastAt = key.lastIndexOf("@");
+      const name = lastAt > 0 ? key.substring(0, lastAt) : key;
+      return name === pluginName;
+    });
+  } catch {
+    return null;
+  }
+}
 
 // ../core/dist/session-start.js
 init_config();
@@ -13847,21 +14044,112 @@ init_types2();
 // ../core/dist/index.js
 init_types2();
 
+// src/constants.ts
+var STATUSLINE_MARKER = "sage-statusline.cjs";
+
 // src/sage-statusline.ts
+var STATUS_PREFIX = "statusline-";
+var STATUS_SUFFIX = ".txt";
+function getPluginName() {
+  try {
+    const pluginRoot = (0, import_node_path5.resolve)(__dirname, "..", "..", "..");
+    const raw = (0, import_node_fs.readFileSync)((0, import_node_path5.join)(pluginRoot, ".claude-plugin", "plugin.json"), "utf-8");
+    const parsed = JSON.parse(raw);
+    return parsed.name ?? null;
+  } catch {
+    return null;
+  }
+}
+function isMarketplaceInstallation() {
+  try {
+    const pluginRoot = (0, import_node_fs.realpathSync)((0, import_node_path5.resolve)(__dirname, "..", "..", ".."));
+    const claudeDir = (0, import_node_fs.realpathSync)(resolvePath("~/.claude"));
+    return pluginRoot.startsWith(claudeDir);
+  } catch {
+    return false;
+  }
+}
+function isPluginRegistered() {
+  const pluginName = getPluginName();
+  if (!pluginName) return true;
+  const result = isPluginInstalledSync(pluginName);
+  return result ?? true;
+}
+function isPluginEnabled() {
+  const pluginName = getPluginName();
+  if (!pluginName) return true;
+  try {
+    const settingsPath = resolvePath("~/.claude/settings.json");
+    const raw = (0, import_node_fs.readFileSync)(settingsPath, "utf-8");
+    const settings = JSON.parse(raw);
+    const enabled = settings.enabledPlugins;
+    if (!enabled) return true;
+    for (const key of Object.keys(enabled)) {
+      const lastAt = key.lastIndexOf("@");
+      const name = lastAt > 0 ? key.substring(0, lastAt) : key;
+      if (name === pluginName) return enabled[key] !== false;
+    }
+  } catch {
+  }
+  return true;
+}
+function removeOwnStatusLine() {
+  const settingsPath = resolvePath("~/.claude/settings.json");
+  try {
+    const raw = (0, import_node_fs.readFileSync)(settingsPath, "utf-8");
+    const settings = JSON.parse(raw);
+    const sl = settings.statusLine;
+    if (sl && typeof sl.command === "string" && sl.command.includes(STATUSLINE_MARKER)) {
+      delete settings.statusLine;
+      const tmp = `${settingsPath}.${process.pid}.tmp`;
+      (0, import_node_fs.writeFileSync)(tmp, `${JSON.stringify(settings, null, 2)}
+`, { mode: 384 });
+      (0, import_node_fs.renameSync)(tmp, settingsPath);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+function pruneStatusFiles() {
+  try {
+    const dir = resolvePath("~/.sage");
+    const entries = (0, import_node_fs.readdirSync)(dir);
+    for (const entry of entries) {
+      if (!entry.startsWith(STATUS_PREFIX) || !entry.endsWith(STATUS_SUFFIX)) continue;
+      try {
+        (0, import_node_fs.unlinkSync)((0, import_node_path5.join)(dir, entry));
+      } catch {
+      }
+    }
+  } catch {
+  }
+}
+function shouldCleanup() {
+  if (!isMarketplaceInstallation()) return false;
+  return !isPluginRegistered() || !isPluginEnabled();
+}
 function main() {
-  const branding = loadBrandingSync();
+  const config = loadConfigSync();
+  const branding = resolveBranding(config.brand_key);
   let sessionId = "";
   try {
     const input = JSON.parse((0, import_node_fs.readFileSync)(0, "utf-8"));
     sessionId = input.session_id ?? "";
   } catch {
   }
+  if (shouldCleanup()) {
+    if (removeOwnStatusLine()) {
+      pruneStatusFiles();
+    }
+    return;
+  }
   if (!sessionId) {
-    process.stdout.write(`\u{1F6E1}\uFE0F ${branding.product_name}: \u2705
+    process.stdout.write(`\u{1F6E1}\uFE0F ${branding.name}: \u2705
 `);
     return;
   }
-  const statusFile = (0, import_node_path6.join)(resolvePath("~/.sage"), `statusline-${sanitizeSessionId(sessionId)}.txt`);
+  const statusFile = (0, import_node_path5.join)(resolvePath("~/.sage"), `statusline-${sanitizeSessionId(sessionId)}.txt`);
   try {
     const raw = (0, import_node_fs.readFileSync)(statusFile, "utf-8");
     const data = JSON.parse(raw);
@@ -13870,7 +14158,7 @@ function main() {
 `
     );
   } catch {
-    process.stdout.write(`${formatStatusLine(0, 0, void 0, void 0, branding)}
+    process.stdout.write(`\u{1F6E1}\uFE0F ${branding.name}: \u2705
 `);
   }
 }

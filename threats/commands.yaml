@@ -164,15 +164,19 @@
   expires_at: null
   revoked: false
 
-# --- Python one-liner with dangerous imports ---
+# --- Python one-liner with dangerous calls ---
+# Matches actual call sites (`name(`) rather than bare imports — `import
+# subprocess` alone is harmless; `subprocess.run(...)` is what we care about.
+# Uses `[\s\S]` to span newlines (loader does not set the `s` flag) and a
+# bounded non-greedy quantifier to avoid catastrophic backtracking.
 - id: "CLT-CMD-015"
   category: tool
   severity: high
   confidence: 0.80
   action: require_approval
-  pattern: "python[3]?\\s+-c\\s+[\"'][^\"']*\\b(os\\.system|subprocess|os\\.exec|os\\.popen|__import__)\\b"
+  pattern: "python[3]?\\s+-c\\s+[\"'][\\s\\S]{0,2048}?(?:os\\.(?:system|popen|exec[lv]?[ep]?e?)|subprocess\\.(?:run|call|Popen|check_output|check_call|getoutput|getstatusoutput)|__import__)\\s*\\("
   match_on: command
-  title: "Python one-liner with dangerous imports"
+  title: "Python one-liner invoking shell/exec/subprocess call"
   expires_at: null
   revoked: false
 
@@ -204,7 +208,10 @@
   severity: high
   confidence: 0.85
   action: block
-  pattern: "\\bxargs\\b[^|;]*\\b(curl|wget|bash|sh)\\b"
+  # The lookarounds prevent matching short-option flags like `du -sh` or
+  # identifiers like `shell`/`bashrc`; only standalone command invocations
+  # (preceded by whitespace, `/`, etc.) are flagged.
+  pattern: "\\bxargs\\b[^|;]*(?<![-\\w])(curl|wget|bash|sh)(?![-\\w])"
   match_on: command
   title: "xargs dispatching download or shell execution"
   expires_at: null

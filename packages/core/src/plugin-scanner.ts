@@ -1,27 +1,43 @@
 /**
- * Plugin scanner — discovers and scans installed Claude Code plugins for threats.
+ * Plugin scanner — discovers and scans installed Claude Code plugins.
+ *
+ * The scanner runs four checks per plugin:
+ *
+ *   - URL reputation (Avast) on every URL extracted from plugin files.
+ *   - File-hash reputation (Avast) on every scannable file's sha256.
+ *   - AMSI scan on file content when an `AmsiClient` is supplied
+ *     (Windows-only; caller owns lifecycle).
+ *   - Skill-package risk lookup on any folder containing `SKILL.md`.
+ *
+ * The scanner intentionally does NOT run shell-flavored regex heuristics
+ * over plugin source. That stage was removed because it produced
+ * substring-match false positives across nearly every Python/JS/TS
+ * plugin (e.g. `compat.exec(…)` matching the literal `at\.exe`) without
+ * catching anything that the URL/hash/AMSI/skill checks don't already
+ * cover. The runtime evaluator still applies the regex threats to actual
+ * tool calls — they just no longer fire on plugin source-code text.
  */
 
 import { createHash } from "node:crypto";
 import { readdir, stat } from "node:fs/promises";
 import { extname, join, relative } from "node:path";
+import type { AmsiClient } from "./clients/amsi.js";
 import { FileCheckClient } from "./clients/file-check.js";
+import { SkillCheckClient } from "./clients/skill-check.js";
 import { UrlCheckClient } from "./clients/url-check.js";
 import { extractUrls } from "./extractors.js";
-import { getFileContent, getFileContentRaw, getHomeDir } from "./file-utils.js";
-import { HeuristicsEngine } from "./heuristics.js";
-import type {
-	Artifact,
-	Logger,
-	PluginInfo,
-	PluginScanResult,
-	Threat,
-	TrustedDomain,
-} from "./types.js";
+import { getFileContent, getFileContentRaw, getFileContentSync, getHomeDir } from "./file-utils.js";
+import { computeSkillIdsForRoot, SKIP_DIRS } from "./skill-id.js";
+import type { Logger, PluginFinding, PluginInfo, PluginScanResult } from "./types.js";
 import { nullLogger } from "./types.js";
 
 const DEFAULT_PLUGINS_REGISTRY = join(getHomeDir(), ".claude", "plugins", "installed_plugins.json");
 
+/**
+ * Extensions whose contents are read from disk and fed to the URL-
+ * reputation, AMSI, and file-hash checks. Files outside this set are
+ * skipped entirely (no read, no checks).
+ */
 const SCANNABLE_EXTENSIONS = new Set([
 	".py",
 	".js",
@@ -42,10 +58,40 @@ const SCANNABLE_EXTENSIONS = new Set([
 	".conf",
 ]);
 
-const SKIP_DIRS = new Set(["node_modules", ".git", "__pycache__"]);
-
 /** Max file size to scan (skip large files). */
 const MAX_FILE_SIZE = 512 * 1024;
+
+/**
+ * Sync check: is a plugin name present in the Claude Code plugin registry?
+ * Returns true (found), false (not found), or null (registry unreadable).
+ */
+export function isPluginInstalledSync(pluginName: string): boolean | null {
+	let raw: string;
+	try {
+		raw = getFileContentSync(DEFAULT_PLUGINS_REGISTRY);
+	} catch (err: unknown) {
+		if (
+			err &&
+			typeof err === "object" &&
+			"code" in err &&
+			(err as { code: string }).code === "ENOENT"
+		) {
+			return false;
+		}
+		return null;
+	}
+	try {
+		const data = JSON.parse(raw) as Record<string, unknown>;
+		const plugins = (data.plugins ?? {}) as Record<string, unknown>;
+		return Object.keys(plugins).some((key) => {
+			const lastAt = key.lastIndexOf("@");
+			const name = lastAt > 0 ? key.substring(0, lastAt) : key;
+			return name === pluginName;
+		});
+	} catch {
+		return null;
+	}
+}
 
 export async function discoverPlugins(
 	registryPath = DEFAULT_PLUGINS_REGISTRY,
@@ -95,7 +141,6 @@ async function walkPluginFiles(installPath: string, logger: Logger): Promise<str
 		} catch {
 			return;
 		}
-		// Handle file: check if scannable and add to results
 		if (stats.isFile()) {
 			if (
 				SCANNABLE_EXTENSIONS.has(extname(dirOrFile).toLowerCase()) &&
@@ -105,7 +150,6 @@ async function walkPluginFiles(installPath: string, logger: Logger): Promise<str
 			}
 			return;
 		}
-		// Handle directory: recursively walk entries
 		if (stats.isDirectory()) {
 			let entries: string[];
 			try {
@@ -128,211 +172,37 @@ async function walkPluginFiles(installPath: string, logger: Logger): Promise<str
 	return files;
 }
 
-/**
- * Returns true if the line is an echo/printf statement where all pipe characters
- * are inside quotes (i.e., just printing text, not piping to another command).
- */
-function isHarmlessEcho(line: string): boolean {
-	if (!/^(echo|printf)\b/.test(line)) return false;
-	// Strip quoted strings, then check for remaining unquoted pipes
-	const withoutQuotes = line.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, "");
-	return !withoutQuotes.includes("|");
-}
-
-const JS_TS_EXTENSIONS = new Set([".js", ".ts", ".mjs", ".mts"]);
-
-/**
- * Strip JS/TS comments while preserving string literals.
- * Uses a single-pass regex that matches strings, template literals, and
- * comments. Only comments are replaced; strings are kept intact so that
- * `//` inside URLs (e.g. "https://...") is not misidentified as a comment.
- */
-const STRING_OR_COMMENT_RE =
-	/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`|\/\/.*$|\/\*[\s\S]*?\*\//gm;
-
-function stripJsComments(src: string): string {
-	return src.replace(STRING_OR_COMMENT_RE, (match) => {
-		// Keep strings/templates, blank out comments
-		if (match.startsWith("//") || match.startsWith("/*")) return "";
-		return match;
-	});
-}
-
-/**
- * Regex patterns for Node.js/Bun/zx command execution APIs.
- * Each captures the string argument (group 1) from known call sites.
- *
- * String literal sub-patterns are escape-aware ("((?:[^"\\]|\\.)+)") so
- * that escaped quotes inside arguments (e.g. exec("bash -c \"curl ...\""))
- * don't truncate the capture.
- */
-
-// Reusable fragment: capture content of "...", '...', or `...`
-// Groups: 1 = double-quoted, 2 = single-quoted, 3 = backtick-quoted
-const STR_ARG = `(?:"((?:[^"\\\\]|\\\\.)*)"|'((?:[^'\\\\]|\\\\.)*)'|` + "`([^`]*)`" + `)`;
-
-// exec("..."), execSync("..."), execFile("..."), execFileSync("...")
-const JS_EXEC_RE = new RegExp(`\\bexec(?:File)?(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
-
-// spawn("..."), spawnSync("...") — first arg is the executable
-const JS_SPAWN_RE = new RegExp(`\\bspawn(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
-
-// spawn/spawnSync array args: spawn("bash", ["-c", "curl ..."])
-// Captures the executable (group 1/2/3) and array content (group 4).
-const JS_SPAWN_ARGS_RE =
-	/\bspawn(?:Sync)?\s*\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|`([^`]*)`)\s*,\s*\[([^\]]*)\]/g;
-
-// Only extract array args when the executable is a shell — otherwise the
-// args are just data passed to the program, not commands to execute.
-// Checked by basename so path-qualified forms like /bin/bash also match.
-const SHELL_EXECUTABLES = new Set([
-	"bash",
-	"sh",
-	"zsh",
-	"dash",
-	"ksh",
-	"csh",
-	"fish",
-	"cmd",
-	"cmd.exe",
-	"powershell",
-	"powershell.exe",
-	"pwsh",
-]);
-
-function isShellExecutable(exe: string): boolean {
-	const basename = exe.split("/").pop()?.split("\\").pop() ?? exe;
-	return SHELL_EXECUTABLES.has(basename);
-}
-
-// execa("...")
-const JS_EXECA_RE = new RegExp(`\\bexeca\\s*\\(\\s*${STR_ARG}`, "g");
-
-// execa array args: execa("bash", ["-c", "curl ..."])
-const JS_EXECA_ARGS_RE =
-	/\bexeca\s*\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|`([^`]*)`)\s*,\s*\[([^\]]*)\]/g;
-
-// Bun.shell("...")
-const JS_BUN_SHELL_RE = new RegExp(`\\bBun\\.shell\\s*\\(\\s*${STR_ARG}`, "g");
-
-// Bun.$`...`
-const JS_BUN_DOLLAR_RE = /\bBun\.\$`([^`]+)`/g;
-
-// $`...` (zx tagged template)
-const JS_ZX_RE = /(?<!\w)\$`([^`]+)`/g;
-
-/**
- * Extract command artifacts from JS/TS file content.
- *
- * Known limitation: matching runs on flattened source text after comment
- * stripping, so API-call patterns appearing inside string literals (e.g.
- * help text or documentation examples) will produce false-positive artifacts.
- * In practice this is low-risk because the artifact must still match a threat
- * pattern to trigger a finding.
- */
-export function extractCommandsFromJsTs(content: string, fileName: string): Artifact[] {
-	const commands = new Set<string>();
-	const stripped = stripJsComments(content);
-	// Collapse newlines to spaces so multi-line calls are matched
-	const collapsed = stripped.replace(/\n/g, " ");
-
-	function addMatch(m: RegExpExecArray) {
-		// Capture group 1, 2, or 3 (double, single, or backtick quotes)
-		const val = m[1] ?? m[2] ?? m[3];
-		if (val) commands.add(val.trim());
-	}
-
-	for (const re of [JS_EXEC_RE, JS_SPAWN_RE, JS_EXECA_RE, JS_BUN_SHELL_RE]) {
-		for (const m of collapsed.matchAll(re)) {
-			addMatch(m);
-		}
-	}
-
-	// Bun.$`...` and $`...` — single capture group
-	for (const re of [JS_BUN_DOLLAR_RE, JS_ZX_RE]) {
-		for (const m of collapsed.matchAll(re)) {
-			if (m[1]) commands.add(m[1].trim());
-		}
-	}
-
-	// spawn/spawnSync/execa array args — only extract when the executable is a shell
-	for (const re of [JS_SPAWN_ARGS_RE, JS_EXECA_ARGS_RE]) {
-		for (const arrMatch of collapsed.matchAll(re)) {
-			const exe = (arrMatch[1] ?? arrMatch[2] ?? arrMatch[3] ?? "").trim();
-			if (!isShellExecutable(exe)) continue;
-			const arrayContent = arrMatch[4] ?? "";
-			const strLitRe = new RegExp(STR_ARG, "g");
-			for (const strMatch of arrayContent.matchAll(strLitRe)) {
-				const val = strMatch[1] ?? strMatch[2] ?? strMatch[3];
-				if (val) commands.add(val.trim());
-			}
-		}
-	}
-
-	return [...commands].map((value) => ({
-		type: "command" as const,
-		value,
-		context: `plugin_file:${fileName}`,
-	}));
-}
-
-function extractArtifactsFromFile(filePath: string, content: string): Artifact[] {
-	const artifacts: Artifact[] = [];
-	const fileName = filePath.split("/").pop() ?? filePath;
-
-	// Extract URLs (skip localhost)
-	for (const url of extractUrls(content)) {
-		if (url.includes("://127.0.0.1") || url.includes("://localhost")) continue;
-		artifacts.push({ type: "url", value: url, context: `plugin_file:${fileName}` });
-	}
-
-	// For script files, treat content as potential commands
-	const ext = extname(filePath).toLowerCase();
-	if ([".sh", ".bash", ".zsh", ".py"].includes(ext)) {
-		for (const line of content.split("\n")) {
-			const trimmed = line.trim();
-			if (
-				trimmed &&
-				!trimmed.startsWith("#") &&
-				!trimmed.startsWith("//") &&
-				!isHarmlessEcho(trimmed)
-			) {
-				artifacts.push({
-					type: "command",
-					value: trimmed,
-					context: `plugin_file:${fileName}`,
-				});
-			}
-		}
-	}
-
-	// For JS/TS files, extract commands from known execution APIs
-	if (JS_TS_EXTENSIONS.has(ext)) {
-		artifacts.push(...extractCommandsFromJsTs(content, fileName));
-	}
-
-	return artifacts;
-}
-
 export async function scanPlugin(
 	plugin: PluginInfo,
-	threats: Threat[],
 	options: {
 		checkUrls?: boolean;
 		checkFileHashes?: boolean;
-		trustedDomains?: TrustedDomain[];
+		checkSkills?: boolean;
+		/** Pre-initialized AMSI client, or null if AMSI is unavailable. Caller owns lifecycle. */
+		amsiClient?: AmsiClient | null;
 		logger?: Logger;
 	} = {},
 ): Promise<PluginScanResult> {
-	const { checkUrls = true, checkFileHashes = true, trustedDomains, logger = nullLogger } = options;
+	const {
+		checkUrls = true,
+		checkFileHashes = true,
+		checkSkills = true,
+		amsiClient = null,
+		logger = nullLogger,
+	} = options;
 	const result: PluginScanResult = { plugin, findings: [] };
 
-	const files = await walkPluginFiles(plugin.installPath, logger);
-	if (files.length === 0) return result;
+	// Skill check is independent of the file walk — runs in parallel and
+	// uses its own enumeration via `computeSkillIdsForRoot`.
+	const skillCheckPromise = checkSkills
+		? runSkillCheck(plugin, result.findings, logger)
+		: Promise.resolve();
 
-	// Only run command-type heuristics on plugin files
-	const commandThreats = threats.filter((t) => t.matchOn.has("command"));
-	const heuristics = new HeuristicsEngine(commandThreats, trustedDomains);
+	const files = await walkPluginFiles(plugin.installPath, logger);
+	if (files.length === 0) {
+		await skillCheckPromise;
+		return result;
+	}
 
 	const allUrls: string[] = [];
 	const hashToFiles = new Map<string, string[]>();
@@ -347,29 +217,31 @@ export async function scanPlugin(
 			continue;
 		}
 
-		// Heuristic matching
-		const artifacts = extractArtifactsFromFile(filePath, content);
-		if (artifacts.length > 0) {
-			const matches = heuristics.match(artifacts);
-			for (const match of matches) {
-				result.findings.push({
-					threatId: match.threat.id,
-					title: match.threat.title,
-					severity: match.threat.severity,
-					confidence: match.threat.confidence,
-					action: match.threat.action,
-					artifact: match.artifact.slice(0, 200),
-					sourceFile: relative(plugin.installPath, filePath),
-				});
+		// AMSI scan (Windows)
+		if (amsiClient) {
+			try {
+				const scanName = `${plugin.key}/${relative(plugin.installPath, filePath)}`;
+				const amsiResult = await amsiClient.scanString("Plugin", scanName, content);
+				if (amsiResult && (amsiResult.isDetected || amsiResult.isBlockedByAdmin)) {
+					result.findings.push({
+						threatId: "AMSI_SCAN",
+						title: `AMSI detection (result=${amsiResult.amsiResult})`,
+						severity: "critical",
+						confidence: 1.0,
+						action: "block",
+						artifact: content.slice(0, 200),
+						sourceFile: relative(plugin.installPath, filePath),
+					});
+				}
+			} catch {
+				// Fail open
 			}
 		}
 
-		// Collect URLs for URL check
 		if (checkUrls) {
 			allUrls.push(...extractUrls(content));
 		}
 
-		// Compute file hash for reputation check
 		if (checkFileHashes) {
 			const sha256 = createHash("sha256").update(rawBytes).digest("hex");
 			const existing = hashToFiles.get(sha256);
@@ -381,7 +253,6 @@ export async function scanPlugin(
 		}
 	}
 
-	// Run URL check and file hash check in parallel
 	const urlCheckPromise =
 		checkUrls && allUrls.length > 0
 			? (async () => {
@@ -440,7 +311,43 @@ export async function scanPlugin(
 				})()
 			: Promise.resolve();
 
-	await Promise.all([urlCheckPromise, fileCheckPromise]);
+	await Promise.all([urlCheckPromise, fileCheckPromise, skillCheckPromise]);
 
 	return result;
+}
+
+async function runSkillCheck(
+	plugin: PluginInfo,
+	findings: PluginFinding[],
+	logger: Logger,
+): Promise<void> {
+	try {
+		const skills = await computeSkillIdsForRoot(plugin.installPath);
+		if (skills.length === 0) return;
+
+		const ids = skills.map((s) => s.skillId);
+		const client = new SkillCheckClient(undefined, logger);
+		const verdicts = await client.checkSkills(ids);
+
+		for (const { folder, skillId } of skills) {
+			const verdict = verdicts.get(skillId);
+			if (!verdict) continue;
+			const risk = (verdict.overallRiskLevel ?? "").toUpperCase();
+			if (risk !== "HIGH" && risk !== "CRITICAL") continue;
+
+			const severity = risk === "CRITICAL" ? "critical" : "high";
+			findings.push({
+				threatId: "SKILL_CHECK",
+				title: verdict.summary?.trim() || `Risky skill detected (${risk})`,
+				severity,
+				confidence: 1.0,
+				action: "log",
+				artifact: skillId.slice(0, 16),
+				sourceFile: relative(plugin.installPath, folder) || ".",
+				recommendations: verdict.recommendations.length > 0 ? verdict.recommendations : undefined,
+			});
+		}
+	} catch (e) {
+		logger.debug("Skill check failed", { error: String(e) });
+	}
 }

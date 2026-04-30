@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const vscode = require("vscode");
 
@@ -23,7 +24,6 @@ const EXPECTED_PRE_TOOL_USE_MATCHERS = ["Write", "Delete", "Edit", "WebFetch"];
 
 const host = readRequiredEnv("SAGE_E2E_HOST");
 const extensionId = readRequiredEnv("SAGE_E2E_EXTENSION_ID");
-const scopeSettingKey = readRequiredEnv("SAGE_E2E_SCOPE_SETTING_KEY");
 const managedMarker = readRequiredEnv("SAGE_E2E_MANAGED_MARKER");
 const hookMode = readRequiredEnv("SAGE_E2E_HOOK_MODE");
 const hooksRelativePath = readRequiredEnv("SAGE_E2E_HOOKS_RELATIVE_PATH");
@@ -31,14 +31,8 @@ const hookRunnerPath = readRequiredEnv("SAGE_E2E_HOOK_RUNNER_PATH");
 const resultsFilePath = process.env.SAGE_E2E_RESULTS_FILE?.trim() || undefined;
 const verbose = isVerbose();
 
-const workspacePath = getWorkspacePath();
-const hookConfigPath = path.join(workspacePath, hooksRelativePath);
+const hookConfigPath = path.join(os.homedir(), hooksRelativePath);
 const TEST_CASES = [
-	{
-		id: "configure-workspace-scope",
-		name: "configure workspace scope",
-		run: configureWorkspaceScope,
-	},
 	{
 		id: "extension-activates",
 		name: "extension activates",
@@ -65,6 +59,11 @@ const TEST_CASES = [
 		run: verifyHookPipelineBlocksThreat,
 	},
 	{
+		id: "tool-coverage-deny",
+		name: "hook denies canary payloads across all tool names",
+		run: verifyToolCoverageDeny,
+	},
+	{
 		id: "hook-response-shape-consistent",
 		name: "hook responses have consistent shape across event types",
 		run: verifyHookResponseShapeAcrossEvents,
@@ -80,11 +79,11 @@ async function run() {
 	const failures = [];
 	const results = [];
 	try {
+		await configureHookRunner();
 		for (const testCase of TEST_CASES) {
 			await runCase(testCase, failures, results);
 		}
 	} finally {
-		cleanupWorkspaceArtifacts();
 		writeResults(results);
 	}
 
@@ -124,11 +123,7 @@ async function runCase(testCase, failures, results) {
 	}
 }
 
-async function configureWorkspaceScope() {
-	cleanupWorkspaceArtifacts();
-	await vscode.workspace
-		.getConfiguration()
-		.update(scopeSettingKey, "workspace", vscode.ConfigurationTarget.Workspace);
+async function configureHookRunner() {
 	await vscode.workspace
 		.getConfiguration()
 		.update("sage.hookRunnerPath", hookRunnerPath, vscode.ConfigurationTarget.Global);
@@ -187,9 +182,9 @@ async function verifyHookPipelineBlocksThreat() {
 					},
 				}
 			: {
-					tool_name: "Write",
+					tool_name: "create_file",
 					tool_input: {
-						file_path: "/tmp/__sage_test_deny_file_e6c4a918__.txt",
+						filePath: "/tmp/__sage_test_deny_file_e6c4a918__.txt",
 						content: "hello",
 					},
 				};
@@ -211,6 +206,248 @@ async function verifyHookPipelineBlocksThreat() {
 		decision === "deny" || decision === "ask",
 		`Expected VS Code hook decision deny|ask, got "${String(decision)}"`,
 	);
+}
+
+/**
+ * Verify that the hook runner returns deny for ALL supported tool names.
+ *
+ * Cursor payloads cover all event types (preToolUse, beforeShellExecution, beforeReadFile).
+ * VS Code payloads cover all VS Code Copilot Chat + Copilot CLI tool names.
+ *
+ * Each payload uses canary patterns from threats/dummy.yaml to trigger a deny verdict.
+ */
+async function verifyToolCoverageDeny() {
+	assert.ok(fs.existsSync(hookRunnerPath), `Expected hook runner at ${hookRunnerPath}`);
+
+	const canaryFilePath = "/tmp/__sage_test_deny_file_e6c4a918__.txt";
+	const canaryCommand = "echo __sage_test_deny_cmd_a75bf229__";
+	const canaryUrl = "https://sage-canary-deny-4e91ca37.test/page";
+	const canaryPatchInput = `*** Update File: ${canaryFilePath}\n--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new`;
+
+	const payloads =
+		hookMode === "cursor"
+			? [
+					{
+						label: "Write (preToolUse)",
+						payload: {
+							hook_event_name: "preToolUse",
+							tool_name: "Write",
+							tool_input: { file_path: canaryFilePath, content: "hello" },
+						},
+					},
+					{
+						label: "Edit (preToolUse)",
+						payload: {
+							hook_event_name: "preToolUse",
+							tool_name: "Edit",
+							tool_input: {
+								file_path: canaryFilePath,
+								old_string: "old",
+								new_string: "new",
+							},
+						},
+					},
+					{
+						label: "Read (preToolUse)",
+						payload: {
+							hook_event_name: "preToolUse",
+							tool_name: "Read",
+							tool_input: { file_path: canaryFilePath },
+						},
+					},
+					{
+						label: "Delete (preToolUse)",
+						payload: {
+							hook_event_name: "preToolUse",
+							tool_name: "Delete",
+							tool_input: { file_path: canaryFilePath },
+						},
+					},
+					{
+						label: "WebFetch (preToolUse)",
+						payload: {
+							hook_event_name: "preToolUse",
+							tool_name: "WebFetch",
+							tool_input: { url: canaryUrl },
+						},
+					},
+					{
+						label: "Shell (beforeShellExecution)",
+						payload: {
+							hook_event_name: "beforeShellExecution",
+							command: canaryCommand,
+							cwd: "/tmp",
+						},
+					},
+					{
+						label: "Read (beforeReadFile)",
+						payload: {
+							hook_event_name: "beforeReadFile",
+							file_path: canaryFilePath,
+							content: "",
+							attachments: [],
+						},
+					},
+				]
+			: [
+					// --- VS Code Copilot Chat tools ---
+					{
+						label: "run_in_terminal",
+						payload: {
+							tool_name: "run_in_terminal",
+							tool_input: { command: canaryCommand },
+						},
+					},
+					{
+						label: "create_file",
+						payload: {
+							tool_name: "create_file",
+							tool_input: { filePath: canaryFilePath, content: "hello" },
+						},
+					},
+					{
+						label: "read_file",
+						payload: {
+							tool_name: "read_file",
+							tool_input: { filePath: canaryFilePath },
+						},
+					},
+					{
+						label: "replace_string_in_file",
+						payload: {
+							tool_name: "replace_string_in_file",
+							tool_input: {
+								filePath: canaryFilePath,
+								oldString: "old",
+								newString: "new",
+							},
+						},
+					},
+					{
+						label: "insert_edit_into_file",
+						payload: {
+							tool_name: "insert_edit_into_file",
+							tool_input: { filePath: canaryFilePath, code: "new content" },
+						},
+					},
+					{
+						label: "multi_replace_string_in_file",
+						payload: {
+							tool_name: "multi_replace_string_in_file",
+							tool_input: {
+								replacements: [{ filePath: canaryFilePath, oldString: "old", newString: "new" }],
+							},
+						},
+					},
+					{
+						label: "fetch_webpage",
+						payload: {
+							tool_name: "fetch_webpage",
+							tool_input: { urls: [canaryUrl], query: "content" },
+						},
+					},
+					{
+						label: "apply_patch (input)",
+						payload: {
+							tool_name: "apply_patch",
+							tool_input: { input: canaryPatchInput },
+						},
+					},
+					// --- Copilot CLI tools ---
+					{
+						label: "bash",
+						payload: {
+							tool_name: "bash",
+							tool_input: { command: canaryCommand, description: "test" },
+						},
+					},
+					{
+						label: "write_bash",
+						payload: {
+							tool_name: "write_bash",
+							tool_input: { shellId: "0", input: canaryCommand, delay: 0 },
+						},
+					},
+					{
+						label: "create",
+						payload: {
+							tool_name: "create",
+							tool_input: { path: canaryFilePath, content: "hello" },
+						},
+					},
+					{
+						label: "edit",
+						payload: {
+							tool_name: "edit",
+							tool_input: {
+								path: canaryFilePath,
+								old_string: "old",
+								new_string: "new",
+							},
+						},
+					},
+					{
+						label: "view",
+						payload: {
+							tool_name: "view",
+							tool_input: { path: canaryFilePath },
+						},
+					},
+					{
+						label: "grep",
+						payload: {
+							tool_name: "grep",
+							tool_input: { pattern: "test", path: canaryFilePath },
+						},
+					},
+					{
+						label: "web_fetch",
+						payload: {
+							tool_name: "web_fetch",
+							tool_input: { url: canaryUrl },
+						},
+					},
+					{
+						label: "apply_patch (patch)",
+						payload: {
+							tool_name: "apply_patch",
+							tool_input: { patch: canaryPatchInput },
+						},
+					},
+				];
+
+	const failures = [];
+	for (const { label, payload } of payloads) {
+		const response = runHook(payload);
+
+		if (hookMode === "cursor") {
+			if (response.decision !== "deny" && response.permission !== "deny") {
+				failures.push(
+					`${label}: expected deny, got decision="${String(response.decision)}" permission="${String(response.permission)}"`,
+				);
+			}
+		} else {
+			const hookSpecificOutput = asObject(response.hookSpecificOutput);
+			const decision = hookSpecificOutput.permissionDecision;
+			if (decision !== "deny" && decision !== "ask") {
+				failures.push(
+					`${label}: expected deny|ask, got permissionDecision="${String(decision)}" (response: ${JSON.stringify(response)})`,
+				);
+			}
+		}
+	}
+
+	assert.equal(
+		failures.length,
+		0,
+		`${failures.length}/${payloads.length} tool(s) failed deny check:\n${failures.join("\n")}`,
+	);
+
+	if (verbose) {
+		console.log(
+			`[sage-e2e] tool-coverage-deny: ${payloads.length}/${payloads.length} tools passed`,
+		);
+	}
 }
 
 async function verifyHookResponseShapeAcrossEvents() {
@@ -317,62 +554,34 @@ function verifyCursorManagedHooks(config) {
 function verifyVsCodeManagedHooks(config) {
 	const hooks = asObject(config.hooks);
 	const preToolUse = Array.isArray(hooks.PreToolUse) ? hooks.PreToolUse : [];
-	assert.ok(preToolUse.length > 0, "Expected PreToolUse entries in VS Code settings hooks");
+	assert.ok(preToolUse.length > 0, "Expected PreToolUse entries in Copilot hooks");
 
-	const hasManagedCommand = preToolUse.some((matcherEntry) => {
-		const hooksArray =
-			matcherEntry && typeof matcherEntry === "object" ? matcherEntry.hooks : undefined;
-		if (!Array.isArray(hooksArray)) {
-			return false;
-		}
-		return hooksArray.some(
-			(hookEntry) =>
-				hookEntry &&
-				typeof hookEntry === "object" &&
-				typeof hookEntry.command === "string" &&
-				hookEntry.command.includes(managedMarker),
-		);
-	});
-	assert.ok(hasManagedCommand, "Expected managed command hook in VS Code PreToolUse entries");
+	const hasManagedCommand = preToolUse.some(
+		(entry) =>
+			entry &&
+			typeof entry === "object" &&
+			entry.type === "command" &&
+			typeof entry.command === "string" &&
+			entry.command.includes(managedMarker),
+	);
+	assert.ok(hasManagedCommand, "Expected managed command hook in Copilot PreToolUse entries");
 }
 
 function collectManagedCommands(config) {
-	if (host === "cursor") {
-		const hooks = asObject(config.hooks);
-		const commands = [];
-		for (const entries of Object.values(hooks)) {
-			if (!Array.isArray(entries)) {
-				continue;
-			}
-			for (const entry of entries) {
-				if (
-					entry &&
-					typeof entry === "object" &&
-					typeof entry.command === "string" &&
-					entry.command.includes(managedMarker)
-				) {
-					commands.push(entry.command);
-				}
-			}
-		}
-		return commands;
-	}
-
-	const commands = [];
 	const hooks = asObject(config.hooks);
-	const preToolUse = Array.isArray(hooks.PreToolUse) ? hooks.PreToolUse : [];
-	for (const matcherEntry of preToolUse) {
-		if (!matcherEntry || typeof matcherEntry !== "object" || !Array.isArray(matcherEntry.hooks)) {
+	const commands = [];
+	for (const entries of Object.values(hooks)) {
+		if (!Array.isArray(entries)) {
 			continue;
 		}
-		for (const hookEntry of matcherEntry.hooks) {
+		for (const entry of entries) {
 			if (
-				hookEntry &&
-				typeof hookEntry === "object" &&
-				typeof hookEntry.command === "string" &&
-				hookEntry.command.includes(managedMarker)
+				entry &&
+				typeof entry === "object" &&
+				typeof entry.command === "string" &&
+				entry.command.includes(managedMarker)
 			) {
-				commands.push(hookEntry.command);
+				commands.push(entry.command);
 			}
 		}
 	}
@@ -402,18 +611,6 @@ function parseHookStdout(stdout) {
 
 function readJsonFile(filePath) {
 	return JSON.parse(fs.readFileSync(filePath, "utf8"));
-}
-
-function getWorkspacePath() {
-	const folder = vscode.workspace.workspaceFolders?.[0];
-	assert.ok(folder, "Expected a workspace folder for extension E2E");
-	return folder.uri.fsPath;
-}
-
-function cleanupWorkspaceArtifacts() {
-	for (const relativePath of [".cursor", ".claude", ".vscode"]) {
-		fs.rmSync(path.join(workspacePath, relativePath), { recursive: true, force: true });
-	}
 }
 
 function asObject(value) {

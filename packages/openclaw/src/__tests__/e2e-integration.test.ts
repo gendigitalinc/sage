@@ -14,6 +14,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { useIsolatedHome } from "./test-helpers.js";
 
 const require = createRequire(import.meta.url);
 
@@ -101,6 +102,7 @@ async function expectAllowed(handler: ToolCallHandler, event: ToolCallEvent): Pr
 
 describe("OpenClaw integration: Sage plugin pipeline", { timeout: 30_000 }, () => {
 	let handler: ToolCallHandler;
+	useIsolatedHome("openclaw-test");
 
 	beforeAll(() => {
 		handler = loadHandler();

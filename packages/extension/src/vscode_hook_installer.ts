@@ -1,330 +1,134 @@
-import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { type Branding, defaultBranding, HOOK_TIMEOUT_SECONDS } from "@gendigital/sage-core";
 import * as vscode from "vscode";
-import type {
-	ManagedHookHealth,
-	ManagedHookInstallOptions,
-	ManagedHookScope,
-} from "./managedHooks.js";
+import {
+	appendManaged,
+	collectManagedCommands,
+	createHookShim,
+	type HookMap,
+	isManagedEntry,
+	quote,
+	resolveNodeRuntimePath,
+	resolveRunnerPath,
+	safeArray,
+	writeHooksFile,
+} from "./hook_installer_shared.js";
+import type { ManagedHookHealth, ManagedHookInstallOptions } from "./managedHooks.js";
 
 const MANAGED_MARKER = "--managed-by sage-vscode";
-const UNSAFE_SHIM_PATH_PATTERN = /["`$;&|<>\r\n\0%!]/;
 
-type HookCommandEntry = Record<string, unknown> & { command?: string };
-type HookMatcherEntry = Record<string, unknown> & { hooks?: HookCommandEntry[] };
-type HookMap = Record<string, HookMatcherEntry[]>;
-type SettingsObject = Record<string, unknown>;
+interface CopilotHooksFile {
+	hooks: HookMap;
+	[key: string]: unknown;
+}
 
 export async function installManagedHooks(
 	options: ManagedHookInstallOptions,
-	branding: Branding = defaultBranding,
+	_branding: Branding = defaultBranding,
 ): Promise<ManagedHookHealth> {
-	const configPath = await resolveSettingsPath(options.scope);
+	const configPath = resolveHooksPath();
 	await mkdir(path.dirname(configPath), { recursive: true });
 
 	const runnerPath = await resolveRunnerPath(options.context);
 	const nodePath = resolveNodeRuntimePath();
-	const command = await buildHookCommand(configPath, nodePath, runnerPath);
+	const command = await buildHookCommand(configPath, nodePath, runnerPath, vscode.env.appRoot);
 
-	const settings = await readSettingsFile(configPath);
-	const updated = upsertManagedHooks(settings, command, branding);
-	await writeSettingsFile(configPath, updated);
+	const hooksFile = await readHooksFile(configPath);
+	const updated = upsertManagedHooks(hooksFile, command);
+	await writeHooksFile(configPath, updated);
 
-	const hooks = normalizeHookMap(updated.hooks);
+	const installedEvents = Object.keys(updated.hooks).filter((name) =>
+		safeArray(updated.hooks[name]).some((entry) => isManagedEntry(entry, MANAGED_MARKER)),
+	);
+
 	return {
 		configPath,
 		runnerPath,
-		installedEvents: collectInstalledEvents(hooks),
-		managedCommands: collectManagedCommands(hooks),
+		installedEvents,
+		managedCommands: collectManagedCommands(updated.hooks, MANAGED_MARKER),
 	};
 }
 
-export async function removeManagedHooks(scope: ManagedHookScope): Promise<string> {
-	const configPath = await resolveSettingsPath(scope);
-	const settings = await readSettingsFile(configPath);
-	const updated = removeManagedEntries(settings);
-	await writeSettingsFile(configPath, updated);
+export async function removeManagedHooks(): Promise<string> {
+	const configPath = resolveHooksPath();
+	const hooksFile = await readHooksFile(configPath);
+	const updated = removeManagedEntries(hooksFile);
+	await writeHooksFile(configPath, updated);
 	return configPath;
 }
 
 export async function getHookHealth(
 	options: ManagedHookInstallOptions,
 ): Promise<ManagedHookHealth> {
-	const configPath = await resolveSettingsPath(options.scope);
-	const settings = await readSettingsFile(configPath);
-	const hooks = normalizeHookMap(settings.hooks);
+	const configPath = resolveHooksPath();
+	const hooksFile = await readHooksFile(configPath);
 	const runnerPath = await resolveRunnerPath(options.context).catch(() => undefined);
+
+	const installedEvents = Object.keys(hooksFile.hooks).filter((eventName) =>
+		safeArray(hooksFile.hooks[eventName]).some((entry) => isManagedEntry(entry, MANAGED_MARKER)),
+	);
 
 	return {
 		configPath,
 		runnerPath,
-		installedEvents: collectInstalledEvents(hooks),
-		managedCommands: collectManagedCommands(hooks),
+		installedEvents,
+		managedCommands: collectManagedCommands(hooksFile.hooks, MANAGED_MARKER),
 	};
 }
 
-async function resolveSettingsPath(scope: ManagedHookScope): Promise<string> {
-	if (scope === "user") {
-		return path.join(os.homedir(), ".claude", "settings.json");
-	}
-
-	const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-	if (!workspace) {
-		throw new Error("Open a workspace folder to install workspace hooks.");
-	}
-	return path.join(workspace, ".claude", "settings.json");
-}
-
-async function resolveRunnerPath(context: vscode.ExtensionContext): Promise<string> {
-	const configured =
-		vscode.workspace.getConfiguration().get<string>("sage.hookRunnerPath")?.trim() ?? "";
-	if (configured) {
-		await access(configured);
-		return configured;
-	}
-
-	const candidates = [
-		context.asAbsolutePath(path.join("dist", "sage-hook.cjs")),
-		context.asAbsolutePath(path.join("resources", "sage-hook.cjs")),
-	];
-
-	for (const candidate of candidates) {
-		try {
-			await access(candidate);
-			return candidate;
-		} catch {
-			// Try next candidate.
-		}
-	}
-
-	throw new Error(
-		"Unable to locate sage-hook runner. Build packages/extension or set sage.hookRunnerPath.",
-	);
-}
-
-function resolveNodeRuntimePath(): string {
-	return process.env.VSCODE_NODE_EXEC_PATH?.trim() || process.execPath;
+function resolveHooksPath(): string {
+	return path.join(os.homedir(), ".copilot", "hooks", "hooks.json");
 }
 
 async function buildHookCommand(
 	configPath: string,
 	nodePath: string,
 	runnerPath: string,
+	appRoot: string,
 ): Promise<string> {
-	const claudeConfigDir = path.dirname(configPath);
-	const shimPath = await createHookShim(claudeConfigDir, nodePath, runnerPath);
+	const configDir = path.dirname(configPath);
+	const shimPath = await createHookShim(configDir, nodePath, runnerPath, appRoot);
 	if (process.platform === "win32") {
-		// Claude hook commands can execute in PowerShell contexts on Windows.
-		// A quoted script path must be invoked with `&` to avoid parser errors.
 		return `& ${quote(shimPath)} vscode ${MANAGED_MARKER}`;
 	}
 	return `${quote(shimPath)} vscode ${MANAGED_MARKER}`;
 }
 
-async function createHookShim(
-	claudeConfigDir: string,
-	nodePath: string,
-	runnerPath: string,
-): Promise<string> {
-	assertSafePathForShim(nodePath, "Node runtime");
-	assertSafePathForShim(runnerPath, "Hook runner");
+function upsertManagedHooks(existing: CopilotHooksFile, command: string): CopilotHooksFile {
+	const hooks = { ...existing.hooks };
 
-	const hooksDir = path.join(claudeConfigDir, "hooks");
-	const posixShim = path.join(hooksDir, "sage-hook");
-	const windowsShim = path.join(hooksDir, "sage-hook.cmd");
-
-	await mkdir(hooksDir, { recursive: true });
-	await writeFile(
-		posixShim,
-		`#!/usr/bin/env sh\nexport ELECTRON_RUN_AS_NODE=1\n"${nodePath}" "${runnerPath}" "$@"\n`,
-		"utf8",
-	);
-	await chmod(posixShim, 0o755);
-
-	await writeFile(
-		windowsShim,
-		`@echo off\r\nsetlocal\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${nodePath}" "${runnerPath}" %*\r\n`,
-		"utf8",
+	hooks.PreToolUse = appendManaged(
+		hooks.PreToolUse,
+		{ type: "command", command, timeout: HOOK_TIMEOUT_SECONDS },
+		MANAGED_MARKER,
 	);
 
-	return process.platform === "win32" ? windowsShim : posixShim;
+	return { ...existing, hooks };
 }
 
-function assertSafePathForShim(pathValue: string, label: string): void {
-	if (!pathValue) {
-		throw new Error(`${label} path is empty.`);
-	}
-	if (UNSAFE_SHIM_PATH_PATTERN.test(pathValue)) {
-		throw new Error(`${label} path contains unsupported characters for generated hook shims.`);
-	}
-}
-
-function upsertManagedHooks(
-	existing: SettingsObject,
-	command: string,
-	branding: Branding,
-): SettingsObject {
-	const hooks = cloneHookSettings(existing.hooks);
-	hooks.PreToolUse = appendManaged(asMatcherEntries(hooks.PreToolUse), {
-		matcher: "Bash|WebFetch|Write|Edit|Read|Delete",
-		hooks: [
-			{
-				type: "command",
-				command,
-				timeout: HOOK_TIMEOUT_SECONDS,
-				statusMessage: `${branding.product_name}: Checking for threats...`,
-			},
-		],
-	});
-
-	return {
-		...existing,
-		hooks,
-	};
-}
-
-function removeManagedEntries(existing: SettingsObject): SettingsObject {
-	const hooks = cloneHookSettings(existing.hooks);
-	for (const [eventName, value] of Object.entries(hooks)) {
-		if (!Array.isArray(value)) {
-			continue;
-		}
-		const filtered = filterManagedMatcherEntries(asMatcherEntries(value));
-		if (filtered.length === 0) {
-			delete hooks[eventName];
-			continue;
-		}
-		hooks[eventName] = filtered;
-	}
-
-	return {
-		...existing,
-		hooks,
-	};
-}
-
-function appendManaged(
-	entries: HookMatcherEntry[] | undefined,
-	managedEntry: HookMatcherEntry,
-): HookMatcherEntry[] {
-	const retained = filterManagedMatcherEntries(entries ?? []);
-	return [...retained, managedEntry];
-}
-
-function filterManagedMatcherEntries(entries: HookMatcherEntry[]): HookMatcherEntry[] {
-	const retained: HookMatcherEntry[] = [];
-	for (const entry of entries) {
-		const commandHooks = asCommandEntries(entry.hooks);
-		if (commandHooks.length === 0) {
-			retained.push(entry);
-			continue;
-		}
-
-		const filteredHooks = commandHooks.filter((hook) => !isManagedCommandHook(hook));
-		if (filteredHooks.length === 0) {
-			continue;
-		}
-		retained.push({ ...entry, hooks: filteredHooks });
-	}
-	return retained;
-}
-
-function collectInstalledEvents(hooks: HookMap): string[] {
-	const events: string[] = [];
-	for (const [eventName, entries] of Object.entries(hooks)) {
-		if (
-			entries.some((entry) =>
-				asCommandEntries(entry.hooks).some((hook) => isManagedCommandHook(hook)),
-			)
-		) {
-			events.push(eventName);
+function removeManagedEntries(existing: CopilotHooksFile): CopilotHooksFile {
+	const hooks: HookMap = {};
+	for (const [eventName, entries] of Object.entries(existing.hooks)) {
+		const filtered = safeArray(entries).filter((entry) => !isManagedEntry(entry, MANAGED_MARKER));
+		if (filtered.length > 0) {
+			hooks[eventName] = filtered;
 		}
 	}
-	return events;
+	return { ...existing, hooks };
 }
 
-function collectManagedCommands(hooks: HookMap): string[] {
-	const commands = new Set<string>();
-	for (const entries of Object.values(hooks)) {
-		for (const entry of entries) {
-			for (const hook of asCommandEntries(entry.hooks)) {
-				if (isManagedCommandHook(hook) && typeof hook.command === "string") {
-					commands.add(hook.command);
-				}
-			}
-		}
-	}
-	return [...commands];
-}
-
-function isManagedCommandHook(entry: HookCommandEntry): boolean {
-	return typeof entry.command === "string" && entry.command.includes(MANAGED_MARKER);
-}
-
-async function readSettingsFile(filePath: string): Promise<SettingsObject> {
+async function readHooksFile(filePath: string): Promise<CopilotHooksFile> {
 	try {
-		const parsed = JSON.parse(await readFile(filePath, "utf8"));
-		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-			return parsed as SettingsObject;
-		}
-		return {};
+		const parsed = JSON.parse(await readFile(filePath, "utf8")) as Record<string, unknown>;
+		const { hooks, ...rest } = parsed;
+		return {
+			...rest,
+			hooks: (hooks && typeof hooks === "object" ? hooks : {}) as HookMap,
+		};
 	} catch {
-		return {};
+		return { hooks: {} };
 	}
-}
-
-async function writeSettingsFile(filePath: string, data: SettingsObject): Promise<void> {
-	await mkdir(path.dirname(filePath), { recursive: true });
-	await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-}
-
-function normalizeHookMap(input: unknown): HookMap {
-	if (!input || typeof input !== "object" || Array.isArray(input)) {
-		return {};
-	}
-	const output: HookMap = {};
-	for (const [eventName, entries] of Object.entries(input as Record<string, unknown>)) {
-		if (!Array.isArray(entries)) {
-			continue;
-		}
-		output[eventName] = entries.filter(
-			(entry): entry is HookMatcherEntry =>
-				!!entry && typeof entry === "object" && !Array.isArray(entry),
-		);
-	}
-	return output;
-}
-
-function cloneHookSettings(input: unknown): SettingsObject {
-	if (!input || typeof input !== "object" || Array.isArray(input)) {
-		return {};
-	}
-	return { ...(input as SettingsObject) };
-}
-
-function asMatcherEntries(entries: unknown): HookMatcherEntry[] {
-	if (!Array.isArray(entries)) {
-		return [];
-	}
-	return entries.filter(
-		(entry): entry is HookMatcherEntry =>
-			!!entry && typeof entry === "object" && !Array.isArray(entry),
-	);
-}
-
-function asCommandEntries(entries: unknown): HookCommandEntry[] {
-	if (!Array.isArray(entries)) {
-		return [];
-	}
-	return entries.filter(
-		(entry): entry is HookCommandEntry =>
-			!!entry && typeof entry === "object" && !Array.isArray(entry),
-	);
-}
-
-function quote(value: string): string {
-	return `"${value.replace(/"/g, '\\"')}"`;
 }

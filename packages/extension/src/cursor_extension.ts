@@ -5,7 +5,6 @@ import { activateManagedHooksExtension } from "./shared_extension.js";
 export function activate(context: vscode.ExtensionContext): void {
 	activateManagedHooksExtension(context, {
 		hostName: "Cursor",
-		scopeSettingKey: "sage.cursor.scope",
 		installer: cursorHookInstaller,
 	});
 }

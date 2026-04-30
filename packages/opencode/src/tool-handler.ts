@@ -1,14 +1,59 @@
 import {
 	type ApprovalStore,
 	type Branding,
+	type CanonicalToolType,
+	canonicalizeToolName,
 	defaultBranding,
 	formatAskMessage,
 	formatDenyMessage,
 	guardToolCall,
 	type Logger,
 } from "@gendigital/sage-core";
+
+const OPENCODE_TOOL_MAP: Record<string, CanonicalToolType> = {
+	bash: "Bash",
+	webfetch: "WebFetch",
+	write: "Write",
+	edit: "Edit",
+	read: "Read",
+	glob: "Glob",
+	grep: "Grep",
+	ls: "List",
+	codesearch: "CodeSearch",
+	websearch: "WebSearch",
+	question: "Question",
+	task: "Task",
+	read_lines: "ReadLines",
+};
+
 import { SageVerdictBlockError, SageVerdictError } from "./error.js";
 import { extractFromOpenCodeTool } from "./extractors.js";
+
+function asString(value: unknown): string | undefined {
+	return typeof value === "string" ? value : undefined;
+}
+
+function normalizeToolInput(
+	toolName: string,
+	args: Record<string, unknown>,
+): Record<string, unknown> {
+	switch (toolName) {
+		case "write":
+			return {
+				...args,
+				file_path: asString(args.filePath) ?? asString(args.file_path) ?? "",
+				content: asString(args.content) ?? "",
+			};
+		case "edit":
+			return {
+				...args,
+				file_path: asString(args.filePath) ?? asString(args.file_path) ?? "",
+				new_string: asString(args.newString) ?? asString(args.new_string) ?? "",
+			};
+		default:
+			return args;
+	}
+}
 
 export interface ToolHandlerOptions {
 	showToast?: (msg: string, variant: "info" | "success" | "warning" | "error") => void;
@@ -41,8 +86,8 @@ export function createToolHandlers(
 					sessionId: input.sessionID,
 					conversationId: input.sessionID,
 					agentRuntime: "opencode",
-					toolName: input.tool,
-					toolInput: args,
+					toolName: canonicalizeToolName(OPENCODE_TOOL_MAP, input.tool),
+					toolInput: normalizeToolInput(input.tool, args),
 					artifacts,
 				},
 				{
@@ -60,8 +105,8 @@ export function createToolHandlers(
 			try {
 				const toastMsg =
 					verdict.decision === "deny"
-						? `${branding.product_name} blocked: ${verdict.reasons[0] ?? "Threat detected"} (${verdict.category})`
-						: `${branding.product_name} flagged: ${verdict.reasons[0] ?? "Action flagged"} (${verdict.category})`;
+						? `${branding.name} blocked: ${verdict.reasons[0] ?? "Threat detected"} (${verdict.category})`
+						: `${branding.name} flagged: ${verdict.reasons[0] ?? "Action flagged"} (${verdict.category})`;
 				options?.showToast?.(toastMsg, verdict.severity === "critical" ? "error" : "warning");
 			} catch {
 				// Toast failure is non-critical — never prevent enforcement
@@ -78,7 +123,7 @@ export function createToolHandlers(
 		} catch (error) {
 			// Verdict errors are expected (blocks and asks); others are logged as fail-open
 			if (error instanceof SageVerdictError) throw error;
-			logger.error(`${branding.product_name} opencode hook failed open`, {
+			logger.error(`${branding.name} opencode hook failed open`, {
 				error: String(error),
 				tool: input.tool,
 			});

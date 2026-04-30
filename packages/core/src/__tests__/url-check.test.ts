@@ -42,7 +42,6 @@ describe("UrlCheckClient", () => {
 										},
 									},
 								},
-								flags: [],
 							},
 						},
 					},
@@ -71,7 +70,6 @@ describe("UrlCheckClient", () => {
 								classification: {
 									result: {},
 								},
-								flags: [],
 							},
 						},
 					},
@@ -102,7 +100,10 @@ describe("UrlCheckClient", () => {
 		expect(body.queries[1].key["url-like"]).toBe("http://other.test/path?key=val");
 	});
 
-	it("parses flagged URL response", async () => {
+	it("does not surface backend `flags` on parsed result", async () => {
+		// The backend may continue sending `success.flags` (typosquatting indicators, etc.),
+		// but the client must not propagate it into UrlCheckResult — flags were never
+		// intended as a user-facing signal and are no longer part of the type.
 		globalThis.fetch = vi.fn().mockResolvedValue({
 			ok: true,
 			json: async () => ({
@@ -123,7 +124,8 @@ describe("UrlCheckClient", () => {
 		const client = new UrlCheckClient();
 		const results = await client.checkUrls(["http://suspicious.test"]);
 		expect(results).toHaveLength(1);
-		expect(results[0]?.flags).toContain("TYPOSQUATTING");
+		expect(results[0]?.isMalicious).toBe(false);
+		expect((results[0] as unknown as { flags?: unknown }).flags).toBeUndefined();
 	});
 
 	it("returns empty on fetch error (fail-open)", async () => {
@@ -163,6 +165,24 @@ describe("UrlCheckClient", () => {
 		expect(body["client-info"]).toHaveProperty("product-name");
 		expect(body["client-info"]).toHaveProperty("product-version");
 		expect(body).not.toHaveProperty("client_info");
+	});
+
+	it("requests detection-infos so the detection name is returned", async () => {
+		// Without `include: { "detection-infos": true }` the upstream omits the
+		// `detection-infos` array, so detection names like
+		// "URL:Phishing|UR80DB9FCAE91E5845-0200|urlb" never reach the client and
+		// downstream telemetry/audit logs end up with empty `signals.url_checks`.
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({ answers: [] }),
+		});
+		globalThis.fetch = mockFetch;
+
+		const client = new UrlCheckClient();
+		await client.checkUrls(["http://example.test"]);
+
+		const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+		expect(body.queries[0].include).toStrictEqual({ "detection-infos": true });
 	});
 
 	it("batches URLs in groups of 50", async () => {

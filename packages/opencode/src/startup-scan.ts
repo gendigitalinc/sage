@@ -3,6 +3,7 @@
  * Thin wrapper over core's createScanHandler.
  */
 
+import { createRequire } from "node:module";
 import {
 	type Branding,
 	createScanHandler as coreScanHandler,
@@ -11,6 +12,21 @@ import {
 } from "@gendigital/sage-core";
 import { getBundledDataDirs, getSageVersion } from "./bundled-dirs.js";
 import { discoverOpenCodePlugins } from "./plugin-discovery.js";
+
+/**
+ * OpenCode is published as an unbundled ESM plugin (tsc only). The model
+ * download worker therefore lives in the `@gendigital/sage-core` package
+ * as `dist/model-download-worker.js`. Resolve via `require.resolve` so we
+ * pick it up wherever pnpm/node placed it.
+ */
+function resolveModelDownloadWorkerPath(): string | undefined {
+	try {
+		const req = createRequire(import.meta.url);
+		return req.resolve("@gendigital/sage-core/dist/model-download-worker.js");
+	} catch {
+		return undefined;
+	}
+}
 
 export function createSessionScanHandler(
 	logger: Logger,
@@ -32,5 +48,6 @@ export function createSessionScanHandler(
 		agentRuntime: "opencode",
 		branding,
 		onResult,
+		modelDownloadWorkerPath: resolveModelDownloadWorkerPath(),
 	});
 }

@@ -47,15 +47,22 @@ export function formatBlockReason(verdict: Verdict, branding: Branding = default
 	const reasonText = verdict.reasons.length > 0 ? verdict.reasons[0] : verdict.category;
 
 	if (isDeny) {
-		const header = `🛡️ ${branding.banner_text}: Threat Blocked`;
+		const header = `🛡️ ${branding.name}: Threat Blocked`;
 		const lines: string[] = [header, separatorLine(SEPARATOR_WIDTH)];
 		lines.push(`${emoji} ${"Threat".padEnd(PAD)}${reasonText}`);
 		appendVerdictDetails(lines, verdict);
 		lines.push(kv("Action", "Blocked"));
+		if (verdict.source === "pi_check") {
+			lines.push("");
+			lines.push("Do NOT attempt to fetch this URL again or access it through alternative tools.");
+			lines.push(
+				"If this is a false positive, use the sage_report_false_positive MCP tool to report it.",
+			);
+		}
 		return lines.join("\n");
 	}
 
-	const header = `🛡️ ${branding.banner_text}: Suspicious Activity Detected`;
+	const header = `🛡️ ${branding.name}: Suspicious Activity Detected`;
 	const lines: string[] = [header, separatorLine(SEPARATOR_WIDTH)];
 	lines.push(`${emoji} ${"Threat".padEnd(PAD)}${reasonText}`);
 	appendVerdictDetails(lines, verdict);

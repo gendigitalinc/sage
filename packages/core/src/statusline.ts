@@ -6,7 +6,7 @@
 
 import * as fsPromises from "node:fs/promises";
 import { join } from "node:path";
-import { defaultBranding } from "./branding.js";
+import { defaultBranding } from "./brands.js";
 import { resolvePath, SAGE_DIR } from "./config.js";
 import { atomicWriteJson, getFileContent } from "./file-utils.js";
 import type { Branding, Verdict } from "./types.js";
@@ -88,7 +88,7 @@ export function formatStatusLine(
 	lastCategory?: string | null,
 	branding: Branding = defaultBranding,
 ): string {
-	const name = branding.product_name;
+	const name = branding.name;
 	if (denied > 0 || flagged > 0) {
 		const parts: string[] = [];
 		if (denied > 0) parts.push(`${denied} blocked`);

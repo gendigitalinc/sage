@@ -42,8 +42,8 @@ describe("DecisionEngine", () => {
 		const result: UrlCheckResult = {
 			url: "http://untrusted.test",
 			isMalicious: true,
+			detections: [],
 			findings: [{ severityName: "malware", typeName: "trojan" }],
-			flags: [],
 		};
 		const verdict = await engine.decide({ heuristicMatches: [], urlCheckResults: [result] });
 		expect(verdict.decision).toBe("deny");
@@ -52,18 +52,17 @@ describe("DecisionEngine", () => {
 		expect(verdict.source).toBe("url_check");
 	});
 
-	it("returns ask for URL check flag", async () => {
+	it("does not produce a verdict for a non-malicious URL response", async () => {
 		const engine = new DecisionEngine();
 		const result: UrlCheckResult = {
 			url: "http://g00gle.test",
 			isMalicious: false,
+			detections: [],
 			findings: [],
-			flags: ["TYPOSQUATTING"],
 		};
 		const verdict = await engine.decide({ heuristicMatches: [], urlCheckResults: [result] });
-		expect(verdict.decision).toBe("ask");
-		expect(verdict.severity).toBe("warning");
-		expect(verdict.confidence).toBe(0.75);
+		expect(verdict.decision).toBe("allow");
+		expect(verdict.source).toBe("none");
 	});
 
 	it("deny wins over ask in merge", async () => {
@@ -153,8 +152,8 @@ describe("DecisionEngine", () => {
 		const urlCheck: UrlCheckResult = {
 			url: "http://untrusted.test",
 			isMalicious: true,
+			detections: [],
 			findings: [{ severityName: "malware", typeName: "trojan" }],
-			flags: [],
 		};
 		const verdict = await engine.decide({
 			heuristicMatches: [match],

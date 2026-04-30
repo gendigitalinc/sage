@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
-import { loadBrandingSync, nullLogger } from "@gendigital/sage-core";
+import { loadConfigSync, nullLogger, resolveBranding } from "@gendigital/sage-core";
 import { runSageMcpServerStdio } from "@gendigital/sage-mcp";
 
 declare const __SAGE_VERSION__: string;
 
-const branding = loadBrandingSync();
+const config = loadConfigSync();
+const branding = resolveBranding(config.brand_key);
 
 async function main(): Promise<void> {
 	await runSageMcpServerStdio({
@@ -16,6 +17,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((e) => {
-	process.stderr.write(`${branding.product_name} MCP server failed: ${String(e)}\n`);
+	process.stderr.write(`${branding.name} MCP server failed: ${String(e)}\n`);
 	process.exit(1);
 });

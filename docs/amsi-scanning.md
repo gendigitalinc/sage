@@ -1,6 +1,6 @@
 # AMSI Scanning
 
-Sage integrates with the Windows [Antimalware Scan Interface (AMSI)](https://learn.microsoft.com/en-us/windows/win32/amsi/antimalware-scan-interface-portal) to detect malware in tool call content. When a Bash command, file write, or file edit is intercepted, the content is passed to the locally installed antimalware provider (e.g. Windows Defender) for scanning before execution.
+Sage integrates with the Windows [Antimalware Scan Interface (AMSI)](https://learn.microsoft.com/en-us/windows/win32/amsi/antimalware-scan-interface-portal) to detect malware in tool call content and installed plugin files. When a tool call is intercepted or a plugin is scanned at session start, the content is passed to the locally installed antimalware provider (e.g. Windows Defender) for scanning.
 
 ## Supported Platforms
 
@@ -22,11 +22,13 @@ AMSI is a Windows API. On macOS and non-WSL Linux the check is silently skipped 
 
 ### What Gets Scanned
 
-| Tool | Content Scanned |
-|------|----------------|
+| Scan Type | Content Scanned |
+|-----------|----------------|
 | Bash | Command string |
 | Write | File content being written |
 | Edit | New string content |
+| apply_patch | Patch content |
+| Plugin | Plugin file content (session start scan) |
 
 Content longer than 1 MB is truncated before scanning.
 
@@ -52,6 +54,19 @@ On native Windows, the client probes the koffi backend first. If it is unavailab
 AMSI deny signals use the `malware` category and take precedence over other signal sources during merge (deny > ask > allow). Clean results produce no signal, so the verdict depends on the other detection layers.
 
 AMSI results are not cached — each tool call triggers a fresh scan.
+
+## Audit Log and Telemetry
+
+AMSI denials are recorded in the audit log entry's `signals.amsi_checks` array and forwarded in detection telemetry and false-positive report payloads. Each entry contains:
+
+| Field | Description |
+|-------|-------------|
+| `detection_name` | Synthesized label — `AMSI|DETECTED` (result ≥ 32768) or `AMSI|BLOCKED_BY_ADMIN` (16384 ≤ result < 32768). The Win32 AMSI API returns only a numeric threat level, not a named detection like other reputation services. |
+| `content_name` | The label identifying what was scanned, e.g. `Bash:command`, `Write:<path>`, `Edit:<path>`. Home-directory paths are scrubbed to `~`. |
+| `content_snippet` | Optional excerpt of the scanned content, capped at 200 characters with home directories scrubbed. Self-contained for FP triage so the analyst sees the actual command or content that triggered the detection. |
+| `amsi_result` | Raw numeric AMSI result code from `AmsiScanBuffer`. |
+
+Clean results (below the admin-block threshold) produce no signal entry.
 
 ## Configuration
 

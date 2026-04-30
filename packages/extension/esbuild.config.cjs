@@ -40,6 +40,13 @@ async function build() {
 		outfile: "dist/mcp-server.cjs",
 		external: ["koffi"],
 	});
+
+	await esbuild.build({
+		...shared,
+		entryPoints: ["../core/src/model-download-worker.ts"],
+		outfile: "dist/model-download-worker.cjs",
+		external: ["koffi"],
+	});
 }
 
 build().then(

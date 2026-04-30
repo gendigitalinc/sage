@@ -8,7 +8,6 @@
     { "id": "showHookHealth", "title": "Show hook health" }
   ],
   "brands": [
-    { "id": "norton", "category": "Norton Sage" },
-    { "id": "avast", "category": "Avast Sage" }
+    { "id": "norton", "category": "Norton AI Agent Protection" }
   ]
 }

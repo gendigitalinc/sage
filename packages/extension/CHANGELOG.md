@@ -1,5 +1,20 @@
 # sage-cursor
 
+## 0.9.0
+
+### Minor Changes
+
+- Bundle brand definitions internally and resolve via `config.brand_key`. Replaces `product_name`/`banner_text` with `name` (full) and `short_name` (for space-constrained notification bubbles).
+- Migrate VS Code extension from Claude Code hooks to Copilot's native hook system. Add tool name canonicalization to core. Fix toolInput field normalization across all connectors so evaluator AMSI scanning and package-reputation checks work correctly for non-Claude-Code platforms.
+
+  - **extension**: Copilot hook installer, VS Code/Copilot CLI tool coverage, `apply_patch` rename extraction, shared installer infrastructure, drop workspace scope for both Cursor and VS Code
+
+  **Breaking:** The `sage.cursor.scope` setting has been removed. Hooks are now always installed at user scope. Users who had this set to `"workspace"` will need to manually remove any leftover workspace-scoped hooks.
+
+- Add session-start plugin scanning to VS Code/Cursor extension, aligning with Claude Code, OpenClaw, and OpenCode connectors. Scan co-installed extensions for threat patterns at IDE activation and surface findings via native notifications.
+- Add ML-based prompt injection detection (heuristic rules + ONNX model)
+- improve audit log and telemetry to produce accurate data for verdict tracking and reporting issues
+
 ## 0.8.0
 
 ### Minor Changes

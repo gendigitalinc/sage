@@ -19,6 +19,11 @@ await Promise.all([
 	esbuild.build({ ...shared, entryPoints: ["src/mcp-server.ts"], outfile: "dist/mcp-server.cjs" }),
 	esbuild.build({ ...shared, entryPoints: ["src/session-start.ts"], outfile: "dist/session-start.cjs" }),
 	esbuild.build({ ...shared, entryPoints: ["src/sage-statusline.ts"], outfile: "dist/sage-statusline.cjs" }),
+	esbuild.build({
+		...shared,
+		entryPoints: ["../core/src/model-download-worker.ts"],
+		outfile: "dist/model-download-worker.cjs",
+	}),
 ]);
 
 console.log("Build complete.");

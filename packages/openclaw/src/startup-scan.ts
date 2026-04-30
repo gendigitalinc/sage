@@ -3,6 +3,7 @@
  * Thin wrappers over core's createScanHandler.
  */
 
+import { resolve } from "node:path";
 import {
 	type Branding,
 	createScanHandler as coreScanHandler,
@@ -32,6 +33,7 @@ function createOpenClawScanHandler(
 		agentRuntime: "openclaw",
 		branding,
 		onResult,
+		modelDownloadWorkerPath: resolve(__dirname, "model-download-worker.cjs"),
 	});
 }
 
@@ -66,7 +68,7 @@ export function createBeforeAgentStartHandler(
 		if (!findings) return undefined;
 
 		clearFindings();
-		logger.info(`${branding.product_name}: surfacing plugin scan findings via before_agent_start`);
+		logger.info(`${branding.name}: surfacing plugin scan findings via before_agent_start`);
 
 		const prependContext = [
 			'<security-alert source="sage-plugin-scan">',

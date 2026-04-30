@@ -5,7 +5,7 @@
  */
 
 import { ApprovalStore } from "./approval-store.js";
-import { defaultBranding } from "./branding.js";
+import { defaultBranding } from "./brands.js";
 import { loadConfig } from "./config.js";
 import type { ToolEvaluationContext, ToolEvaluationRequest } from "./evaluator.js";
 import { allowVerdict, evaluateToolCall } from "./evaluator.js";
@@ -74,7 +74,7 @@ export function formatDenyMessage(verdict: Verdict, branding: Branding = default
 		verdict.reasons.length > 0 ? verdict.reasons.slice(0, 5).join("; ") : verdict.category;
 
 	return [
-		`${branding.product_name} blocked this action.`,
+		`${branding.name} blocked this action.`,
 		`Severity: ${verdict.severity}`,
 		`Category: ${verdict.category}`,
 		`Reason: ${reasons}`,
@@ -91,7 +91,7 @@ export function formatAskMessage(
 		verdict.reasons.length > 0 ? verdict.reasons.slice(0, 3).join("; ") : verdict.category;
 
 	return [
-		`${branding.product_name} flagged this action and requires explicit user approval.`,
+		`${branding.name} flagged this action and requires explicit user approval.`,
 		`Severity: ${verdict.severity}`,
 		`Category: ${verdict.category}`,
 		`Reason: ${reasons}`,
@@ -114,7 +114,7 @@ export async function approveAction(
 ): Promise<string> {
 	const entry = store.approve(actionId);
 	if (!entry) {
-		return `No pending ${branding.product_name} approval found for this action ID.`;
+		return `No pending ${branding.name} approval found for this action ID.`;
 	}
 	return `Approved action ${actionId}. Retry the original tool call now.`;
 }

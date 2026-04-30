@@ -70,7 +70,10 @@ export class UrlCheckClient {
 	}
 
 	private async checkBatch(urls: string[]): Promise<UrlCheckResult[]> {
-		const queries = urls.map((url) => ({ key: { "url-like": url } }));
+		const queries = urls.map((url) => ({
+			key: { "url-like": url },
+			include: { "detection-infos": true },
+		}));
 		const payload = {
 			queries,
 			"client-info": {
@@ -117,7 +120,6 @@ export class UrlCheckClient {
 			const classification = (success.classification ?? {}) as Record<string, unknown>;
 			const detectionInfos = (classification["detection-infos"] ?? []) as Record<string, unknown>[];
 			const classResult = (classification.result ?? {}) as Record<string, unknown>;
-			const flags = (success.flags ?? []) as string[];
 			const malicious = classResult.malicious as Record<string, unknown> | undefined;
 
 			const detections = detectionInfos
@@ -138,7 +140,6 @@ export class UrlCheckClient {
 				isMalicious: Boolean(malicious),
 				detections,
 				findings,
-				flags,
 			};
 		} catch (e) {
 			this.logger.warn("Failed to parse answer", { error: String(e) });

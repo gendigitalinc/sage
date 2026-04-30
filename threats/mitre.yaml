@@ -165,7 +165,7 @@
   severity: high
   confidence: 0.80
   action: require_approval
-  pattern: "(telnet(\\.exe)?|nmap(\\.exe)?|Invoke-ARPScan\\.ps1|Invoke-PortScan\\.ps1|Invoke-SMBScanner\\.ps1|Port-Scan\\.ps1)"
+  pattern: "(\\btelnet(\\.exe)?\\b|\\bnmap(\\.exe)?\\b|Invoke-ARPScan\\.ps1|Invoke-PortScan\\.ps1|Invoke-SMBScanner\\.ps1|Port-Scan\\.ps1)"
   case_insensitive: true
   match_on: command
   title: "MITRE ATT&CK T1046 - Network Service Scanning"
@@ -191,7 +191,7 @@
   severity: high
   confidence: 0.80
   action: require_approval
-  pattern: "(schtasks(\\.exe)?\\s+/create|schtasks(\\.exe)?\\s+/%windir:~0,1%reate|at\\.exe)"
+  pattern: "(schtasks(\\.exe)?\\s+/create|schtasks(\\.exe)?\\s+/%windir:~0,1%reate|\\bat\\.exe\\b)"
   case_insensitive: true
   match_on: command
   title: "MITRE ATT&CK T1053.005 - Scheduled Task"

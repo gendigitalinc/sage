@@ -21,7 +21,7 @@
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/packages/claude-code/dist/post-tool-use.cjs\"",
             "timeout": 8,
-            "statusMessage": "Sage: Recording approval..."
+            "statusMessage": "Sage: Scanning output..."
           }
         ]
       }

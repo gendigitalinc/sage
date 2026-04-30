@@ -9,15 +9,17 @@ Sage uses Gen Digital cloud services for four purposes:
 3. **Version check** — On session start, Sage sends a POST request to a version-check endpoint with:
    - Sage version
    - Agent runtime (e.g. `claude-code`, `cursor`, `openclaw`, `opencode`, `vscode`)
-   - Agent runtime version (when available)
+   - Agent runtime version (when available). For Cursor and VS Code, Sage reads the host's `product.json` and reports the actual application version (e.g. Cursor `3.1.14`, VS Code `1.117.0`) rather than the underlying VS Code engine version that `vscode.version` would return for Cursor.
    - OS, OS version, and architecture
    - Installation ID — a random UUID persisted at `~/.sage/installation-id`, generated once and reused across sessions
 4. **Detection telemetry (Community IQ)** — When Sage issues a **deny** verdict, anonymous detection metadata is sent to improve detection quality. This includes:
    - The same envelope as version check (Sage version, agent runtime, OS, architecture, installation ID)
-   - Detection signals (matched rule IDs, URL check results, package check results)
-   - Tool type and limited content fields (command string, URL, or file path as applicable)
+   - Detection signals (matched rule IDs, URL check results, package check results, and on Windows/WSL AMSI check results — see below)
+   - A structured `content` snapshot with strict per-field caps and sanitization: `command` ≤ 512 chars, `url` ≤ 512 chars, `file_path` ≤ 512 chars, `package_name` ≤ 256 chars, `package_version` / `package_registry` ≤ 128 chars. Home-directory prefixes (e.g. `/home/jane`, `C:\Users\jane`) in `file_path` and `command` are replaced with `~` before send.
    - A unique event ID correlating the detection with the local audit log entry
    - This data is used to improve Sage's detection capabilities, not for user tracking. Community IQ can be disabled at any time via configuration.
+
+On Windows and WSL, AMSI denies (Bash command, file write, or file edit content flagged by the locally installed antimalware provider) record an `amsi_checks` entry in the audit log and detection-telemetry signals. Each entry contains a synthesized detection name (`AMSI|DETECTED` for malware, `AMSI|BLOCKED_BY_ADMIN` for admin policy blocks — the Win32 AMSI API only returns a numeric threat level, not a named detection), the labelled scan target (e.g. `Bash:command`, `Write:<path>`), an optional `content_snippet` capped at 200 chars with home directories scrubbed, and the raw numeric `amsi_result`.
 
 ## What Data Stays Local
 

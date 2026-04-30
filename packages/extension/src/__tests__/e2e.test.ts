@@ -40,7 +40,6 @@ interface E2ECase {
 interface HostMetadata {
 	label: string;
 	extensionId: string;
-	scopeSettingKey: string;
 	managedMarker: string;
 	hookMode: "cursor" | "vscode";
 	hooksRelativePath: string;
@@ -79,24 +78,19 @@ const HEADLESS_WORKSPACE = path.resolve(
 	".e2e-artifacts",
 	"cursor-headless-agent-workspace",
 );
-const REPO_ROOT = path.resolve(EXTENSION_ROOT, "..", "..");
-const DUMMY_THREATS_SOURCE = path.join(REPO_ROOT, "threats", "dummy.yaml");
 const HEADLESS_AGENT_MODEL = process.env.SAGE_HEADLESS_AGENT_MODEL?.trim() || "claude-4.5-sonnet";
 const E2E_VERBOSE = resolveE2EVerbose();
 
-// Inject dummy threat rules into built resources (filtered out by sync-assets, needed for E2E)
-if (existsSync(DUMMY_THREATS_SOURCE)) {
-	const dest = path.join(EXTENSION_ROOT, "resources", "threats", "dummy.yaml");
-	mkdirSync(path.dirname(dest), { recursive: true });
-	cpSync(DUMMY_THREATS_SOURCE, dest, { force: true });
-}
 const E2E_CASES: readonly E2ECase[] = [
-	{ id: "configure-workspace-scope", title: "configure workspace scope" },
 	{ id: "extension-activates", title: "extension activates" },
 	{ id: "commands-registered", title: "sage commands are registered" },
 	{ id: "enable-protection-writes-hooks", title: "enable protection writes managed hooks" },
 	{ id: "hook-health-command", title: "hook health command runs without error" },
 	{ id: "dangerous-write-blocked", title: "managed hook blocks dangerous write" },
+	{
+		id: "tool-coverage-deny",
+		title: "hook denies canary payloads across all tool names",
+	},
 	{
 		id: "hook-response-shape-consistent",
 		title: "hook responses have consistent shape across event types",
@@ -108,7 +102,6 @@ const HOST_METADATA: Record<HostName, HostMetadata> = {
 	cursor: {
 		label: "Cursor",
 		extensionId: "Gen.sage-cursor",
-		scopeSettingKey: "sage.cursor.scope",
 		managedMarker: "--managed-by sage-cursor",
 		hookMode: "cursor",
 		hooksRelativePath: ".cursor/hooks.json",
@@ -116,10 +109,9 @@ const HOST_METADATA: Record<HostName, HostMetadata> = {
 	vscode: {
 		label: "VS Code",
 		extensionId: "Gen.sage-vscode",
-		scopeSettingKey: "sage.vscode.scope",
 		managedMarker: "--managed-by sage-vscode",
 		hookMode: "vscode",
-		hooksRelativePath: ".claude/settings.json",
+		hooksRelativePath: ".copilot/hooks/hooks.json",
 	},
 };
 
@@ -295,7 +287,6 @@ async function runHostE2E(host: HostName, executablePath: string): Promise<HostR
 				extensionTestsEnv: {
 					SAGE_E2E_HOST: host,
 					SAGE_E2E_EXTENSION_ID: metadata.extensionId,
-					SAGE_E2E_SCOPE_SETTING_KEY: metadata.scopeSettingKey,
 					SAGE_E2E_MANAGED_MARKER: metadata.managedMarker,
 					SAGE_E2E_HOOK_MODE: metadata.hookMode,
 					SAGE_E2E_HOOKS_RELATIVE_PATH: metadata.hooksRelativePath,
@@ -978,12 +969,6 @@ function buildVsCodeManifest(baseManifest: Record<string, unknown>): Record<stri
 			configuration: {
 				title: "Sage",
 				properties: {
-					"sage.vscode.scope": {
-						type: "string",
-						default: "user",
-						enum: ["workspace", "user"],
-						description: "Where Sage installs Claude Code hooks.",
-					},
 					"sage.hookRunnerPath": {
 						type: "string",
 						scope: "application",

@@ -28,6 +28,7 @@ The core library contains all detection logic. It has no platform dependencies a
 | `allowlist.ts` | User allowlist management |
 | `audit-log.ts` | JSONL audit logging |
 | `trusted-domains.ts` | Trusted domain loading and matching |
+| `tool-names.ts` | Canonical tool vocabulary and generic canonicalization helper |
 | `plugin-scanner.ts` | Plugin file scanning |
 | `package-checker.ts` | npm/PyPI supply-chain checks |
 | `installation-id.ts` | Persistent installation UUID (`~/.sage/installation-id`) |
@@ -36,6 +37,9 @@ The core library contains all detection logic. It has no platform dependencies a
 | `clients/url-check.ts` | URL reputation API client and endpoint resolver |
 | `clients/file-check.ts` | File reputation API client |
 | `clients/package-registry.ts` | npm/PyPI registry client |
+| `content-snapshot.ts` | Structured `content` snapshot builder (per-field caps + home-path scrubbing) shared by audit log, detection telemetry, and FP reporting |
+| `extended-info.ts` | `~/.sage/extended-info.json` loader/sanitizer + `mergeExtendedInfo` helper |
+| `product-version.ts` | Platform-agnostic `product.json` version reader used by hook runner and MCP server child processes (resolves the actual host application version) |
 
 ### `@gendigital/sage-claude-code`
 
@@ -58,14 +62,16 @@ In-process plugin using `api.on('before_tool_call')`. Includes:
 VS Code API extension with platform-specific installers:
 
 - **`shared_extension.ts`** - Registers commands: enable protection, disable until restart, open config, show hook health
-- **`cursor_hook_installer.ts`** / **`vscode_hook_installer.ts`** - Install managed hooks into Cursor or VS Code
+- **`hook_installer_shared.ts`** - Shared hook installer utilities (runner resolution, shim creation, managed entry helpers)
+- **`cursor_hook_installer.ts`** - Install managed hooks into Cursor (`~/.cursor/hooks.json`)
+- **`vscode_hook_installer.ts`** - Install managed hooks into Copilot (`~/.copilot/hooks/hooks.json`). This path is shared with Copilot CLI, so installed hooks also protect CLI agent sessions.
 
 ## Data Flow
 
 ### Claude Code
 
 ```
-Hook stdin (JSON) -> extract artifacts -> check allowlist -> check cache
+Hook stdin (JSON) -> canonicalize tool name -> extract artifacts -> check allowlist -> check cache
   -> heuristics + URL check + package check -> DecisionEngine
   -> cache result -> audit log -> hook stdout (JSON)
 ```
@@ -75,7 +81,7 @@ Claude Code hooks exit 0. Errors return an `allow` verdict.
 ### OpenClaw
 
 ```
-before_tool_call event -> extract artifacts -> check allowlist -> check cache
+before_tool_call event -> canonicalize tool name -> extract artifacts -> check allowlist -> check cache
   -> heuristics + URL check + package check -> DecisionEngine
   -> cache result -> audit log -> block/pass
 ```
@@ -86,7 +92,7 @@ Flagged actions return a `requireApproval` object that triggers native platform 
 
 ```
 Managed hook intercepts tool call -> spawns sage-hook.cjs subprocess
-  -> extract artifacts -> check allowlist -> check cache
+  -> canonicalize tool name -> extract artifacts -> check allowlist -> check cache
   -> heuristics + URL check + package check -> DecisionEngine
   -> cache result -> audit log -> return verdict
 ```

@@ -52,12 +52,6 @@ function buildVsCodeManifest(base) {
 		configuration: {
 			title: "Sage",
 			properties: {
-				"sage.vscode.scope": {
-					type: "string",
-					default: "user",
-					enum: ["workspace", "user"],
-					description: "Where Sage installs Claude Code hooks.",
-				},
 				"sage.hookRunnerPath": {
 					type: "string",
 					scope: "application",

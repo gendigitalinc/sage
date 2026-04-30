@@ -28,6 +28,40 @@ When an AI agent makes a tool call — running a shell command, writing a file, 
 
 That's it. Sage now monitors all agent tool calls.
 
+## Hook scope (VS Code)
+
+The VS Code extension installs managed hooks into `~/.copilot/hooks/hooks.json`. This path is shared across GitHub Copilot products that use the `~/.copilot/` configuration directory — including **Copilot CLI**. Protection therefore extends to Copilot CLI agent sessions on the same machine automatically.
+
+## Intercepted tools
+
+The hook runner handles tool names from two products that share the `~/.copilot/hooks/` path:
+
+**VS Code Copilot Chat** — tool names from the [`ToolName` enum](https://github.com/microsoft/vscode-copilot-chat/blob/main/src/extension/tools/common/toolNames.ts):
+
+| Tool name | Action | Input fields |
+|---|---|---|
+| `run_in_terminal` | Shell command | `command` |
+| `create_file` | Create file | `filePath`, `content` |
+| `replace_string_in_file` | Edit file | `filePath`, `oldString`, `newString` |
+| `insert_edit_into_file` | Edit file | `filePath`, `code` |
+| `multi_replace_string_in_file` | Multi-edit | `replacements: [{filePath, oldString, newString}]` |
+| `read_file` | Read file | `filePath` |
+| `apply_patch` | Apply patch | `input` (patch text) |
+| `fetch_webpage` | Fetch URL | `urls` (array) |
+
+**Copilot CLI** — tool names from the [CLI command reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference):
+
+| Tool name | Action | Input fields |
+|---|---|---|
+| `bash` | Shell command | `command` |
+| `write_bash` | Shell input | `input` |
+| `create` | Create file | `path`, `content` |
+| `edit` | Edit file | `path`, `old_string`, `new_string` |
+| `view` | Read file | `path` |
+| `grep` | Search files | `pattern`, `path` |
+| `apply_patch` | Apply patch | `patch` (patch text) |
+| `web_fetch` | Fetch URL | `url` |
+
 ## MCP server (VS Code vs Cursor)
 
 - **Cursor**: Sage registers and enables the `sage` MCP server automatically on startup (and disables it when protection is disabled until restart).

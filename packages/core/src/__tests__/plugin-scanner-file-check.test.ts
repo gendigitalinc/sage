@@ -3,14 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { scanPlugin } from "../plugin-scanner.js";
-import type { PluginInfo, Threat } from "../types.js";
+import type { PluginInfo } from "../types.js";
 
 describe("scanPlugin file hash check", () => {
 	const originalFetch = globalThis.fetch;
 	let tempDir: string;
 	let plugin: PluginInfo;
-
-	const emptyThreats: Threat[] = [];
 
 	beforeEach(async () => {
 		tempDir = await mkdtemp(join(tmpdir(), "sage-plugin-fcheck-"));
@@ -63,7 +61,7 @@ describe("scanPlugin file hash check", () => {
 			};
 		});
 
-		const result = await scanPlugin(plugin, emptyThreats, {
+		const result = await scanPlugin(plugin, {
 			checkUrls: false,
 			checkFileHashes: true,
 		});
@@ -85,7 +83,7 @@ describe("scanPlugin file hash check", () => {
 		});
 		globalThis.fetch = mockFetch;
 
-		const result = await scanPlugin(plugin, emptyThreats, {
+		const result = await scanPlugin(plugin, {
 			checkUrls: false,
 			checkFileHashes: false,
 		});
@@ -100,7 +98,7 @@ describe("scanPlugin file hash check", () => {
 
 		globalThis.fetch = vi.fn().mockRejectedValue(new Error("network error"));
 
-		const result = await scanPlugin(plugin, emptyThreats, {
+		const result = await scanPlugin(plugin, {
 			checkUrls: false,
 			checkFileHashes: true,
 		});
@@ -135,7 +133,7 @@ describe("scanPlugin file hash check", () => {
 			};
 		});
 
-		const result = await scanPlugin(plugin, emptyThreats, {
+		const result = await scanPlugin(plugin, {
 			checkUrls: false,
 			checkFileHashes: true,
 		});

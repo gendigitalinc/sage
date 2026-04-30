@@ -54,6 +54,7 @@ export class VerdictCache {
 			severity: entry.severity,
 			reasons: entry.reasons,
 			source: entry.source,
+			...(entry.urlSignalLabels !== undefined ? { urlSignalLabels: entry.urlSignalLabels } : {}),
 		};
 	}
 
@@ -89,9 +90,11 @@ export class VerdictCache {
 	putCommand(commandHash: string, verdict: CachedVerdict): void {
 		if (!this.config.enabled) return;
 
+		// urlSignalLabels is URL-cache only; strip defensively so accidental misuse is a no-op.
+		const { urlSignalLabels: _ignoredUrlLabels, ...rest } = verdict;
 		const now = new Date();
 		this.store.commands[commandHash] = {
-			...verdict,
+			...rest,
 			checkedAt: now.toISOString(),
 			expiresAt: FAR_FUTURE,
 			sageVersion: this.version,
@@ -114,12 +117,14 @@ export class VerdictCache {
 	putPackage(key: string, verdict: CachedVerdict, packageAgeDays: number | null): void {
 		if (!this.config.enabled) return;
 
+		// urlSignalLabels is URL-cache only; strip defensively so accidental misuse is a no-op.
+		const { urlSignalLabels: _ignoredUrlLabels, ...rest } = verdict;
 		const ttlSeconds = this.computePackageTtl(verdict.verdict, packageAgeDays);
 		const now = new Date();
 		const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
 
 		this.store.packages[key] = {
-			...verdict,
+			...rest,
 			checkedAt: now.toISOString(),
 			expiresAt: expiresAt.toISOString(),
 			sageVersion: this.version,

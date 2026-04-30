@@ -4,7 +4,7 @@
  * and before_agent_start handler.
  */
 
-import { ApprovalStore, loadBrandingSync } from "@gendigital/sage-core";
+import { ApprovalStore, loadConfigSync, resolveBranding } from "@gendigital/sage-core";
 import { getBundledDataDirs } from "./bundled-dirs.js";
 import { createLogger, type PluginLogger } from "./logger-adapter.js";
 import {
@@ -20,12 +20,15 @@ interface PluginApi {
 	on(event: string, handler: (...args: any[]) => any, options?: { priority?: number }): void;
 }
 
-// Load branding once at module scope so the plugin registration name reflects it
-const branding = loadBrandingSync();
+// Load branding at module scope so the plugin registration name reflects the brand.
+// Uses loadConfigSync because branding depends on config.brand_key and this runs
+// before any async init (OpenClaw reads `name` from the default export at import time).
+const config = loadConfigSync();
+const branding = resolveBranding(config.brand_key);
 
 export default {
 	id: "sage-openclaw",
-	name: branding.product_name,
+	name: branding.name,
 	description: "Safety for Agents — ADR layer that guards commands, files, and web requests",
 	configSchema: {
 		jsonSchema: { type: "object", additionalProperties: false, properties: {} },

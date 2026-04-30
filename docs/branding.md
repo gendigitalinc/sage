@@ -1,119 +1,108 @@
 # Branding
 
-Sage supports white-label branding. Product name, banner text, and extension command palette entries are configurable per installation.
+Sage supports white-label branding. Brand definitions are bundled inside Sage. AV installers set a `brand_key` in `~/.sage/config.json` to activate a brand.
 
-Two audiences manage branding:
+## Configuration
 
-- **Installer** (antivirus agent) writes `~/.sage/branding.json` at install time — controls what the end user sees.
-- **Developers** maintain `packages/extension/branded-commands.json` — controls which brands exist in the extension command palette.
-
-## Configuration — `~/.sage/branding.json`
+AV installers add `brand_key` to `~/.sage/config.json`:
 
 ```json
 {
-  "product_name": "Norton Sage",
-  "banner_text": "Norton Sage by Gen Digital",
   "brand_key": "norton"
 }
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `product_name` | string | `"Sage"` | Product name used in status line, notifications, log messages, and block reasons. |
-| `banner_text` | string | value of `product_name` | Full text for startup banners and threat headers. The installer provides the composed string, so Sage has no hardcoded locale assumptions (e.g., "by", "par", "von"). |
-| `brand_key` | string | *(none)* | Machine-readable brand identifier for extension command palette filtering. Lowercase alphanumeric, hyphens, underscores (e.g., `"norton"`, `"avast"`). Must match an entry in `packages/extension/branded-commands.json`. When absent, extension shows default "Sage" commands. |
+If `brand_key` is missing or unknown, Sage falls back to default "Sage" branding.
 
-**Validation:** `product_name` 1–64 chars, `banner_text` 1–128 chars, `brand_key` 1–32 chars `[a-z0-9_-]`. No control characters. Invalid values fall back to defaults.
+## Brand registry
+
+Brands are defined in `packages/core/src/brands.ts`:
+
+```typescript
+export const BRANDS: Record<string, { name: string; short_name: string }> = {
+  norton: { name: "Norton AI Agent Protection", short_name: "Norton" },
+};
+```
+
+Each brand has two name variants:
+
+| Field | Usage | Example |
+|-------|-------|---------|
+| `name` | Startup banners, status line, block messages, log messages, tool descriptions | "Norton AI Agent Protection" |
+| `short_name` | VS Code/Cursor notification bubbles (max ~50 chars) | "Norton" |
+
+Default (no brand_key): `{ name: "Sage", short_name: "Sage" }`.
 
 ### Examples
 
-| branding.json | Banner | Status line | Messages |
+| config.json | Banner | Status line | Notification |
 |---|---|---|---|
-| *(file missing)* | Sage | Sage: ✅ | Sage blocked this action. |
-| `{ "product_name": "Norton Sage" }` | Norton Sage | Norton Sage: ✅ | Norton Sage blocked this action. |
-| `{ "product_name": "Norton Sage", "banner_text": "Norton Sage by Gen Digital" }` | Norton Sage by Gen Digital | Norton Sage: ✅ | Norton Sage blocked this action. |
+| *(no brand_key)* | Sage | Sage: check | Sage blocked: ... |
+| `{ "brand_key": "norton" }` | Norton AI Agent Protection | Norton AI Agent Protection: check | Norton blocked: ... |
 
 ### Fail-open behavior
 
-If `branding.json` is missing, unreadable, invalid JSON, or fails schema validation, all fields fall back to defaults. No error is raised.
+If `brand_key` is missing, empty, or doesn't match any entry in the brand registry, all fields fall back to defaults. A warning is logged for unknown keys.
 
 ### Lifecycle
 
-- Written by the installer (antivirus agent), not hand-edited by users.
-- **May be written before Sage is installed.** The installer drops `branding.json` as part of the AV agent setup. Sage reads it whenever it starts — the file must be self-contained.
-- Read once at process startup and cached for the session.
+- `brand_key` is written by the installer (AV agent) as part of `config.json`.
+- Read once at process startup and resolved from the bundled registry.
 - Changes require a restart of the host (Claude Code session, OpenClaw gateway, Cursor/VS Code).
-- Separate from `config.json` — different lifecycle, different audience.
-
-**No schema version field.** The installer may write `branding.json` before Sage is installed, so the two sides cannot coordinate versions. Forward compatibility is handled by Zod defaults (new fields get defaults, unknown fields are ignored). Backward compatibility is maintained by never removing or renaming fields.
 
 ## Architecture
 
-### Schema (Zod)
+### Branding type
 
 ```typescript
 // packages/core/src/types.ts
-const brandString = z.string().min(1).max(64).regex(/^[^\p{Cc}]+$/u, "No control characters");
-
-export const BrandingSchema = z.object({
-  product_name: brandString.default("Sage"),
-  banner_text: z.string().min(1).max(128).regex(/^[^\p{Cc}]+$/u).optional(),
-  brand_key: z.string().min(1).max(32).regex(/^[a-z0-9_-]+$/u).optional(),
-}).transform(b => ({
-  ...b,
-  banner_text: b.banner_text ?? b.product_name,
-}));
-export type Branding = z.output<typeof BrandingSchema>;
+export interface Branding {
+  name: string;
+  short_name: string;
+  brand_key?: string;
+}
 ```
 
-### Loader
+### Resolution
 
 ```typescript
-// packages/core/src/branding.ts
+// packages/core/src/brands.ts
 export const defaultBranding: Branding;
-export function loadBranding(logger?, brandingPath?): Promise<Branding>;
-export function loadBrandingSync(logger?, brandingPath?): Branding;
+export function resolveBranding(brandKey?: string, logger?: Logger): Branding;
 ```
 
-Mirrors the `loadConfig()` pattern in `config.ts`: read file, parse JSON, validate with Zod, return defaults on any error. The `.transform()` step ensures `banner_text` falls back to `product_name` when absent.
-
-### Field usage
-
-| Field | Used for |
-|-------|----------|
-| `product_name` | Status line, notifications, log messages, block reasons, tool descriptions |
-| `banner_text` | Startup banners, threat headers |
-| `brand_key` | Extension command palette filtering via `setContext('sage.brandKey', ...)` |
+Pure lookup — no file I/O. Callers load config first, then call `resolveBranding(config.brand_key)`.
 
 ### Data flow
 
 ```
 Connector startup
-  └─ loadBranding()
-       └─ cached for session
-            ├─ passed to format functions (formatBlockReason, formatStatusLine, etc.)
-            ├─ passed to scan handler (runPluginScan, createScanHandler)
-            ├─ used in connector-specific messages (toasts, notifications, tool descriptions)
-            └─ brand_key → setContext for command palette filtering (extension only)
+  └─ loadConfig() or loadConfigSync()
+       └─ resolveBranding(config.brand_key)
+            └─ cached for session
+                 ├─ passed to format functions (formatBlockReason, formatStatusLine, etc.)
+                 ├─ passed to scan handler (runPluginScan, createScanHandler)
+                 ├─ used in connector-specific messages (toasts, notifications, tool descriptions)
+                 └─ brand_key → setContext for command palette filtering (extension only)
 ```
 
 ## How to add a brand
 
-1. Add an entry to `packages/extension/branded-commands.json`:
+1. Add an entry to `BRANDS` in `packages/core/src/brands.ts`
+2. Add an entry to `packages/extension/branded-commands.json`:
    ```json
-   { "id": "newbrand", "category": "NewBrand Sage" }
+   { "id": "newbrand", "category": "NewBrand AI Agent Protection" }
    ```
-2. Run `node packages/extension/scripts/generate-brand-commands.mjs`
-3. Commit `branded-commands.json` + updated `package.json`
-4. Installer sets `"brand_key": "newbrand"` in `branding.json`
-
-No TypeScript changes needed.
+3. Run `node packages/extension/scripts/generate-brand-commands.mjs`
+4. Commit all changes
+5. Installer sets `"brand_key": "newbrand"` in `config.json`
 
 ## How to remove a brand
 
-1. Remove the entry from `packages/extension/branded-commands.json`
-2. Run `node packages/extension/scripts/generate-brand-commands.mjs`
-3. Commit both files
+1. Remove the entry from `BRANDS` in `packages/core/src/brands.ts`
+2. Remove the entry from `packages/extension/branded-commands.json`
+3. Run `node packages/extension/scripts/generate-brand-commands.mjs`
+4. Commit all changes
 
 ## How to add a new command
 
@@ -129,61 +118,41 @@ No TypeScript changes needed.
 
 ### Branded at runtime
 
-| Location | Examples |
-|----------|---------|
-| `packages/core/src/format.ts` | Startup banner, threat banner |
-| `packages/core/src/statusline.ts` | Status line prefix |
-| `packages/core/src/guard.ts` | Block/ask messages, allowlist messages |
-| `packages/core/src/scan-handler.ts` | Scan log messages |
-| `packages/claude-code/src/format.ts` | Block reason banner |
-| `packages/claude-code/src/pre-tool-use.ts` | Permission decision reason |
-| `packages/claude-code/src/session-start.ts` | Status line hints, error messages |
-| `packages/claude-code/src/sage-statusline.ts` | Fallback status line |
-| `packages/openclaw/src/gate-tool.ts` | Tool description, field descriptions |
-| `packages/opencode/src/index.ts` | Toast titles |
-| `packages/extension/src/shared_extension.ts` | Notification messages |
-| `packages/extension/src/vscode_hook_installer.ts` | Status messages |
-| `packages/mcp/src/tools/false-positive.ts` | MCP tool titles |
+| Location | Uses `name` | Uses `short_name` |
+|----------|:-----------:|:------------------:|
+| `packages/core/src/format.ts` | ✓ | |
+| `packages/core/src/statusline.ts` | ✓ | |
+| `packages/core/src/guard.ts` | ✓ | |
+| `packages/core/src/scan-handler.ts` | ✓ | |
+| `packages/claude-code/src/format.ts` | ✓ | |
+| `packages/claude-code/src/pre-tool-use.ts` | ✓ | |
+| `packages/claude-code/src/session-start.ts` | ✓ | |
+| `packages/claude-code/src/sage-statusline.ts` | ✓ | |
+| `packages/openclaw/src/index.ts` | ✓ | |
+| `packages/opencode/src/index.ts` | ✓ | |
+| `packages/mcp/src/tools/false-positive.ts` | ✓ | |
+| `packages/extension/src/shared_extension.ts` | | ✓ |
+| `packages/extension/src/vscode_hook_installer.ts` | | ✓ |
 
 ### Extension command palette
 
-Brand variants are generated at build time from `packages/extension/branded-commands.json` by `scripts/generate-brand-commands.mjs`. The script patches `package.json` with branded command entries, menu visibility `when` clauses, and activation events. The extension TypeScript code registers handlers dynamically by reading its own manifest — no brand names are hardcoded in TypeScript.
+Brand variants are generated at build time from `packages/extension/branded-commands.json` by `scripts/generate-brand-commands.mjs`. The script patches `package.json` with branded command entries, menu visibility `when` clauses, and activation events.
 
 ### Not branded
 
 | Item | Reason |
 |------|--------|
-| Extension `displayName` in `package.json` | No runtime API to change — baked in at install time. Post-install patching of the manifest is unsupported by VS Code and fragile across extension updates. |
+| Extension `displayName` in `package.json` | No runtime API to change — baked at install time. |
 | Plugin manifests (`openclaw.plugin.json`, `.claude-plugin/plugin.json`) | Build-time concern |
-| AMSI C#/PowerShell strings (`SageAmsi`, `AmsiInitialize`) | Internal identifiers, no user-facing benefit |
-| `SKILL.md` files | Static asset read directly from disk by host platforms (Claude Code). Sage does not control loading, so runtime templating is not possible. The AI paraphrases freely, so "Sage" in prompt context rarely surfaces verbatim to users. |
-| `formatMigrationNotice()` | Temporary, references specific GitHub URL |
-| `formatUpdateNotice()` | References specific GitHub URL |
-| Icons and visual assets | Text-only branding for now. Revisit if white-label partners require icon/logo branding. |
-
-## Relationship to l10n
-
-Branding and l10n are orthogonal:
-
-- **Branding** = *what* the product is called (varies per installation)
-- **l10n** = *which language* to speak (varies per user/locale)
-
-The `banner_text` field handles one l10n pain point: the installer provides the fully composed banner string, so Sage never hardcodes locale-sensitive prepositions like "by". When full l10n arrives, branding variables become parameters to the translation system:
-
-```
-// en.json
-{ "startup_clean": "🛡️ {banner_text} v{version} ✅ No threats found" }
-
-// fr.json
-{ "startup_clean": "🛡️ {banner_text} v{version} ✅ Aucune menace détectée" }
-```
-
-The branding system stays unchanged. The l10n system layers on top. No redesign needed.
+| AMSI C#/PowerShell strings | Internal identifiers |
+| `SKILL.md` files | Static assets, host-controlled loading |
+| `formatMigrationNotice()`, `formatUpdateNotice()` | Reference specific GitHub URL |
+| Icons and visual assets | Text-only branding for now |
 
 ## Testing strategy
 
 | Layer | What | How |
 |-------|------|-----|
-| **`loadBranding()` unit tests** | Missing file, empty file, invalid JSON, valid partial, valid full, extra unknown fields, exceeds max length, control characters, `banner_text` fallback to `product_name` | Verify fail-open on every error path; verify defaults are correct |
-| **Parameterized format tests** | `formatStartupClean`, `formatStatusLine`, `formatDenyMessage` with custom branding | Verify `product_name` and `banner_text` appear in output, "Sage" does not |
-| **Extension integration tests** | `sage.brandKey` context variable filtering | Set context variable, verify all command variants are registered |
+| `resolveBranding()` tests | Known key, unknown key, undefined key, logger warning | Verify correct resolution and fail-open |
+| Parameterized format tests | `formatStartupClean`, `formatStatusLine`, `formatDenyMessage` with custom branding | Verify `name` appears in output, "Sage" does not |
+| Extension integration tests | `sage.brandKey` context variable filtering | Set context variable, verify command variants |

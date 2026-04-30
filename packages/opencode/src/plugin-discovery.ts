@@ -30,7 +30,7 @@ export async function discoverOpenCodePlugins(
 	projectDir?: string,
 	branding: Branding = defaultBranding,
 ): Promise<PluginInfo[]> {
-	logger.debug(`${branding.product_name} plugin discovery: scanning OpenCode plugins`);
+	logger.debug(`${branding.name} plugin discovery: scanning OpenCode plugins`);
 
 	const plugins: PluginInfo[] = [];
 
@@ -50,7 +50,7 @@ export async function discoverOpenCodePlugins(
 		plugins.push(...projectPlugins);
 	}
 
-	logger.info(`${branding.product_name} plugin discovery: found ${plugins.length} plugin(s)`);
+	logger.info(`${branding.name} plugin discovery: found ${plugins.length} plugin(s)`);
 	return plugins;
 }
 

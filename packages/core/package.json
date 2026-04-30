@@ -5,13 +5,14 @@
     "access": "public"
   },
   "description": "Safety for Agents — platform-agnostic detection engine",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./dist/model-download-worker.js": "./dist/model-download-worker.js"
   },
   "files": [
     "dist"
@@ -23,11 +24,13 @@
   },
   "dependencies": {
     "semver": "^7.7.0",
+    "tar": "^7.5.13",
     "yaml": "^2.7.0",
     "zod": "^3.24.0"
   },
   "optionalDependencies": {
-    "koffi": "^2.9.0"
+    "koffi": "^2.9.0",
+    "onnxruntime-node": "^1.21.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -5,7 +5,7 @@
  */
 
 import type { ChildProcess } from "node:child_process";
-import type { AmsiCheckResult, Logger } from "../types.js";
+import type { AmsiCheckResult, AmsiScanType, Logger } from "../types.js";
 import { nullLogger } from "../types.js";
 import { spawn } from "./amsi-spawn.js";
 
@@ -62,9 +62,13 @@ interface AmsiBackend {
 class KoffiAmsiBackend implements AmsiBackend {
 	private readonly logger: Logger;
 	private context: unknown = null;
-	private session: unknown = null;
 	private available = false;
+	/** Koffi library handle — must be closed to let the event loop drain. */
+	/* biome-ignore lint/suspicious/noExplicitAny: koffi Library type is not exported */
+	private lib: any = null;
 
+	/* biome-ignore lint/suspicious/noExplicitAny: koffi FFI functions have dynamic signatures */
+	private fnOpenSession: ((...args: any[]) => number) | null = null;
 	/* biome-ignore lint/suspicious/noExplicitAny: koffi FFI functions have dynamic signatures */
 	private fnScanBuffer: ((...args: any[]) => number) | null = null;
 	/* biome-ignore lint/suspicious/noExplicitAny: koffi FFI functions have dynamic signatures */
@@ -87,6 +91,7 @@ class KoffiAmsiBackend implements AmsiBackend {
 			const koffi = koffiModule.default ?? koffiModule;
 
 			const lib = koffi.load("amsi.dll");
+			this.lib = lib;
 
 			// define opaque handle types matching the Win32 AMSI API
 			const _HAMSICONTEXT = koffi.pointer("HAMSICONTEXT", koffi.opaque());
@@ -95,10 +100,10 @@ class KoffiAmsiBackend implements AmsiBackend {
 			const AmsiInitialize = lib.func(
 				"int32 __stdcall AmsiInitialize(str16 appName, _Out_ HAMSICONTEXT *ctx)",
 			);
-			const AmsiOpenSession = lib.func(
+
+			this.fnOpenSession = lib.func(
 				"int32 __stdcall AmsiOpenSession(HAMSICONTEXT ctx, _Out_ HAMSISESSION *session)",
 			);
-
 			this.fnScanBuffer = lib.func(
 				"int32 __stdcall AmsiScanBuffer(HAMSICONTEXT ctx, void *buf, uint32 len, str16 contentName, HAMSISESSION session, _Out_ int32 *result)",
 			);
@@ -111,38 +116,48 @@ class KoffiAmsiBackend implements AmsiBackend {
 			const hr = AmsiInitialize("Sage", ctxOut);
 			if (hr !== 0) {
 				this.logger.warn("AMSI: koffi AmsiInitialize failed", { hr });
+				this.close();
 				return;
 			}
 			this.context = ctxOut[0];
 
+			// Verify we can open a session (validate the context), then close it.
+			// Actual scan sessions are opened per-scan to avoid cross-file tainting.
 			const sessOut: unknown[] = [null];
-			const hr2 = AmsiOpenSession(this.context, sessOut);
+			const hr2 = this.fnOpenSession(this.context, sessOut);
 			if (hr2 !== 0) {
 				this.logger.warn("AMSI: koffi AmsiOpenSession failed", { hr: hr2 });
-				try {
-					if (this.fnUninitialize) {
-						this.fnUninitialize(this.context);
-					}
-				} catch {
-					/* best effort */
-				}
-				this.context = null;
+				this.close();
 				return;
 			}
-			this.session = sessOut[0];
+			try {
+				this.fnCloseSession(this.context, sessOut[0]);
+			} catch {
+				/* best effort */
+			}
 
 			this.available = true;
 			this.logger.debug("AMSI: koffi backend initialized");
 		} catch (e) {
 			this.logger.debug("AMSI: koffi backend init failed", { error: String(e) });
-			this.available = false;
+			this.close();
 		}
 	}
 
 	async scanString(content: string, contentName: string): Promise<AmsiCheckResult | null> {
-		if (!this.available || !this.fnScanBuffer || !this.context || !this.session) {
+		if (!this.available || !this.fnOpenSession || !this.fnScanBuffer || !this.context) {
 			return null;
 		}
+
+		// Open a fresh session per scan so that a detection in one file does
+		// not taint subsequent scans (AMSI sessions are correlation scopes).
+		const sessOut: unknown[] = [null];
+		const hrOpen = this.fnOpenSession(this.context, sessOut);
+		if (hrOpen !== 0) {
+			this.logger.warn("AMSI: koffi AmsiOpenSession failed in scan", { hr: hrOpen, contentName });
+			return null;
+		}
+		const session = sessOut[0];
 
 		try {
 			const truncated =
@@ -150,14 +165,7 @@ class KoffiAmsiBackend implements AmsiBackend {
 			const buf = Buffer.from(truncated, "utf-8");
 			const resultOut = [0];
 
-			const hr = this.fnScanBuffer(
-				this.context,
-				buf,
-				buf.length,
-				contentName,
-				this.session,
-				resultOut,
-			);
+			const hr = this.fnScanBuffer(this.context, buf, buf.length, contentName, session, resultOut);
 			if (hr !== 0) {
 				this.logger.warn("AMSI: koffi AmsiScanBuffer failed", { hr, contentName });
 				return null;
@@ -169,18 +177,18 @@ class KoffiAmsiBackend implements AmsiBackend {
 		} catch (e) {
 			this.logger.warn("AMSI: koffi scanBuffer failed", { error: String(e), contentName });
 			return null;
+		} finally {
+			try {
+				if (this.fnCloseSession && this.context) {
+					this.fnCloseSession(this.context, session);
+				}
+			} catch {
+				/* best effort */
+			}
 		}
 	}
 
 	close(): void {
-		try {
-			if (this.session && this.context && this.fnCloseSession) {
-				this.fnCloseSession(this.context, this.session);
-			}
-		} catch {
-			/* best effort */
-		}
-
 		try {
 			if (this.context && this.fnUninitialize) {
 				this.fnUninitialize(this.context);
@@ -189,9 +197,19 @@ class KoffiAmsiBackend implements AmsiBackend {
 			/* best effort */
 		}
 
-		this.session = null;
+		this.fnOpenSession = null;
+		this.fnScanBuffer = null;
+		this.fnCloseSession = null;
+		this.fnUninitialize = null;
 		this.context = null;
 		this.available = false;
+
+		try {
+			this.lib?.close();
+		} catch {
+			/* best effort */
+		}
+		this.lib = null;
 	}
 }
 
@@ -224,34 +242,45 @@ public class SageAmsi {
     static extern void AmsiUninitialize(IntPtr ctx);
 
     private static IntPtr _ctx;
-    private static IntPtr _session;
     private static bool _initialized;
 
     public static bool Init() {
         int hr = AmsiInitialize("Sage", out _ctx);
         if (hr != 0) return false;
-        hr = AmsiOpenSession(_ctx, out _session);
+        // Verify we can open a session, then close it immediately.
+        // Actual sessions are opened per-scan to avoid cross-file tainting.
+        IntPtr sess;
+        hr = AmsiOpenSession(_ctx, out sess);
         if (hr != 0) {
             AmsiUninitialize(_ctx);
             return false;
         }
+        AmsiCloseSession(_ctx, sess);
         _initialized = true;
         return true;
     }
 
     public static int Scan(string content, string contentName) {
         if (!_initialized) return -1;
-        byte[] bytes = Encoding.UTF8.GetBytes(content);
-        int result;
-        int hr = AmsiScanBuffer(_ctx, bytes, (uint)bytes.Length,
-                                contentName, _session, out result);
+        // Open a fresh session per scan so a detection in one file
+        // does not taint subsequent scans (sessions are correlation scopes).
+        IntPtr session;
+        int hr = AmsiOpenSession(_ctx, out session);
         if (hr != 0) return -1;
-        return result;
+        try {
+            byte[] bytes = Encoding.UTF8.GetBytes(content);
+            int result;
+            hr = AmsiScanBuffer(_ctx, bytes, (uint)bytes.Length,
+                                    contentName, session, out result);
+            if (hr != 0) return -1;
+            return result;
+        } finally {
+            AmsiCloseSession(_ctx, session);
+        }
     }
 
     public static void Shutdown() {
         if (!_initialized) return;
-        AmsiCloseSession(_ctx, _session);
         AmsiUninitialize(_ctx);
         _initialized = false;
     }
@@ -370,7 +399,14 @@ class PersistentPowershellAmsiBackend implements AmsiBackend {
 		try {
 			this.process = spawn(
 				"powershell.exe",
-				["-NoProfile", "-NonInteractive", "-Command", PS_PERSISTENT_SCRIPT],
+				[
+					"-NoProfile",
+					"-NonInteractive",
+					"-ExecutionPolicy",
+					"Bypass",
+					"-Command",
+					PS_PERSISTENT_SCRIPT,
+				],
 				{
 					stdio: ["pipe", "pipe", "pipe"],
 					windowsHide: true,
@@ -632,8 +668,13 @@ export class AmsiClient {
 		this.logger.debug("AMSI: no backend available");
 	}
 
-	async scanString(content: string, contentName: string): Promise<AmsiCheckResult | null> {
-		return (await this.backend?.scanString(content, contentName)) ?? null;
+	async scanString(
+		scanType: AmsiScanType,
+		contentName: string,
+		content: string,
+	): Promise<AmsiCheckResult | null> {
+		const formattedName = `[Sage:${scanType}]:${contentName}`;
+		return (await this.backend?.scanString(content, formattedName)) ?? null;
 	}
 
 	close(): void {

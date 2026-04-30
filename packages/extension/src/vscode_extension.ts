@@ -6,7 +6,6 @@ import * as vscodeHookInstaller from "./vscode_hook_installer.js";
 export function activate(context: vscode.ExtensionContext): void {
 	activateManagedHooksExtension(context, {
 		hostName: "VS Code",
-		scopeSettingKey: "sage.vscode.scope",
 		installer: vscodeHookInstaller,
 	});
 }

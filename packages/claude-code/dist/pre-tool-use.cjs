@@ -4182,7 +4182,7 @@ var init_zod = __esm({
 });
 
 // ../core/dist/types.js
-var nullLogger, ArtifactTypeSchema, ArtifactSchema, SeveritySchema, ActionSchema, ThreatSchema, DecisionSchema, VerdictSeveritySchema, SensitivitySchema, UrlCheckConfigSchema, CacheConfigSchema, AllowlistConfigSchema, LoggingConfigSchema, FileCheckConfigSchema, PackageCheckConfigSchema, AmsiCheckConfigSchema, ExceptionDecisionSchema, ExceptionMatchSchema, ExceptionRuleSchema, ExceptionsFileSchema, ExceptionsConfigSchema, ConfigSchema, brandString, BrandingSchema, HookTypeSchema;
+var nullLogger, ArtifactTypeSchema, ArtifactSchema, SeveritySchema, ActionSchema, ThreatSchema, DecisionSchema, VerdictSeveritySchema, SensitivitySchema, UrlCheckConfigSchema, CacheConfigSchema, AllowlistConfigSchema, LoggingConfigSchema, FileCheckConfigSchema, PackageCheckConfigSchema, AmsiCheckConfigSchema, DEFAULT_PI_HIGH_RISK_THRESHOLD, DEFAULT_PI_MEDIUM_RISK_THRESHOLD, PiCheckConfigSchema, ExceptionDecisionSchema, ExceptionMatchSchema, ExceptionRuleSchema, ExceptionsFileSchema, ExceptionsConfigSchema, ConfigSchema, HookTypeSchema;
 var init_types2 = __esm({
   "../core/dist/types.js"() {
     "use strict";
@@ -4256,6 +4256,15 @@ var init_types2 = __esm({
     AmsiCheckConfigSchema = external_exports.object({
       enabled: external_exports.boolean().default(true)
     });
+    DEFAULT_PI_HIGH_RISK_THRESHOLD = 0.99;
+    DEFAULT_PI_MEDIUM_RISK_THRESHOLD = 0.5;
+    PiCheckConfigSchema = external_exports.object({
+      enabled: external_exports.boolean().default(false),
+      max_content_length: external_exports.number().default(16384),
+      model_path: external_exports.string().optional(),
+      high_risk_threshold: external_exports.number().default(DEFAULT_PI_HIGH_RISK_THRESHOLD),
+      medium_risk_threshold: external_exports.number().default(DEFAULT_PI_MEDIUM_RISK_THRESHOLD)
+    });
     ExceptionDecisionSchema = external_exports.enum(["allow", "deny"]);
     ExceptionMatchSchema = external_exports.enum(["executable", "domain", "path", "plugin", "regex"]);
     ExceptionRuleSchema = external_exports.object({
@@ -4276,6 +4285,7 @@ var init_types2 = __esm({
       file_check: FileCheckConfigSchema.default({}),
       package_check: PackageCheckConfigSchema.default({}),
       amsi_check: AmsiCheckConfigSchema.default({}),
+      pi_check: PiCheckConfigSchema.default({}),
       heuristics_enabled: external_exports.boolean().default(true),
       cache: CacheConfigSchema.default({}),
       allowlist: AllowlistConfigSchema.default({}),
@@ -4283,17 +4293,9 @@ var init_types2 = __esm({
       logging: LoggingConfigSchema.default({}),
       sensitivity: SensitivitySchema.default("balanced"),
       disabled_threats: external_exports.array(external_exports.string()).default([]),
+      brand_key: external_exports.string().min(1).max(32).regex(/^[a-z0-9_-]+$/u).optional(),
       community_iq: external_exports.boolean().default(true)
     });
-    brandString = external_exports.string().min(1).max(64).regex(/^[^\p{Cc}]+$/u, "No control characters");
-    BrandingSchema = external_exports.object({
-      product_name: brandString.default("Sage"),
-      banner_text: external_exports.string().min(1).max(128).regex(/^[^\p{Cc}]+$/u).optional(),
-      brand_key: external_exports.string().min(1).max(32).regex(/^[a-z0-9_-]+$/u).optional()
-    }).transform((b) => ({
-      ...b,
-      banner_text: b.banner_text ?? b.product_name
-    }));
     HookTypeSchema = external_exports.enum([
       "PreToolUse",
       "PostToolUse",
@@ -4367,6 +4369,17 @@ function normalizeStateFilePath(configuredPath, fallbackPath, field, logger2) {
   });
   return fallbackPath;
 }
+function sanitizeBrandKey(data, logger2) {
+  const brandKey = data.brand_key;
+  if (brandKey === void 0)
+    return data;
+  if (typeof brandKey === "string" && brandKey.length >= 1 && brandKey.length <= 32 && BRAND_KEY_RE.test(brandKey)) {
+    return data;
+  }
+  logger2.warn(`Invalid brand_key in config \u2014 ignoring`, { brand_key: brandKey });
+  const { brand_key: _, ...rest } = data;
+  return rest;
+}
 function sanitizeConfigPaths(config, logger2) {
   const cachePath = defaultCachePath();
   const allowlistPath = defaultAllowlistPath();
@@ -4411,14 +4424,15 @@ async function loadConfig(configPath, logger2 = nullLogger) {
     logger2.warn(`Config file ${path} does not contain a JSON object`);
     return sanitizeConfigPaths(ConfigSchema.parse({}), logger2);
   }
+  const sanitized = sanitizeBrandKey(data, logger2);
   try {
-    return sanitizeConfigPaths(ConfigSchema.parse(data), logger2);
+    return sanitizeConfigPaths(ConfigSchema.parse(sanitized), logger2);
   } catch (e) {
     logger2.warn(`Config validation failed, using defaults`, { error: String(e) });
     return sanitizeConfigPaths(ConfigSchema.parse({}), logger2);
   }
 }
-var import_node_path2, SAGE_DIR;
+var import_node_path2, SAGE_DIR, BRAND_KEY_RE;
 var init_config = __esm({
   "../core/dist/config.js"() {
     "use strict";
@@ -4426,6 +4440,7 @@ var init_config = __esm({
     init_file_utils();
     init_types2();
     SAGE_DIR = "~/.sage";
+    BRAND_KEY_RE = /^[a-z0-9_-]+$/u;
   }
 });
 
@@ -5371,7 +5386,7 @@ var require_range = __commonJS({
       parseRange(range) {
         const memoOpts = (this.options.includePrerelease && FLAG_INCLUDE_PRERELEASE) | (this.options.loose && FLAG_LOOSE);
         const memoKey = memoOpts + ":" + range;
-        const cached = cache.get(memoKey);
+        const cached = cache2.get(memoKey);
         if (cached) {
           return cached;
         }
@@ -5405,7 +5420,7 @@ var require_range = __commonJS({
           rangeMap.delete("");
         }
         const result = [...rangeMap.values()];
-        cache.set(memoKey, result);
+        cache2.set(memoKey, result);
         return result;
       }
       intersects(range, options) {
@@ -5444,7 +5459,7 @@ var require_range = __commonJS({
     };
     module2.exports = Range;
     var LRU = require_lrucache();
-    var cache = new LRU();
+    var cache2 = new LRU();
     var parseOptions = require_parse_options();
     var Comparator = require_comparator();
     var debug = require_debug();
@@ -6356,6 +6371,363 @@ var require_semver2 = __commonJS({
       compareIdentifiers: identifiers.compareIdentifiers,
       rcompareIdentifiers: identifiers.rcompareIdentifiers
     };
+  }
+});
+
+// ../core/dist/clients/tokenizer.js
+var tokenizer_exports = {};
+__export(tokenizer_exports, {
+  LocalTokenizer: () => LocalTokenizer
+});
+function isWhitespace(ch) {
+  if (ch === " " || ch === "	" || ch === "\n" || ch === "\r")
+    return true;
+  return new RegExp("^\\p{Zs}$", "u").test(ch);
+}
+function isControl(ch) {
+  if (ch === "	" || ch === "\n" || ch === "\r")
+    return false;
+  return new RegExp("^\\p{Cc}|\\p{Cf}$", "u").test(ch);
+}
+function isPunctuation(ch) {
+  const cp = ch.codePointAt(0) ?? 0;
+  if (33 <= cp && cp <= 47 || 58 <= cp && cp <= 64 || 91 <= cp && cp <= 96 || 123 <= cp && cp <= 126) {
+    return true;
+  }
+  return new RegExp("^\\p{P}$", "u").test(ch);
+}
+function isChineseChar(cp) {
+  return 19968 <= cp && cp <= 40959 || 13312 <= cp && cp <= 19903 || 131072 <= cp && cp <= 173791 || 173824 <= cp && cp <= 177983 || 177984 <= cp && cp <= 178207 || 178208 <= cp && cp <= 183983 || 63744 <= cp && cp <= 64255 || 194560 <= cp && cp <= 195103;
+}
+function cleanText(text) {
+  const chars = [];
+  const posMap = [];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i] ?? "";
+    const cp = text.codePointAt(i) ?? 0;
+    if (cp === 0 || cp === 65533 || isControl(ch))
+      continue;
+    chars.push(isWhitespace(ch) ? " " : ch);
+    posMap.push(i);
+  }
+  return { chars, posMap };
+}
+function addChineseSpacing(chars, posMap) {
+  const out = [];
+  const newMap = [];
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i] ?? "";
+    const pos = posMap[i] ?? 0;
+    if (isChineseChar(ch.codePointAt(0) ?? 0)) {
+      out.push(" ", ch, " ");
+      newMap.push(pos, pos, pos);
+    } else {
+      out.push(ch);
+      newMap.push(pos);
+    }
+  }
+  return { chars: out, posMap: newMap };
+}
+function nfcNormalize(chars, posMap) {
+  const out = [];
+  const newMap = [];
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i] ?? "";
+    const nfc = ch.normalize("NFC");
+    for (const c of nfc) {
+      out.push(c);
+      newMap.push(posMap[i] ?? i);
+    }
+  }
+  return { chars: out, posMap: newMap };
+}
+function lowercaseChars(chars, posMap) {
+  return { chars: chars.map((ch) => ch.toLowerCase()), posMap };
+}
+function stripAccents(chars, posMap) {
+  const out = [];
+  const newMap = [];
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i] ?? "";
+    const nfd = ch.normalize("NFD");
+    for (const c of nfd) {
+      if (!new RegExp("^\\p{Mn}$", "u").test(c)) {
+        out.push(c);
+        newMap.push(posMap[i] ?? i);
+      }
+    }
+  }
+  return { chars: out, posMap: newMap };
+}
+function whitespaceSplit(chars, posMap) {
+  const words = [];
+  let currentChars = [];
+  let currentPos = [];
+  for (let i = 0; i < chars.length; i++) {
+    if (chars[i] === " ") {
+      if (currentChars.length > 0) {
+        words.push({ word: currentChars.join(""), positions: currentPos });
+        currentChars = [];
+        currentPos = [];
+      }
+    } else {
+      currentChars.push(chars[i] ?? "");
+      currentPos.push(posMap[i] ?? i);
+    }
+  }
+  if (currentChars.length > 0) {
+    words.push({ word: currentChars.join(""), positions: currentPos });
+  }
+  return words;
+}
+function splitOnPunctuation(word, positions) {
+  const tokens = [];
+  let currentChars = [];
+  let currentPos = [];
+  for (let i = 0; i < word.length; i++) {
+    const ch = word[i] ?? "";
+    const pos = positions[i] ?? i;
+    if (isPunctuation(ch)) {
+      if (currentChars.length > 0) {
+        tokens.push({ word: currentChars.join(""), positions: currentPos });
+        currentChars = [];
+        currentPos = [];
+      }
+      tokens.push({ word: ch, positions: [pos] });
+    } else {
+      currentChars.push(ch);
+      currentPos.push(pos);
+    }
+  }
+  if (currentChars.length > 0) {
+    tokens.push({ word: currentChars.join(""), positions: currentPos });
+  }
+  return tokens;
+}
+function pretokenize(text) {
+  if (!text)
+    return [];
+  let { chars, posMap } = cleanText(text);
+  ({ chars, posMap } = addChineseSpacing(chars, posMap));
+  ({ chars, posMap } = nfcNormalize(chars, posMap));
+  const words = whitespaceSplit(chars, posMap);
+  const result = [];
+  for (const { word, positions } of words) {
+    let wChars = [...word];
+    let wPos = [...positions];
+    ({ chars: wChars, posMap: wPos } = lowercaseChars(wChars, wPos));
+    ({ chars: wChars, posMap: wPos } = stripAccents(wChars, wPos));
+    const subTokens = splitOnPunctuation(wChars.join(""), wPos);
+    result.push(...subTokens);
+  }
+  return result;
+}
+function tokenizeSubwords(word, vocab, unkId) {
+  if (word.length > MAX_WORD_CHARS) {
+    return { tokens: ["[UNK]"], ids: [unkId], spans: [[0, word.length]] };
+  }
+  const tokens = [];
+  const ids = [];
+  const spans = [];
+  let start = 0;
+  while (start < word.length) {
+    let end = word.length;
+    let found = null;
+    let foundId = -1;
+    while (start < end) {
+      let substr = word.slice(start, end);
+      if (start > 0)
+        substr = `##${substr}`;
+      const id = vocab.get(substr);
+      if (id !== void 0) {
+        found = substr;
+        foundId = id;
+        break;
+      }
+      end--;
+    }
+    if (found === null) {
+      return { tokens: ["[UNK]"], ids: [unkId], spans: [[0, word.length]] };
+    }
+    tokens.push(found);
+    ids.push(foundId);
+    spans.push([start, end]);
+    start = end;
+  }
+  return { tokens, ids, spans };
+}
+var import_node_fs, import_node_path7, MAX_WORD_CHARS, PAD_ID, UNK_ID, CLS_ID, SEP_ID, LocalTokenizer;
+var init_tokenizer = __esm({
+  "../core/dist/clients/tokenizer.js"() {
+    "use strict";
+    import_node_fs = require("node:fs");
+    import_node_path7 = require("node:path");
+    MAX_WORD_CHARS = 100;
+    PAD_ID = 0;
+    UNK_ID = 100;
+    CLS_ID = 101;
+    SEP_ID = 102;
+    LocalTokenizer = class _LocalTokenizer {
+      vocab;
+      maxLength;
+      constructor(vocabPath, maxLength = 512) {
+        this.maxLength = maxLength;
+        this.vocab = this.loadVocab(vocabPath);
+      }
+      static fromModelDir(modelDir, maxLength = 512) {
+        return new _LocalTokenizer((0, import_node_path7.resolve)(modelDir, "vocab.txt"), maxLength);
+      }
+      loadVocab(path) {
+        const vocab = /* @__PURE__ */ new Map();
+        const lines = (0, import_node_fs.readFileSync)(path, "utf-8").split("\n");
+        for (let i = 0; i < lines.length; i++) {
+          const token = lines[i]?.replace(/\r$/, "");
+          if (token)
+            vocab.set(token, i);
+        }
+        return vocab;
+      }
+      tokenize(text, options = {}) {
+        const { addSpecialTokens = true, returnOffsetMapping = false, truncation = false, maxLength = this.maxLength } = options;
+        const preTokens = pretokenize(text);
+        const allIds = [];
+        const allOffsets = [];
+        for (const { word, positions } of preTokens) {
+          const { ids, spans } = tokenizeSubwords(word, this.vocab, UNK_ID);
+          for (let i = 0; i < ids.length; i++) {
+            allIds.push(ids[i] ?? UNK_ID);
+            const span = spans[i] ?? [0, 0];
+            const subPositions = positions.slice(span[0], span[1]);
+            if (subPositions.length > 0) {
+              const first = subPositions[0] ?? 0;
+              const last = subPositions[subPositions.length - 1] ?? 0;
+              allOffsets.push([first, last + 1]);
+            } else {
+              allOffsets.push([positions[0] ?? 0, positions[0] ?? 0]);
+            }
+          }
+        }
+        const contentMax = maxLength - (addSpecialTokens ? 2 : 0);
+        if (truncation && allIds.length > contentMax) {
+          allIds.length = contentMax;
+          allOffsets.length = contentMax;
+        }
+        if (addSpecialTokens) {
+          allIds.unshift(CLS_ID);
+          allIds.push(SEP_ID);
+          allOffsets.unshift([0, 0]);
+          allOffsets.push([0, 0]);
+        }
+        const result = {
+          input_ids: allIds,
+          attention_mask: new Array(allIds.length).fill(1),
+          token_type_ids: new Array(allIds.length).fill(0)
+        };
+        if (returnOffsetMapping) {
+          result.offset_mapping = allOffsets;
+        }
+        return result;
+      }
+      /**
+       * Callable interface using snake_case option keys.
+       * Supports: tokenizer(text, { truncation, max_length, padding })
+       */
+      call(text, options = {}) {
+        const result = this.tokenize(text, {
+          addSpecialTokens: options.add_special_tokens ?? true,
+          returnOffsetMapping: options.return_offsets_mapping ?? false,
+          truncation: options.truncation ?? false,
+          maxLength: options.max_length,
+          padding: options.padding ?? false
+        });
+        if (options.padding && result.input_ids.length < (options.max_length ?? this.maxLength)) {
+          const padLen = (options.max_length ?? this.maxLength) - result.input_ids.length;
+          result.input_ids.push(...new Array(padLen).fill(PAD_ID));
+          result.attention_mask.push(...new Array(padLen).fill(0));
+          result.token_type_ids.push(...new Array(padLen).fill(0));
+          if (result.offset_mapping) {
+            result.offset_mapping.push(...new Array(padLen).fill([0, 0]));
+          }
+        }
+        return result;
+      }
+    };
+  }
+});
+
+// ../core/dist/clients/pi-deps-installer.js
+var pi_deps_installer_exports = {};
+__export(pi_deps_installer_exports, {
+  ensurePiDeps: () => ensurePiDeps,
+  isLocalInstallValid: () => isLocalInstallValid
+});
+function isLocalInstallValid(modelPath) {
+  try {
+    const req = (0, import_node_module.createRequire)((0, import_node_path8.resolve)(modelPath, "package.json"));
+    const localPrefix = (0, import_node_fs2.realpathSync)((0, import_node_path8.resolve)(modelPath, "node_modules")) + import_node_path8.sep;
+    for (const pkg of REQUIRED_PACKAGES) {
+      const resolved = req.resolve(pkg);
+      if (!resolved.startsWith(localPrefix))
+        return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function ensurePiDeps(modelPath, logger2 = nullLogger) {
+  if (isLocalInstallValid(modelPath))
+    return true;
+  try {
+    require.resolve("onnxruntime-node");
+    return true;
+  } catch {
+  }
+  logger2.info("Installing PI runtime dependencies (first-time setup)...");
+  try {
+    const pkgJsonPath = (0, import_node_path8.resolve)(modelPath, "package.json");
+    if (!(0, import_node_fs2.existsSync)(pkgJsonPath)) {
+      (0, import_node_fs2.mkdirSync)(modelPath, { recursive: true });
+      (0, import_node_fs2.writeFileSync)(pkgJsonPath, '{"private":true}');
+    }
+    await runNpm(modelPath, ["install", "--no-save", ...REQUIRED_PACKAGES], logger2);
+    const verified = isLocalInstallValid(modelPath);
+    if (verified) {
+      logger2.info("PI runtime dependencies installed successfully");
+    } else {
+      logger2.warn("PI dependency installation may be incomplete");
+    }
+    return verified;
+  } catch (err) {
+    logger2.warn(`Failed to install PI dependencies (PI check will be skipped): ${err instanceof Error ? err.message : String(err)}`);
+    return false;
+  }
+}
+function runNpm(cwd, args, logger2) {
+  return new Promise((resolve7, reject) => {
+    const isWindows = process.platform === "win32";
+    const npmCmd = isWindows ? "npm.cmd" : "npm";
+    const child = (0, import_node_child_process.execFile)(npmCmd, args, { cwd, timeout: 3e4, shell: isWindows }, (error, _stdout, stderr) => {
+      if (error) {
+        logger2.warn(`npm install error: ${stderr || error.message}`);
+        reject(error);
+      } else {
+        resolve7();
+      }
+    });
+    child.unref();
+  });
+}
+var import_node_child_process, import_node_fs2, import_node_module, import_node_path8, REQUIRED_PACKAGES;
+var init_pi_deps_installer = __esm({
+  "../core/dist/clients/pi-deps-installer.js"() {
+    "use strict";
+    import_node_child_process = require("node:child_process");
+    import_node_fs2 = require("node:fs");
+    import_node_module = require("node:module");
+    import_node_path8 = require("node:path");
+    init_types2();
+    REQUIRED_PACKAGES = ["onnxruntime-node"];
   }
 });
 
@@ -10307,10 +10679,10 @@ var require_resolve_block_map = __commonJS({
       let offset = bm.offset;
       let commentEnd = null;
       for (const collItem of bm.items) {
-        const { start, key, sep: sep3, value } = collItem;
+        const { start, key, sep: sep4, value } = collItem;
         const keyProps = resolveProps.resolveProps(start, {
           indicator: "explicit-key-ind",
-          next: key ?? sep3?.[0],
+          next: key ?? sep4?.[0],
           offset,
           onError,
           parentIndent: bm.indent,
@@ -10324,7 +10696,7 @@ var require_resolve_block_map = __commonJS({
             else if ("indent" in key && key.indent !== bm.indent)
               onError(offset, "BAD_INDENT", startColMsg);
           }
-          if (!keyProps.anchor && !keyProps.tag && !sep3) {
+          if (!keyProps.anchor && !keyProps.tag && !sep4) {
             commentEnd = keyProps.end;
             if (keyProps.comment) {
               if (map.comment)
@@ -10348,7 +10720,7 @@ var require_resolve_block_map = __commonJS({
         ctx.atKey = false;
         if (utilMapIncludes.mapIncludes(ctx, map.items, keyNode))
           onError(keyStart, "DUPLICATE_KEY", "Map keys must be unique");
-        const valueProps = resolveProps.resolveProps(sep3 ?? [], {
+        const valueProps = resolveProps.resolveProps(sep4 ?? [], {
           indicator: "map-value-ind",
           next: value,
           offset: keyNode.range[2],
@@ -10364,7 +10736,7 @@ var require_resolve_block_map = __commonJS({
             if (ctx.options.strict && keyProps.start < valueProps.found.offset - 1024)
               onError(keyNode.range, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit block mapping key");
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep3, null, valueProps, onError);
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep4, null, valueProps, onError);
           if (ctx.schema.compat)
             utilFlowIndentCheck.flowIndentCheck(bm.indent, value, onError);
           offset = valueNode.range[2];
@@ -10455,7 +10827,7 @@ var require_resolve_end = __commonJS({
       let comment = "";
       if (end) {
         let hasSpace = false;
-        let sep3 = "";
+        let sep4 = "";
         for (const token of end) {
           const { source, type } = token;
           switch (type) {
@@ -10469,13 +10841,13 @@ var require_resolve_end = __commonJS({
               if (!comment)
                 comment = cb;
               else
-                comment += sep3 + cb;
-              sep3 = "";
+                comment += sep4 + cb;
+              sep4 = "";
               break;
             }
             case "newline":
               if (comment)
-                sep3 += source;
+                sep4 += source;
               hasSpace = true;
               break;
             default:
@@ -10518,18 +10890,18 @@ var require_resolve_flow_collection = __commonJS({
       let offset = fc.offset + fc.start.source.length;
       for (let i = 0; i < fc.items.length; ++i) {
         const collItem = fc.items[i];
-        const { start, key, sep: sep3, value } = collItem;
+        const { start, key, sep: sep4, value } = collItem;
         const props = resolveProps.resolveProps(start, {
           flow: fcName,
           indicator: "explicit-key-ind",
-          next: key ?? sep3?.[0],
+          next: key ?? sep4?.[0],
           offset,
           onError,
           parentIndent: fc.indent,
           startOnNewline: false
         });
         if (!props.found) {
-          if (!props.anchor && !props.tag && !sep3 && !value) {
+          if (!props.anchor && !props.tag && !sep4 && !value) {
             if (i === 0 && props.comma)
               onError(props.comma, "UNEXPECTED_TOKEN", `Unexpected , in ${fcName}`);
             else if (i < fc.items.length - 1)
@@ -10583,8 +10955,8 @@ var require_resolve_flow_collection = __commonJS({
             }
           }
         }
-        if (!isMap && !sep3 && !props.found) {
-          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep3, null, props, onError);
+        if (!isMap && !sep4 && !props.found) {
+          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep4, null, props, onError);
           coll.items.push(valueNode);
           offset = valueNode.range[2];
           if (isBlock(value))
@@ -10596,7 +10968,7 @@ var require_resolve_flow_collection = __commonJS({
           if (isBlock(key))
             onError(keyNode.range, "BLOCK_IN_FLOW", blockMsg);
           ctx.atKey = false;
-          const valueProps = resolveProps.resolveProps(sep3 ?? [], {
+          const valueProps = resolveProps.resolveProps(sep4 ?? [], {
             flow: fcName,
             indicator: "map-value-ind",
             next: value,
@@ -10607,8 +10979,8 @@ var require_resolve_flow_collection = __commonJS({
           });
           if (valueProps.found) {
             if (!isMap && !props.found && ctx.options.strict) {
-              if (sep3)
-                for (const st of sep3) {
+              if (sep4)
+                for (const st of sep4) {
                   if (st === valueProps.found)
                     break;
                   if (st.type === "newline") {
@@ -10625,7 +10997,7 @@ var require_resolve_flow_collection = __commonJS({
             else
               onError(valueProps.start, "MISSING_CHAR", `Missing , or : between ${fcName} items`);
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep3, null, valueProps, onError) : null;
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep4, null, valueProps, onError) : null;
           if (valueNode) {
             if (isBlock(value))
               onError(valueNode.range, "BLOCK_IN_FLOW", blockMsg);
@@ -10805,7 +11177,7 @@ var require_resolve_block_scalar = __commonJS({
           chompStart = i + 1;
       }
       let value = "";
-      let sep3 = "";
+      let sep4 = "";
       let prevMoreIndented = false;
       for (let i = 0; i < contentStart; ++i)
         value += lines[i][0].slice(trimIndent) + "\n";
@@ -10822,24 +11194,24 @@ var require_resolve_block_scalar = __commonJS({
           indent = "";
         }
         if (type === Scalar.Scalar.BLOCK_LITERAL) {
-          value += sep3 + indent.slice(trimIndent) + content;
-          sep3 = "\n";
+          value += sep4 + indent.slice(trimIndent) + content;
+          sep4 = "\n";
         } else if (indent.length > trimIndent || content[0] === "	") {
-          if (sep3 === " ")
-            sep3 = "\n";
-          else if (!prevMoreIndented && sep3 === "\n")
-            sep3 = "\n\n";
-          value += sep3 + indent.slice(trimIndent) + content;
-          sep3 = "\n";
+          if (sep4 === " ")
+            sep4 = "\n";
+          else if (!prevMoreIndented && sep4 === "\n")
+            sep4 = "\n\n";
+          value += sep4 + indent.slice(trimIndent) + content;
+          sep4 = "\n";
           prevMoreIndented = true;
         } else if (content === "") {
-          if (sep3 === "\n")
+          if (sep4 === "\n")
             value += "\n";
           else
-            sep3 = "\n";
+            sep4 = "\n";
         } else {
-          value += sep3 + content;
-          sep3 = " ";
+          value += sep4 + content;
+          sep4 = " ";
           prevMoreIndented = false;
         }
       }
@@ -11021,25 +11393,25 @@ var require_resolve_flow_scalar = __commonJS({
       if (!match)
         return source;
       let res = match[1];
-      let sep3 = " ";
+      let sep4 = " ";
       let pos = first.lastIndex;
       line.lastIndex = pos;
       while (match = line.exec(source)) {
         if (match[1] === "") {
-          if (sep3 === "\n")
-            res += sep3;
+          if (sep4 === "\n")
+            res += sep4;
           else
-            sep3 = "\n";
+            sep4 = "\n";
         } else {
-          res += sep3 + match[1];
-          sep3 = " ";
+          res += sep4 + match[1];
+          sep4 = " ";
         }
         pos = line.lastIndex;
       }
       const last = /[ \t]*(.*)/sy;
       last.lastIndex = pos;
       match = last.exec(source);
-      return res + sep3 + (match?.[1] ?? "");
+      return res + sep4 + (match?.[1] ?? "");
     }
     function doubleQuotedValue(source, onError) {
       let res = "";
@@ -11841,14 +12213,14 @@ var require_cst_stringify = __commonJS({
         }
       }
     }
-    function stringifyItem({ start, key, sep: sep3, value }) {
+    function stringifyItem({ start, key, sep: sep4, value }) {
       let res = "";
       for (const st of start)
         res += st.source;
       if (key)
         res += stringifyToken(key);
-      if (sep3)
-        for (const st of sep3)
+      if (sep4)
+        for (const st of sep4)
           res += st.source;
       if (value)
         res += stringifyToken(value);
@@ -12998,18 +13370,18 @@ var require_parser = __commonJS({
         if (this.type === "map-value-ind") {
           const prev = getPrevProps(this.peek(2));
           const start = getFirstKeyStartProps(prev);
-          let sep3;
+          let sep4;
           if (scalar.end) {
-            sep3 = scalar.end;
-            sep3.push(this.sourceToken);
+            sep4 = scalar.end;
+            sep4.push(this.sourceToken);
             delete scalar.end;
           } else
-            sep3 = [this.sourceToken];
+            sep4 = [this.sourceToken];
           const map = {
             type: "block-map",
             offset: scalar.offset,
             indent: scalar.indent,
-            items: [{ start, key: scalar, sep: sep3 }]
+            items: [{ start, key: scalar, sep: sep4 }]
           };
           this.onKeyLine = true;
           this.stack[this.stack.length - 1] = map;
@@ -13162,15 +13534,15 @@ var require_parser = __commonJS({
                 } else if (isFlowToken(it.key) && !includesToken(it.sep, "newline")) {
                   const start2 = getFirstKeyStartProps(it.start);
                   const key = it.key;
-                  const sep3 = it.sep;
-                  sep3.push(this.sourceToken);
+                  const sep4 = it.sep;
+                  sep4.push(this.sourceToken);
                   delete it.key;
                   delete it.sep;
                   this.stack.push({
                     type: "block-map",
                     offset: this.offset,
                     indent: this.indent,
-                    items: [{ start: start2, key, sep: sep3 }]
+                    items: [{ start: start2, key, sep: sep4 }]
                   });
                 } else if (start.length > 0) {
                   it.sep = it.sep.concat(start, this.sourceToken);
@@ -13364,13 +13736,13 @@ var require_parser = __commonJS({
             const prev = getPrevProps(parent);
             const start = getFirstKeyStartProps(prev);
             fixFlowSeqItems(fc);
-            const sep3 = fc.end.splice(1, fc.end.length);
-            sep3.push(this.sourceToken);
+            const sep4 = fc.end.splice(1, fc.end.length);
+            sep4.push(this.sourceToken);
             const map = {
               type: "block-map",
               offset: fc.offset,
               indent: fc.indent,
-              items: [{ start, key: fc, sep: sep3 }]
+              items: [{ start, key: fc, sep: sep4 }]
             };
             this.onKeyLine = true;
             this.stack[this.stack.length - 1] = map;
@@ -15641,7 +16013,7 @@ var require_thread_stream = __commonJS({
     var { version } = require_package();
     var { EventEmitter } = require("events");
     var { Worker } = require("worker_threads");
-    var { join: join13 } = require("path");
+    var { join: join14 } = require("path");
     var { pathToFileURL } = require("url");
     var { wait } = require_wait();
     var {
@@ -15677,7 +16049,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join13(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join14(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         trackUnmanagedFds: false,
@@ -16061,9 +16433,9 @@ var require_thread_stream = __commonJS({
 var require_transport = __commonJS({
   "../../node_modules/.pnpm/pino@9.14.0/node_modules/pino/lib/transport.js"(exports2, module2) {
     "use strict";
-    var { createRequire } = require("module");
+    var { createRequire: createRequire2 } = require("module");
     var getCallers = require_caller();
-    var { join: join13, isAbsolute: isAbsolute2, sep: sep3 } = require("node:path");
+    var { join: join14, isAbsolute: isAbsolute2, sep: sep4 } = require("node:path");
     var sleep = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
     var ThreadStream = require_thread_stream();
@@ -16126,7 +16498,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join13(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join14(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -16144,7 +16516,7 @@ var require_transport = __commonJS({
           });
         });
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join13(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join14(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -16166,13 +16538,13 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join13(__dirname, "..", "file.js");
+          return join14(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
           try {
-            const context = filePath === "node:repl" ? process.cwd() + sep3 : filePath;
-            fixTarget2 = createRequire(context).resolve(origin);
+            const context = filePath === "node:repl" ? process.cwd() + sep4 : filePath;
+            fixTarget2 = createRequire2(context).resolve(origin);
             break;
           } catch (err) {
             continue;
@@ -16593,12 +16965,12 @@ var require_levels = __commonJS({
     function genLsCache(instance) {
       const formatter = instance[formattersSym].level;
       const { labels } = instance.levels;
-      const cache = {};
+      const cache2 = {};
       for (const label in labels) {
         const level = formatter(labels[label], Number(label));
-        cache[label] = JSON.stringify(level).slice(0, -1);
+        cache2[label] = JSON.stringify(level).slice(0, -1);
       }
-      instance[lsCacheSym] = cache;
+      instance[lsCacheSym] = cache2;
       return instance;
     }
     function isStandardLevel(level, useOnlyCustomLevels) {
@@ -17155,7 +17527,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join13 = ",";
+            let join14 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -17169,7 +17541,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join13 = `,
+                join14 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -17177,13 +17549,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join13;
+                res += join14;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join13}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join14}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -17204,7 +17576,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join13 = `,
+              join14 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -17218,13 +17590,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join13;
+                separator = join14;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join13;
+              separator = join14;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -17265,7 +17637,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join13 = ",";
+            let join14 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -17278,7 +17650,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join13 = `,
+                join14 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -17286,13 +17658,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join13;
+                res += join14;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join13}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join14}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -17305,7 +17677,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join13 = `,
+              join14 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -17314,7 +17686,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join13;
+                separator = join14;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -17372,20 +17744,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join14 = `,
+              const join15 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join14;
+                res2 += join15;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join14}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join15}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -17401,16 +17773,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join13 = `,
+            const join14 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join13, maximumBreadth);
+              res += stringifyTypedArray(value, join14, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join13;
+              separator = join14;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -17421,13 +17793,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join13;
+                separator = join14;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join13;
+              separator = join14;
             }
             if (separator !== "") {
               res = `
@@ -17954,8 +18326,8 @@ var require_pino = __commonJS({
 });
 
 // src/pre-tool-use.ts
-var import_node_fs = require("node:fs");
-var import_node_path15 = require("node:path");
+var import_node_fs3 = require("node:fs");
+var import_node_path19 = require("node:path");
 
 // ../core/dist/allowlist.js
 init_config();
@@ -18076,6 +18448,7 @@ var import_node_path4 = require("node:path");
 init_config();
 init_file_utils();
 var MAX_SUMMARY_LEN = 200;
+var AUDIT_LOG_SCHEMA_VERSION = 1;
 function toolInputSummary(toolName, toolInput) {
   if (toolName === "Bash") {
     return String(toolInput.command ?? "").slice(0, MAX_SUMMARY_LEN);
@@ -18119,75 +18492,59 @@ async function appendEntry(config, entry) {
   const path = resolvePath(config.path);
   await (0, import_promises.mkdir)((0, import_node_path4.dirname)(path), { recursive: true });
   await rotateIfNeeded(path, config.max_bytes, config.max_files);
-  await (0, import_promises.appendFile)(path, `${JSON.stringify(entry)}
+  const stamped = { ...entry, schema_version: AUDIT_LOG_SCHEMA_VERSION };
+  await (0, import_promises.appendFile)(path, `${JSON.stringify(stamped)}
 `);
 }
-async function logVerdict(config, sessionId, toolName, toolInput, verdict, userOverride = false, conversationId, agentRuntime, hookType, signals, eventId) {
+async function logVerdict(config, input) {
   if (!config.enabled)
     return;
-  if (verdict.decision === "allow" && !config.log_clean && !userOverride)
+  const userOverride = input.userOverride ?? false;
+  const hasSignals = input.signals != null && Object.keys(input.signals).length > 0;
+  if (input.verdict.decision === "allow" && !config.log_clean && !userOverride && !hasSignals)
     return;
   const entry = {
     type: "runtime_verdict",
-    entry_id: eventId ?? (0, import_node_crypto3.randomUUID)(),
+    entry_id: input.eventId ?? (0, import_node_crypto3.randomUUID)(),
     timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    session_id: sessionId,
-    conversation_id: conversationId ?? sessionId,
-    agent_runtime: agentRuntime,
-    hook_type: hookType,
-    tool_name: toolName,
-    tool_input_summary: toolInputSummary(toolName, toolInput),
-    artifacts: verdict.artifacts,
-    verdict: verdict.decision,
-    severity: verdict.severity,
-    reasons: verdict.reasons,
-    source: verdict.source,
+    session_id: input.sessionId,
+    conversation_id: input.conversationId ?? input.sessionId,
+    agent_runtime: input.agentRuntime,
+    hook_type: input.hookType,
+    tool_name: input.toolName,
+    tool_input_summary: toolInputSummary(input.toolName, input.toolInput),
+    artifacts: input.verdict.artifacts,
+    verdict: input.verdict.decision,
+    severity: input.verdict.severity,
+    reasons: input.verdict.reasons,
+    source: input.verdict.source,
     user_override: userOverride,
-    signals
+    signals: input.signals,
+    tool_use_id: input.toolUseId
   };
+  if (input.content !== void 0) {
+    entry.content = input.content;
+  }
   try {
     await appendEntry(config, entry);
   } catch {
   }
 }
 
-// ../core/dist/branding.js
-var import_node_path5 = require("node:path");
-init_config();
-init_file_utils();
-init_types2();
-var defaultBranding = BrandingSchema.parse({});
-function defaultBrandingPath() {
-  return (0, import_node_path5.join)(resolvePath(SAGE_DIR), "branding.json");
-}
-async function loadBranding(logger2 = nullLogger, brandingPath) {
-  const path = brandingPath ?? defaultBrandingPath();
-  let raw;
-  try {
-    raw = await getFileContent(path);
-  } catch {
+// ../core/dist/brands.js
+var defaultBranding = { name: "Sage", short_name: "Sage" };
+var BRANDS = {
+  norton: { name: "Norton AI Agent Protection", short_name: "Norton" }
+};
+function resolveBranding(brandKey, logger2) {
+  if (!brandKey)
+    return defaultBranding;
+  const entry = BRANDS[brandKey];
+  if (!entry) {
+    logger2?.warn(`Unknown brand_key "${brandKey}" in config \u2014 using default branding`);
     return defaultBranding;
   }
-  return parseBranding(raw, path, logger2);
-}
-function parseBranding(raw, path, logger2) {
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch (e) {
-    logger2.warn(`Failed to parse branding from ${path}`, { error: String(e) });
-    return defaultBranding;
-  }
-  if (typeof data !== "object" || data === null || Array.isArray(data)) {
-    logger2.warn(`Branding file ${path} does not contain a JSON object`);
-    return defaultBranding;
-  }
-  try {
-    return BrandingSchema.parse(data);
-  } catch (e) {
-    logger2.warn("Branding validation failed, using defaults", { error: String(e) });
-    return defaultBranding;
-  }
+  return { ...entry, brand_key: brandKey };
 }
 
 // ../core/dist/cache.js
@@ -18235,7 +18592,8 @@ var VerdictCache = class {
       verdict: entry.verdict,
       severity: entry.severity,
       reasons: entry.reasons,
-      source: entry.source
+      source: entry.source,
+      ...entry.urlSignalLabels !== void 0 ? { urlSignalLabels: entry.urlSignalLabels } : {}
     };
   }
   putUrl(url, verdict, isMalicious) {
@@ -18268,9 +18626,10 @@ var VerdictCache = class {
   putCommand(commandHash, verdict) {
     if (!this.config.enabled)
       return;
+    const { urlSignalLabels: _ignoredUrlLabels, ...rest } = verdict;
     const now = /* @__PURE__ */ new Date();
     this.store.commands[commandHash] = {
-      ...verdict,
+      ...rest,
       checkedAt: now.toISOString(),
       expiresAt: FAR_FUTURE,
       sageVersion: this.version
@@ -18292,11 +18651,12 @@ var VerdictCache = class {
   putPackage(key, verdict, packageAgeDays) {
     if (!this.config.enabled)
       return;
+    const { urlSignalLabels: _ignoredUrlLabels, ...rest } = verdict;
     const ttlSeconds = this.computePackageTtl(verdict.verdict, packageAgeDays);
     const now = /* @__PURE__ */ new Date();
     const expiresAt = new Date(now.getTime() + ttlSeconds * 1e3);
     this.store.packages[key] = {
-      ...verdict,
+      ...rest,
       checkedAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),
       sageVersion: this.version
@@ -18382,8 +18742,12 @@ function interpretAmsiResult(amsiResult, content, contentName) {
 var KoffiAmsiBackend = class {
   logger;
   context = null;
-  session = null;
   available = false;
+  /** Koffi library handle — must be closed to let the event loop drain. */
+  /* biome-ignore lint/suspicious/noExplicitAny: koffi Library type is not exported */
+  lib = null;
+  /* biome-ignore lint/suspicious/noExplicitAny: koffi FFI functions have dynamic signatures */
+  fnOpenSession = null;
   /* biome-ignore lint/suspicious/noExplicitAny: koffi FFI functions have dynamic signatures */
   fnScanBuffer = null;
   /* biome-ignore lint/suspicious/noExplicitAny: koffi FFI functions have dynamic signatures */
@@ -18401,10 +18765,11 @@ var KoffiAmsiBackend = class {
       const koffiModule = await import("koffi");
       const koffi = koffiModule.default ?? koffiModule;
       const lib = koffi.load("amsi.dll");
+      this.lib = lib;
       const _HAMSICONTEXT = koffi.pointer("HAMSICONTEXT", koffi.opaque());
       const _HAMSISESSION = koffi.pointer("HAMSISESSION", koffi.opaque());
       const AmsiInitialize = lib.func("int32 __stdcall AmsiInitialize(str16 appName, _Out_ HAMSICONTEXT *ctx)");
-      const AmsiOpenSession = lib.func("int32 __stdcall AmsiOpenSession(HAMSICONTEXT ctx, _Out_ HAMSISESSION *session)");
+      this.fnOpenSession = lib.func("int32 __stdcall AmsiOpenSession(HAMSICONTEXT ctx, _Out_ HAMSISESSION *session)");
       this.fnScanBuffer = lib.func("int32 __stdcall AmsiScanBuffer(HAMSICONTEXT ctx, void *buf, uint32 len, str16 contentName, HAMSISESSION session, _Out_ int32 *result)");
       this.fnCloseSession = lib.func("void __stdcall AmsiCloseSession(HAMSICONTEXT ctx, HAMSISESSION session)");
       this.fnUninitialize = lib.func("void __stdcall AmsiUninitialize(HAMSICONTEXT ctx)");
@@ -18412,39 +18777,44 @@ var KoffiAmsiBackend = class {
       const hr = AmsiInitialize("Sage", ctxOut);
       if (hr !== 0) {
         this.logger.warn("AMSI: koffi AmsiInitialize failed", { hr });
+        this.close();
         return;
       }
       this.context = ctxOut[0];
       const sessOut = [null];
-      const hr2 = AmsiOpenSession(this.context, sessOut);
+      const hr2 = this.fnOpenSession(this.context, sessOut);
       if (hr2 !== 0) {
         this.logger.warn("AMSI: koffi AmsiOpenSession failed", { hr: hr2 });
-        try {
-          if (this.fnUninitialize) {
-            this.fnUninitialize(this.context);
-          }
-        } catch {
-        }
-        this.context = null;
+        this.close();
         return;
       }
-      this.session = sessOut[0];
+      try {
+        this.fnCloseSession(this.context, sessOut[0]);
+      } catch {
+      }
       this.available = true;
       this.logger.debug("AMSI: koffi backend initialized");
     } catch (e) {
       this.logger.debug("AMSI: koffi backend init failed", { error: String(e) });
-      this.available = false;
+      this.close();
     }
   }
   async scanString(content, contentName) {
-    if (!this.available || !this.fnScanBuffer || !this.context || !this.session) {
+    if (!this.available || !this.fnOpenSession || !this.fnScanBuffer || !this.context) {
       return null;
     }
+    const sessOut = [null];
+    const hrOpen = this.fnOpenSession(this.context, sessOut);
+    if (hrOpen !== 0) {
+      this.logger.warn("AMSI: koffi AmsiOpenSession failed in scan", { hr: hrOpen, contentName });
+      return null;
+    }
+    const session = sessOut[0];
     try {
       const truncated = content.length > MAX_SCAN_LENGTH ? content.slice(0, MAX_SCAN_LENGTH) : content;
       const buf = Buffer.from(truncated, "utf-8");
       const resultOut = [0];
-      const hr = this.fnScanBuffer(this.context, buf, buf.length, contentName, this.session, resultOut);
+      const hr = this.fnScanBuffer(this.context, buf, buf.length, contentName, session, resultOut);
       if (hr !== 0) {
         this.logger.warn("AMSI: koffi AmsiScanBuffer failed", { hr, contentName });
         return null;
@@ -18455,24 +18825,33 @@ var KoffiAmsiBackend = class {
     } catch (e) {
       this.logger.warn("AMSI: koffi scanBuffer failed", { error: String(e), contentName });
       return null;
+    } finally {
+      try {
+        if (this.fnCloseSession && this.context) {
+          this.fnCloseSession(this.context, session);
+        }
+      } catch {
+      }
     }
   }
   close() {
-    try {
-      if (this.session && this.context && this.fnCloseSession) {
-        this.fnCloseSession(this.context, this.session);
-      }
-    } catch {
-    }
     try {
       if (this.context && this.fnUninitialize) {
         this.fnUninitialize(this.context);
       }
     } catch {
     }
-    this.session = null;
+    this.fnOpenSession = null;
+    this.fnScanBuffer = null;
+    this.fnCloseSession = null;
+    this.fnUninitialize = null;
     this.context = null;
     this.available = false;
+    try {
+      this.lib?.close();
+    } catch {
+    }
+    this.lib = null;
   }
 };
 var AMSI_CSHARP_TYPE = `
@@ -18499,34 +18878,45 @@ public class SageAmsi {
     static extern void AmsiUninitialize(IntPtr ctx);
 
     private static IntPtr _ctx;
-    private static IntPtr _session;
     private static bool _initialized;
 
     public static bool Init() {
         int hr = AmsiInitialize("Sage", out _ctx);
         if (hr != 0) return false;
-        hr = AmsiOpenSession(_ctx, out _session);
+        // Verify we can open a session, then close it immediately.
+        // Actual sessions are opened per-scan to avoid cross-file tainting.
+        IntPtr sess;
+        hr = AmsiOpenSession(_ctx, out sess);
         if (hr != 0) {
             AmsiUninitialize(_ctx);
             return false;
         }
+        AmsiCloseSession(_ctx, sess);
         _initialized = true;
         return true;
     }
 
     public static int Scan(string content, string contentName) {
         if (!_initialized) return -1;
-        byte[] bytes = Encoding.UTF8.GetBytes(content);
-        int result;
-        int hr = AmsiScanBuffer(_ctx, bytes, (uint)bytes.Length,
-                                contentName, _session, out result);
+        // Open a fresh session per scan so a detection in one file
+        // does not taint subsequent scans (sessions are correlation scopes).
+        IntPtr session;
+        int hr = AmsiOpenSession(_ctx, out session);
         if (hr != 0) return -1;
-        return result;
+        try {
+            byte[] bytes = Encoding.UTF8.GetBytes(content);
+            int result;
+            hr = AmsiScanBuffer(_ctx, bytes, (uint)bytes.Length,
+                                    contentName, session, out result);
+            if (hr != 0) return -1;
+            return result;
+        } finally {
+            AmsiCloseSession(_ctx, session);
+        }
     }
 
     public static void Shutdown() {
         if (!_initialized) return;
-        AmsiCloseSession(_ctx, _session);
         AmsiUninitialize(_ctx);
         _initialized = false;
     }
@@ -18606,17 +18996,24 @@ var PersistentPowershellAmsiBackend = class {
     return this.available;
   }
   waitForLine(timeout) {
-    return new Promise((resolve3, reject) => {
+    return new Promise((resolve7, reject) => {
       const timer = setTimeout(() => {
         this.pendingResponse = null;
         reject(new Error("timeout"));
       }, timeout);
-      this.pendingResponse = { resolve: resolve3, reject, timer };
+      this.pendingResponse = { resolve: resolve7, reject, timer };
     });
   }
   async init() {
     try {
-      this.process = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", PS_PERSISTENT_SCRIPT], {
+      this.process = spawn("powershell.exe", [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        PS_PERSISTENT_SCRIPT
+      ], {
         stdio: ["pipe", "pipe", "pipe"],
         windowsHide: true
       });
@@ -18646,10 +19043,10 @@ var PersistentPowershellAmsiBackend = class {
           const line = this.stdoutBuffer.slice(0, idx).trim();
           this.stdoutBuffer = this.stdoutBuffer.slice(idx + 1);
           if (this.pendingResponse) {
-            const { resolve: resolve3, timer } = this.pendingResponse;
+            const { resolve: resolve7, timer } = this.pendingResponse;
             this.pendingResponse = null;
             clearTimeout(timer);
-            resolve3(line);
+            resolve7(line);
           }
           idx = this.stdoutBuffer.indexOf("\n");
         }
@@ -18738,7 +19135,7 @@ var WslPowershellAmsiBackend = class {
     if (!this.available)
       return null;
     const truncated = content.length > MAX_SCAN_LENGTH ? content.slice(0, MAX_SCAN_LENGTH) : content;
-    return new Promise((resolve3) => {
+    return new Promise((resolve7) => {
       try {
         const ps = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", PS_ONESHOT_SCRIPT], { stdio: ["pipe", "pipe", "pipe"] });
         let stdout = "";
@@ -18748,7 +19145,7 @@ var WslPowershellAmsiBackend = class {
             ps.kill();
           } catch {
           }
-          resolve3(null);
+          resolve7(null);
         }, PS_TIMEOUT);
         ps.stdout?.on("data", (chunk) => {
           stdout += chunk.toString();
@@ -18761,7 +19158,7 @@ var WslPowershellAmsiBackend = class {
         ps.on("error", (err) => {
           clearTimeout(timer);
           this.logger.debug("AMSI: PowerShell one-shot error", { error: String(err) });
-          resolve3(null);
+          resolve7(null);
         });
         ps.on("exit", () => {
           clearTimeout(timer);
@@ -18771,11 +19168,11 @@ var WslPowershellAmsiBackend = class {
               stdout: stdout.slice(0, 100),
               contentName
             });
-            resolve3(null);
+            resolve7(null);
             return;
           }
           this.logger.debug("AMSI: PowerShell one-shot result", { contentName, amsiResult });
-          resolve3(interpretAmsiResult(amsiResult, content, contentName));
+          resolve7(interpretAmsiResult(amsiResult, content, contentName));
         });
         const req = JSON.stringify({ content: truncated, contentName });
         ps.stdin?.write(`${req}
@@ -18783,7 +19180,7 @@ var WslPowershellAmsiBackend = class {
         ps.stdin?.end();
       } catch (e) {
         this.logger.warn("AMSI: PowerShell one-shot failed", { error: String(e), contentName });
-        resolve3(null);
+        resolve7(null);
       }
     });
   }
@@ -18822,8 +19219,9 @@ var AmsiClient = class {
     }
     this.logger.debug("AMSI: no backend available");
   }
-  async scanString(content, contentName) {
-    return await this.backend?.scanString(content, contentName) ?? null;
+  async scanString(scanType, contentName, content) {
+    const formattedName = `[Sage:${scanType}]:${contentName}`;
+    return await this.backend?.scanString(content, formattedName) ?? null;
   }
   close() {
     this.backend?.close();
@@ -18831,19 +19229,106 @@ var AmsiClient = class {
   }
 };
 
+// ../core/dist/clients/content-fetch.js
+init_types2();
+var DEFAULT_TIMEOUT_MS = 4e3;
+var DEFAULT_MAX_CONTENT_LENGTH = 16384;
+var BINARY_SNIFF_LENGTH = 512;
+var TEXTUAL_APPLICATION_TYPES = /* @__PURE__ */ new Set([
+  "application/json",
+  "application/xml",
+  "application/xhtml+xml",
+  "application/javascript",
+  "application/x-yaml",
+  "application/yaml",
+  "application/rss+xml",
+  "application/atom+xml",
+  "application/ld+json"
+]);
+var ContentFetchClient = class _ContentFetchClient {
+  timeoutMs;
+  maxContentLength;
+  logger;
+  constructor(timeoutMs = DEFAULT_TIMEOUT_MS, maxContentLength = DEFAULT_MAX_CONTENT_LENGTH, logger2 = nullLogger) {
+    this.timeoutMs = timeoutMs;
+    this.maxContentLength = maxContentLength;
+    this.logger = logger2;
+  }
+  async fetchTextContent(url) {
+    try {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(this.timeoutMs),
+        redirect: "follow",
+        headers: { "User-Agent": "sage" }
+      });
+      if (!response.ok) {
+        this.logger.debug("Content fetch failed", { url, status: String(response.status) });
+        return null;
+      }
+      const contentType = response.headers.get("content-type");
+      if (!_ContentFetchClient.isTextualContentType(contentType)) {
+        this.logger.debug("Skipping non-textual content type", {
+          url,
+          contentType: contentType ?? "unknown"
+        });
+        return null;
+      }
+      const reader = response.body?.getReader();
+      if (!reader)
+        return null;
+      const decoder = new TextDecoder();
+      let text = "";
+      try {
+        while (text.length < this.maxContentLength) {
+          const { done, value } = await reader.read();
+          if (done)
+            break;
+          text += decoder.decode(value, { stream: true });
+        }
+        text += decoder.decode();
+      } finally {
+        reader.cancel();
+      }
+      if (text.length > this.maxContentLength) {
+        text = text.slice(0, this.maxContentLength);
+      }
+      if (_ContentFetchClient.hasBinaryContent(text)) {
+        this.logger.debug("Skipping binary content", { url });
+        return null;
+      }
+      return { content: text, contentType };
+    } catch (error) {
+      this.logger.debug("Content fetch error", { url, error: String(error) });
+      return null;
+    }
+  }
+  static isTextualContentType(contentType) {
+    if (contentType == null)
+      return true;
+    const mime = contentType.split(";")[0]?.trim().toLowerCase() ?? "";
+    if (mime.startsWith("text/"))
+      return true;
+    return TEXTUAL_APPLICATION_TYPES.has(mime);
+  }
+  static hasBinaryContent(text) {
+    const sniff = text.slice(0, BINARY_SNIFF_LENGTH);
+    return sniff.includes("\0");
+  }
+};
+
 // ../core/dist/clients/file-check.js
 init_types2();
 
 // ../core/dist/version.js
-var import_node_path6 = require("node:path");
+var import_node_path5 = require("node:path");
 var import_node_url = require("node:url");
 init_file_utils();
 var import_meta = {};
 function resolveVersion() {
   if (true)
-    return "0.8.0";
+    return "0.9.0";
   try {
-    const pkgPath = (0, import_node_path6.join)((0, import_node_path6.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
+    const pkgPath = (0, import_node_path5.join)((0, import_node_path5.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
     const pkg = JSON.parse(getFileContentSync(pkgPath));
     if (typeof pkg.version === "string")
       return pkg.version;
@@ -18986,19 +19471,180 @@ var FileCheckClient = class {
   }
 };
 
+// ../core/dist/model-storage.js
+var import_node_path6 = require("node:path");
+init_config();
+var MODEL_SCHEMA_VERSION = "v1";
+function getModelStorageRoot(sageDir = resolvePath("~/.sage")) {
+  return (0, import_node_path6.join)(resolvePath(sageDir), "models");
+}
+function getModelDir(modelName, schema = MODEL_SCHEMA_VERSION, sageDir) {
+  return (0, import_node_path6.join)(getModelStorageRoot(sageDir), schema, modelName);
+}
+
+// ../core/dist/clients/model-downloader.js
+init_types2();
+var STALE_LOCK_MS = 60 * 60 * 1e3;
+
+// ../core/dist/sage-proxy.js
+function mapSageProxyOs(platform) {
+  switch (platform) {
+    case "win32":
+      return "WINDOWS";
+    case "darwin":
+      return "MACOS";
+    case "linux":
+      return "LINUX";
+    default:
+      return platform;
+  }
+}
+function mapSageProxyArchitecture(arch) {
+  return arch.toUpperCase();
+}
+function buildSageProxyEnvelope(args) {
+  return {
+    identity: { uuid: args.iid },
+    product: { version_app: args.versionApp },
+    platform: {
+      os: args.platformOs ?? mapSageProxyOs(process.platform),
+      architecture: args.platformArchitecture ?? mapSageProxyArchitecture(process.arch)
+    },
+    agent: {
+      agent_runtime: args.agentRuntime,
+      agent_runtime_version: args.agentRuntimeVersion
+    }
+  };
+}
+
+// ../core/dist/clients/model-manifest.js
+init_types2();
+
+// ../core/dist/clients/url-check.js
+init_types2();
+var DEFAULT_TIMEOUT2 = 5;
+var MAX_URLS_PER_REQUEST = 50;
+var SERVICE_NAME2 = "sage";
+function getProviderTld2() {
+  return "com";
+}
+var REQUEST_HEADERS2 = [
+  { name: "Accept", value: "application/json" },
+  { name: "Content-Type", value: "application/json" },
+  { name: "User-Agent", value: SERVICE_NAME2 }
+];
+function getProviderName2() {
+  return "avast";
+}
+function getSubdomain() {
+  return "svc";
+}
+function buildDomain() {
+  return [getSubdomain(), getProviderName2(), getProviderTld2()].join(".");
+}
+function resolveEndpoint(path) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `https://${SERVICE_NAME2}-proxy.${buildDomain()}${normalizedPath}`;
+}
+var UrlCheckClient = class {
+  endpoint;
+  timeoutMs;
+  logger;
+  constructor(config, logger2 = nullLogger) {
+    this.endpoint = config?.endpoint ?? resolveEndpoint("/url-check");
+    this.timeoutMs = (config?.timeout_seconds ?? DEFAULT_TIMEOUT2) * 1e3;
+    this.logger = logger2;
+  }
+  async checkUrls(urls) {
+    if (urls.length === 0)
+      return [];
+    const batches = [];
+    for (let i = 0; i < urls.length; i += MAX_URLS_PER_REQUEST) {
+      batches.push(urls.slice(i, i + MAX_URLS_PER_REQUEST));
+    }
+    const batchResults = await Promise.all(batches.map((batch) => this.checkBatch(batch)));
+    return batchResults.flat();
+  }
+  async checkBatch(urls) {
+    const queries = urls.map((url) => ({
+      key: { "url-like": url },
+      include: { "detection-infos": true }
+    }));
+    const payload = {
+      queries,
+      "client-info": {
+        "product-name": SERVICE_NAME2,
+        "product-version": VERSION
+      }
+    };
+    try {
+      const response = await fetch(this.endpoint, {
+        method: "POST",
+        headers: Object.fromEntries(REQUEST_HEADERS2.map((h) => [h.name, h.value])),
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(this.timeoutMs)
+      });
+      if (!response.ok) {
+        this.logger.warn(`URL check HTTP error: ${response.status}`);
+        return [];
+      }
+      const data = await response.json();
+      const answers = data.answers ?? [];
+      const results = [];
+      for (const answer of answers) {
+        const result = this.parseAnswer(answer);
+        if (result !== null) {
+          results.push(result);
+        }
+      }
+      return results;
+    } catch (e) {
+      this.logger.warn("URL check request failed", { error: String(e) });
+      return [];
+    }
+  }
+  parseAnswer(answer) {
+    try {
+      const url = answer.key ?? "";
+      const result = answer.result ?? {};
+      const success = result.success ?? {};
+      const classification = success.classification ?? {};
+      const detectionInfos = classification["detection-infos"] ?? [];
+      const classResult = classification.result ?? {};
+      const malicious = classResult.malicious;
+      const detections = detectionInfos.filter((info) => typeof info.name === "string").map((info) => {
+        return info.name;
+      });
+      const findings = malicious ? (malicious.findings ?? []).map((f) => ({
+        severityName: f["severity-name"] ?? "unknown",
+        typeName: f["type-name"] ?? "unknown"
+      })) : [];
+      return {
+        url,
+        isMalicious: Boolean(malicious),
+        detections,
+        findings
+      };
+    } catch (e) {
+      this.logger.warn("Failed to parse answer", { error: String(e) });
+      return null;
+    }
+  }
+};
+
 // ../core/dist/clients/package-registry.js
 var import_semver = __toESM(require_semver2(), 1);
 init_types2();
 var NPM_REGISTRY = "https://registry.npmjs.org";
 var PYPI_REGISTRY = "https://pypi.org/pypi";
-var DEFAULT_TIMEOUT2 = 5;
+var DEFAULT_TIMEOUT3 = 5;
 var NPM_NAME_RE = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
 var PYPI_NAME_RE = /^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$/;
 var RegistryClient = class {
   timeoutMs;
   logger;
   constructor(config, logger2 = nullLogger) {
-    this.timeoutMs = (config?.timeout_seconds ?? DEFAULT_TIMEOUT2) * 1e3;
+    this.timeoutMs = (config?.timeout_seconds ?? DEFAULT_TIMEOUT3) * 1e3;
     this.logger = logger2;
   }
   async getPackageMetadata(name, registry, version) {
@@ -19156,129 +19802,595 @@ var RegistryClient = class {
   }
 };
 
-// ../core/dist/clients/url-check.js
+// ../core/dist/clients/pi-check.js
+var import_node_path9 = require("node:path");
 init_types2();
-var DEFAULT_TIMEOUT3 = 5;
-var MAX_URLS_PER_REQUEST = 50;
-var SERVICE_NAME2 = "sage";
-function getProviderTld2() {
-  return "com";
-}
-var REQUEST_HEADERS2 = [
-  { name: "Accept", value: "application/json" },
-  { name: "Content-Type", value: "application/json" },
-  { name: "User-Agent", value: SERVICE_NAME2 }
+var DEFAULT_MAX_CONTENT_LENGTH2 = 16384;
+var MAX_TOKENS = 512;
+var OVERLAP_TOKENS = 128;
+var MODEL_FILE = "model_int8.onnx";
+var MODEL_METADATA_FILES = [
+  "config.json",
+  "special_tokens_map.json",
+  "tokenizer.json",
+  "tokenizer_config.json",
+  "vocab.txt",
+  MODEL_FILE
 ];
-function getProviderName2() {
-  return "avast";
+function softmax(logits) {
+  const max = Math.max(...logits);
+  const exp = logits.map((x) => Math.exp(x - max));
+  const sum = exp.reduce((a, b) => a + b, 0);
+  return exp.map((x) => x / sum);
 }
-function getSubdomain() {
-  return "svc";
+function isModelMissingError(err) {
+  if (!(err instanceof Error))
+    return false;
+  const nodeErr = err;
+  if (nodeErr.code === "ENOENT")
+    return true;
+  const msg = err.message.toLowerCase();
+  return msg.includes("enoent") || msg.includes("no such file or directory") || MODEL_METADATA_FILES.some((name) => msg.includes(name.toLowerCase()));
 }
-function buildDomain() {
-  return [getSubdomain(), getProviderName2(), getProviderTld2()].join(".");
-}
-function resolveEndpoint(path) {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `https://${SERVICE_NAME2}-proxy.${buildDomain()}${normalizedPath}`;
-}
-var UrlCheckClient = class {
-  endpoint;
-  timeoutMs;
+var BundledPiProvider = class _BundledPiProvider {
+  /** Tracks whether any instance loaded the model runtime in this process. */
+  static modelRuntimeLoaded = false;
+  modelPath;
+  maxContentLength;
+  mediumRiskThreshold;
   logger;
-  constructor(config, logger2 = nullLogger) {
-    this.endpoint = config?.endpoint ?? resolveEndpoint("/url-check");
-    this.timeoutMs = (config?.timeout_seconds ?? DEFAULT_TIMEOUT3) * 1e3;
-    this.logger = logger2;
+  tokenizer = null;
+  session = null;
+  tensorClass = null;
+  inputNames = /* @__PURE__ */ new Set();
+  initPromise = null;
+  /**
+   * Call at the end of the process to prevent native model runtime cleanup
+   * crash (exit code 134/SIGABRT). Only exits if the runtime was actually
+   * loaded.
+   */
+  static exitIfModelLoaded() {
+    if (_BundledPiProvider.modelRuntimeLoaded)
+      process.exit(0);
   }
-  async checkUrls(urls) {
-    if (urls.length === 0)
-      return [];
-    const batches = [];
-    for (let i = 0; i < urls.length; i += MAX_URLS_PER_REQUEST) {
-      batches.push(urls.slice(i, i + MAX_URLS_PER_REQUEST));
-    }
-    const batchResults = await Promise.all(batches.map((batch) => this.checkBatch(batch)));
-    return batchResults.flat();
+  constructor(options = {}) {
+    this.modelPath = options.modelPath ?? getModelDir("pi-model");
+    this.maxContentLength = options.maxContentLength ?? DEFAULT_MAX_CONTENT_LENGTH2;
+    this.mediumRiskThreshold = options.mediumRiskThreshold ?? DEFAULT_PI_MEDIUM_RISK_THRESHOLD;
+    this.logger = options.logger ?? nullLogger;
   }
-  async checkBatch(urls) {
-    const queries = urls.map((url) => ({ key: { "url-like": url } }));
-    const payload = {
-      queries,
-      "client-info": {
-        "product-name": SERVICE_NAME2,
-        "product-version": VERSION
-      }
-    };
+  async checkContent(content, context) {
     try {
-      const response = await fetch(this.endpoint, {
-        method: "POST",
-        headers: Object.fromEntries(REQUEST_HEADERS2.map((h) => [h.name, h.value])),
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(this.timeoutMs)
-      });
-      if (!response.ok) {
-        this.logger.warn(`URL check HTTP error: ${response.status}`);
-        return [];
-      }
-      const data = await response.json();
-      const answers = data.answers ?? [];
-      const results = [];
-      for (const answer of answers) {
-        const result = this.parseAnswer(answer);
-        if (result !== null) {
-          results.push(result);
+      const truncated = this.truncateContent(content);
+      if (truncated.length === 0)
+        return null;
+      const loaded = await this.ensureLoaded();
+      if (!loaded)
+        return null;
+      const chunks = this.chunkText(truncated);
+      let maxRisk = 0;
+      let maxChunk = "";
+      for (const chunk of chunks) {
+        if (chunk.length < 10)
+          continue;
+        const risk = await this.classifyChunk(chunk);
+        if (risk > maxRisk) {
+          maxRisk = risk;
+          maxChunk = chunk;
         }
       }
-      return results;
-    } catch (e) {
-      this.logger.warn("URL check request failed", { error: String(e) });
-      return [];
-    }
-  }
-  parseAnswer(answer) {
-    try {
-      const url = answer.key ?? "";
-      const result = answer.result ?? {};
-      const success = result.success ?? {};
-      const classification = success.classification ?? {};
-      const detectionInfos = classification["detection-infos"] ?? [];
-      const classResult = classification.result ?? {};
-      const flags = success.flags ?? [];
-      const malicious = classResult.malicious;
-      const detections = detectionInfos.filter((info) => typeof info.name === "string").map((info) => {
-        return info.name;
-      });
-      const findings = malicious ? (malicious.findings ?? []).map((f) => ({
-        severityName: f["severity-name"] ?? "unknown",
-        typeName: f["type-name"] ?? "unknown"
-      })) : [];
+      const findings = [];
+      if (maxRisk >= this.mediumRiskThreshold) {
+        const snippet = maxChunk.length > 80 ? `${maxChunk.slice(0, 77)}...` : maxChunk;
+        findings.push(snippet);
+      }
       return {
-        url,
-        isMalicious: Boolean(malicious),
-        detections,
+        risk: maxRisk,
         findings,
-        flags
+        contentName: context,
+        modelId: (0, import_node_path9.basename)(this.modelPath),
+        contentSnippet: maxChunk || void 0
       };
-    } catch (e) {
-      this.logger.warn("Failed to parse answer", { error: String(e) });
+    } catch (err) {
+      this.logger.warn("PI check failed (fail-open)", {
+        error: err instanceof Error ? err.message : String(err),
+        context
+      });
       return null;
     }
+  }
+  async ensureLoaded() {
+    if (this.session && this.tokenizer)
+      return true;
+    if (this.initPromise)
+      return this.initPromise;
+    this.initPromise = this.loadModel();
+    return this.initPromise;
+  }
+  async loadModel() {
+    try {
+      const { LocalTokenizer: LocalTokenizer2 } = await Promise.resolve().then(() => (init_tokenizer(), tokenizer_exports));
+      this.tokenizer = LocalTokenizer2.fromModelDir(this.modelPath, MAX_TOKENS);
+      const { ensurePiDeps: ensurePiDeps2 } = await Promise.resolve().then(() => (init_pi_deps_installer(), pi_deps_installer_exports));
+      const depsReady = await ensurePiDeps2(this.modelPath, this.logger);
+      if (!depsReady)
+        return false;
+      const { createRequire: createRequire2 } = await import("node:module");
+      const requireFromModel = createRequire2((0, import_node_path9.resolve)(this.modelPath, "package.json"));
+      const runtime = requireFromModel("onnxruntime-node");
+      this.tensorClass = runtime.Tensor;
+      const modelFilePath = (0, import_node_path9.resolve)(this.modelPath, MODEL_FILE);
+      this.session = await runtime.InferenceSession.create(modelFilePath);
+      const sess = this.session;
+      this.inputNames = new Set(sess.inputNames);
+      _BundledPiProvider.modelRuntimeLoaded = true;
+      this.logger.info("PI model loaded", { path: this.modelPath });
+      return true;
+    } catch (err) {
+      if (isModelMissingError(err)) {
+        this.logger.debug("PI model not yet available; using heuristics only", {
+          path: this.modelPath,
+          error: err instanceof Error ? err.message : String(err)
+        });
+        return false;
+      }
+      const errMsg = err instanceof Error ? `${err.message}
+${err.stack}` : String(err);
+      this.logger.warn(`PI model load failed (pi_check is enabled but inference will be skipped): ${errMsg}`);
+      return false;
+    }
+  }
+  /**
+   * Classify a single chunk. Returns P(injected) via softmax over two-class logits.
+   */
+  async classifyChunk(text) {
+    const tok = this.tokenizer;
+    const encoded = tok.call(text, {
+      truncation: true,
+      max_length: MAX_TOKENS,
+      padding: true
+    });
+    const inputIds = new BigInt64Array(encoded.input_ids.map((v) => BigInt(v)));
+    const attentionMask = new BigInt64Array(encoded.attention_mask.map((v) => BigInt(v)));
+    const TensorClass = this.tensorClass;
+    const feeds = {
+      input_ids: new TensorClass("int64", inputIds, [1, inputIds.length]),
+      attention_mask: new TensorClass("int64", attentionMask, [1, attentionMask.length])
+    };
+    if (this.inputNames.has("token_type_ids")) {
+      feeds.token_type_ids = new TensorClass("int64", new BigInt64Array(inputIds.length), [
+        1,
+        inputIds.length
+      ]);
+    }
+    const session = this.session;
+    const output = await session.run(feeds);
+    const logits = Array.from(output.logits?.data ?? []);
+    if (logits.length < 2)
+      return 0;
+    const probs = softmax(logits);
+    return probs[1] ?? 0;
+  }
+  /**
+   * Chunk text with a sliding window over tokenized input. Window size and
+   * overlap are tuned to the model's input window.
+   */
+  chunkText(text) {
+    const tok = this.tokenizer;
+    const encoded = tok.tokenize(text, {
+      addSpecialTokens: false,
+      returnOffsetMapping: true,
+      truncation: false
+    });
+    const tokenIds = encoded.input_ids;
+    const offsets = encoded.offset_mapping;
+    if (tokenIds.length <= MAX_TOKENS)
+      return [text];
+    const chunks = [];
+    let start = 0;
+    while (start < tokenIds.length) {
+      const end = Math.min(start + MAX_TOKENS, tokenIds.length);
+      const charStart = offsets[start]?.[0] ?? 0;
+      const charEnd = offsets[end - 1]?.[1] ?? text.length;
+      chunks.push(text.slice(charStart, charEnd));
+      if (end >= tokenIds.length)
+        break;
+      start = end - OVERLAP_TOKENS;
+    }
+    return chunks;
+  }
+  truncateContent(content) {
+    if (content.length <= this.maxContentLength)
+      return content;
+    const headLen = Math.floor(this.maxContentLength * 0.8);
+    const tailLen = this.maxContentLength - headLen;
+    return `${content.slice(0, headLen)}
+...[truncated]...
+${content.slice(-tailLen)}`;
   }
 };
 
 // ../core/dist/index.js
+init_pi_deps_installer();
+
+// ../core/dist/clients/skill-check.js
+init_types2();
+
+// ../core/dist/index.js
 init_config();
+
+// ../core/dist/content-policy.js
+var SCANNABLE_EXTENSIONS = /* @__PURE__ */ new Set([
+  ".py",
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".jsx",
+  ".ts",
+  ".tsx",
+  ".mts",
+  ".cts",
+  ".sh",
+  ".bash",
+  ".html",
+  ".htm",
+  ".json",
+  ".jsonc",
+  ".txt",
+  ".csv",
+  ".xml",
+  ".c",
+  ".h",
+  ".cpp",
+  ".cc",
+  ".cxx",
+  ".hpp",
+  ".yaml",
+  ".yml",
+  ".kt",
+  ".kts"
+]);
+function getUrlExtension(url) {
+  try {
+    const pathname = new URL(url).pathname;
+    const dot = pathname.lastIndexOf(".");
+    const slash = pathname.lastIndexOf("/");
+    if (dot <= slash || dot < 0)
+      return null;
+    return pathname.slice(dot).toLowerCase();
+  } catch {
+    return null;
+  }
+}
+function extractWebFetchUrl(toolInput) {
+  if (typeof toolInput.url === "string")
+    return toolInput.url;
+  if (Array.isArray(toolInput.urls) && typeof toolInput.urls[0] === "string")
+    return toolInput.urls[0];
+  return null;
+}
+var SNIFF_HTML = /^\s*<!doctype\s+html|^\s*<html[\s>]/i;
+var SNIFF_HTML_TAGS = /<\/(head|body|html|div|p|script|style|form|table)>/i;
+var SNIFF_JSON = /^\s*[[{]/;
+var SNIFF_XML = /^\s*<\?xml\s/i;
+var SNIFF_YAML = /^---\s*$/m;
+var SNIFF_SHEBANG_SHELL = /^#!.*\b(sh|bash|zsh|dash)\b/;
+var SNIFF_SHEBANG_PYTHON = /^#!.*\bpython/i;
+var SNIFF_PYTHON = /^(?:import |from \S+ import |def \w+\(|class \w+[:(])/m;
+var SNIFF_JS_TS = /^(?:const |let |var |function |import |export |module\.exports)/m;
+var SNIFF_C_CPP = /^#include\s*[<"]/m;
+var SNIFF_KOTLIN = /^(?:package |fun |class |val |var |object |interface )\w/m;
+var SNIFF_CSV = /^[^,\n]+(?:,[^,\n]+){2,}$/m;
+function isScannableContent(content) {
+  const head = content.slice(0, 4096);
+  return SNIFF_HTML.test(head) || SNIFF_HTML_TAGS.test(head) || SNIFF_JSON.test(head) || SNIFF_XML.test(head) || SNIFF_YAML.test(head) || SNIFF_SHEBANG_SHELL.test(head) || SNIFF_SHEBANG_PYTHON.test(head) || SNIFF_PYTHON.test(head) || SNIFF_JS_TS.test(head) || SNIFF_C_CPP.test(head) || SNIFF_KOTLIN.test(head) || SNIFF_CSV.test(head);
+}
+
+// ../core/dist/content-snapshot.js
+var import_node_os2 = require("node:os");
+var CONTENT_FIELD_LIMITS = Object.freeze({
+  command: 512,
+  url: 512,
+  file_path: 512,
+  package_name: 256,
+  package_version: 128,
+  package_registry: 128
+});
+function safeTruncate(value, maxLen) {
+  if (maxLen <= 0)
+    return "";
+  if (value.length <= maxLen)
+    return value;
+  const cutIndex = maxLen;
+  const codeUnit = value.charCodeAt(cutIndex - 1);
+  if (codeUnit >= 55296 && codeUnit <= 56319) {
+    return value.slice(0, cutIndex - 1);
+  }
+  return value.slice(0, cutIndex);
+}
+function scrubHomePath(value) {
+  const home = (0, import_node_os2.homedir)();
+  if (!home)
+    return value;
+  const normalizedHome = home.replace(/\\/g, "/").replace(/\/+$/, "");
+  if (!normalizedHome)
+    return value;
+  const normalizedValue = value.replace(/\\/g, "/");
+  if (normalizedValue === normalizedHome)
+    return "~";
+  if (normalizedValue.startsWith(`${normalizedHome}/`)) {
+    return `~/${normalizedValue.slice(normalizedHome.length + 1)}`;
+  }
+  return value;
+}
+function asString(v) {
+  return typeof v === "string" && v.length > 0 ? v : void 0;
+}
+function resolveFilePath(toolInput) {
+  return asString(toolInput.file_path) ?? asString(toolInput.filePath) ?? asString(toolInput.path);
+}
+function resolveWebFetchUrl(toolInput) {
+  const single = asString(toolInput.url);
+  if (single)
+    return single;
+  const urls = toolInput.urls;
+  if (Array.isArray(urls)) {
+    for (const u of urls) {
+      if (typeof u === "string" && u.length > 0)
+        return u;
+    }
+  }
+  return void 0;
+}
+function extractFirstApplyPatchPath(patchText) {
+  if (!patchText)
+    return void 0;
+  const headerMatch = /\*{3}\s+(?:Add|Update|Delete)\s+File:\s*(.+)/.exec(patchText);
+  if (headerMatch?.[1]) {
+    const trimmed = headerMatch[1].trim();
+    if (trimmed)
+      return trimmed;
+  }
+  const renameMatch = /\*{3}\s+(?:Move\s+to|Rename\s+File):\s*(.+)/i.exec(patchText);
+  if (renameMatch?.[1]) {
+    const raw = renameMatch[1].trim();
+    const arrow = raw.indexOf(" -> ");
+    if (arrow !== -1) {
+      const src = raw.slice(0, arrow).trim();
+      if (src)
+        return src;
+      const dst = raw.slice(arrow + 4).trim();
+      if (dst)
+        return dst;
+    } else if (raw) {
+      return raw;
+    }
+  }
+  return void 0;
+}
+function extractMcpContent(toolInput) {
+  const nestedRaw = toolInput.tool_input ?? toolInput.toolInput;
+  const candidate = nestedRaw && typeof nestedRaw === "object" && !Array.isArray(nestedRaw) ? nestedRaw : toolInput;
+  return {
+    command: asString(candidate.command),
+    url: asString(candidate.url) ?? resolveWebFetchUrl(candidate),
+    file_path: resolveFilePath(candidate)
+  };
+}
+function firstUrlArtifact(artifacts) {
+  for (const a of artifacts) {
+    if (a.type === "url" && typeof a.value === "string" && a.value.length > 0) {
+      return a.value;
+    }
+  }
+  return void 0;
+}
+function applyFieldLimits(content) {
+  for (const [key, value] of Object.entries(content)) {
+    if (typeof value !== "string")
+      continue;
+    let sanitized = value;
+    if (key === "file_path" || key === "command") {
+      sanitized = scrubHomePath(sanitized);
+    }
+    const limit = CONTENT_FIELD_LIMITS[key];
+    if (limit && sanitized.length > limit) {
+      sanitized = safeTruncate(sanitized, limit);
+    }
+    content[key] = sanitized;
+  }
+}
+function buildContentSnapshot(toolType, toolInput, artifacts = [], signals = {}) {
+  const content = {};
+  switch (toolType) {
+    case "Bash": {
+      const command = asString(toolInput.command);
+      if (command)
+        content.command = command;
+      break;
+    }
+    case "WebFetch": {
+      const url = resolveWebFetchUrl(toolInput) ?? firstUrlArtifact(artifacts);
+      if (url)
+        content.url = url;
+      break;
+    }
+    case "Write":
+    case "Edit":
+    case "Read":
+    case "Delete": {
+      const filePath = resolveFilePath(toolInput);
+      if (filePath)
+        content.file_path = filePath;
+      break;
+    }
+    case "ApplyPatch": {
+      const patchText = asString(toolInput.input) ?? asString(toolInput.patch) ?? "";
+      const filePath = extractFirstApplyPatchPath(patchText);
+      if (filePath)
+        content.file_path = filePath;
+      break;
+    }
+    case "MCP": {
+      const mcp = extractMcpContent(toolInput);
+      if (mcp.command)
+        content.command = mcp.command;
+      if (mcp.url)
+        content.url = mcp.url;
+      if (mcp.file_path)
+        content.file_path = mcp.file_path;
+      break;
+    }
+  }
+  if (!content.url && signals.url_checks && signals.url_checks.length > 0) {
+    const firstUrl = signals.url_checks[0]?.url;
+    if (firstUrl)
+      content.url = firstUrl;
+  }
+  if (signals.package_checks && signals.package_checks.length > 0) {
+    const p = signals.package_checks[0];
+    if (p?.package_name)
+      content.package_name = p.package_name;
+    if (p?.package_version)
+      content.package_version = p.package_version;
+    if (p?.package_registry)
+      content.package_registry = p.package_registry;
+  }
+  applyFieldLimits(content);
+  return content;
+}
+
+// ../core/dist/extended-info.js
+var import_promises2 = require("node:fs/promises");
+var import_node_os3 = require("node:os");
+var import_node_path10 = require("node:path");
+init_file_utils();
+init_types2();
+var EXTENDED_INFO_FILE_MAX_BYTES = 1024;
+var EXTENDED_INFO_MAX_GROUPS = 16;
+var EXTENDED_INFO_MAX_KEYS_PER_GROUP = 32;
+var EXTENDED_INFO_MAX_LEAF_CHARS = 256;
+var EXTENDED_INFO_FILENAME = "extended-info.json";
+var cache = /* @__PURE__ */ new Map();
+function isPlainObjectValue(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function sanitizeLeaves(groupKey, rawGroup, logger2) {
+  const entries = Object.entries(rawGroup);
+  const overflow = entries.length > EXTENDED_INFO_MAX_KEYS_PER_GROUP;
+  const retained = overflow ? entries.slice(0, EXTENDED_INFO_MAX_KEYS_PER_GROUP) : entries;
+  if (overflow) {
+    logger2.debug(`extended-info: dropped overflow keys in group '${groupKey}' (kept first ${EXTENDED_INFO_MAX_KEYS_PER_GROUP} of ${entries.length})`);
+  }
+  const out = {};
+  for (const [leafKey, leafValue] of retained) {
+    if (typeof leafValue === "string") {
+      out[leafKey] = safeTruncate(leafValue, EXTENDED_INFO_MAX_LEAF_CHARS);
+      continue;
+    }
+    if (typeof leafValue === "number" || typeof leafValue === "boolean") {
+      out[leafKey] = leafValue;
+      continue;
+    }
+    logger2.debug(`extended-info: dropped non-scalar leaf '${groupKey}.${leafKey}' (type ${typeof leafValue})`);
+  }
+  return out;
+}
+function sanitizeDocument(parsed, logger2) {
+  const out = {};
+  for (const [groupKey, groupValue] of Object.entries(parsed)) {
+    if (!isPlainObjectValue(groupValue)) {
+      logger2.debug(`extended-info: dropped non-object group '${groupKey}'`);
+      continue;
+    }
+    out[groupKey] = sanitizeLeaves(groupKey, groupValue, logger2);
+  }
+  return out;
+}
+async function loadExtendedInfo(sageDirPath, logger2 = nullLogger) {
+  const sageDir = sageDirPath ?? (0, import_node_path10.join)((0, import_node_os3.homedir)(), ".sage");
+  const filePath = (0, import_node_path10.join)(sageDir, EXTENDED_INFO_FILENAME);
+  const cached = cache.get(filePath);
+  if (cached)
+    return cached.value;
+  const value = await loadExtendedInfoUncached(filePath, logger2);
+  cache.set(filePath, { value });
+  return value;
+}
+async function loadExtendedInfoUncached(filePath, logger2) {
+  let size;
+  try {
+    const info = await (0, import_promises2.stat)(filePath);
+    if (!info.isFile()) {
+      logger2.debug(`extended-info: not a regular file at ${filePath}`);
+      return null;
+    }
+    size = info.size;
+  } catch {
+    return null;
+  }
+  if (size > EXTENDED_INFO_FILE_MAX_BYTES) {
+    logger2.debug(`extended-info: file size ${size} exceeds cap ${EXTENDED_INFO_FILE_MAX_BYTES}; ignoring`);
+    return null;
+  }
+  let raw;
+  try {
+    raw = await getFileContent(filePath, "utf-8");
+  } catch {
+    return null;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    logger2.debug(`extended-info: invalid JSON: ${err}`);
+    return null;
+  }
+  if (!isPlainObjectValue(parsed)) {
+    logger2.debug("extended-info: top-level value is not a non-null object");
+    return null;
+  }
+  const groupCount = Object.keys(parsed).length;
+  if (groupCount > EXTENDED_INFO_MAX_GROUPS) {
+    logger2.debug(`extended-info: ${groupCount} top-level groups exceed cap ${EXTENDED_INFO_MAX_GROUPS}; rejecting whole file`);
+    return null;
+  }
+  return sanitizeDocument(parsed, logger2);
+}
+function mergeExtendedInfo(envelope, extendedInfo) {
+  const out = { ...envelope };
+  if (!extendedInfo)
+    return out;
+  for (const [groupKey, groupValue] of Object.entries(extendedInfo)) {
+    const existing = out[groupKey];
+    if (existing === void 0 || existing === null) {
+      out[groupKey] = { ...groupValue };
+      continue;
+    }
+    if (!isPlainObjectValue(existing)) {
+      continue;
+    }
+    const merged = { ...existing };
+    for (const [leafKey, leafValue] of Object.entries(groupValue)) {
+      const current = merged[leafKey];
+      if (current === void 0 || current === null) {
+        merged[leafKey] = leafValue;
+      }
+    }
+    out[groupKey] = merged;
+  }
+  return out;
+}
 
 // ../core/dist/installation-id.js
 var import_node_crypto4 = require("node:crypto");
-var import_promises2 = require("node:fs/promises");
-var import_node_path7 = require("node:path");
+var import_promises3 = require("node:fs/promises");
+var import_node_path11 = require("node:path");
 init_config();
 init_file_utils();
 async function getInstallationId(sageDirPath) {
   const sageDir = sageDirPath ?? resolvePath("~/.sage");
-  const idPath = (0, import_node_path7.join)(sageDir, "installation-id");
+  const idPath = (0, import_node_path11.join)(sageDir, "installation-id");
   let fileExists = false;
   try {
     const existing = await getFileContent(idPath, "utf-8");
@@ -19290,8 +20402,8 @@ async function getInstallationId(sageDirPath) {
   }
   try {
     const id = (0, import_node_crypto4.randomUUID)();
-    await (0, import_promises2.mkdir)(sageDir, { recursive: true, mode: 448 });
-    await (0, import_promises2.writeFile)(idPath, id, { encoding: "utf-8", mode: 384, flag: fileExists ? "w" : "wx" });
+    await (0, import_promises3.mkdir)(sageDir, { recursive: true, mode: 448 });
+    await (0, import_promises3.writeFile)(idPath, id, { encoding: "utf-8", mode: 384, flag: fileExists ? "w" : "wx" });
     return id;
   } catch (err) {
     if (err.code === "EEXIST") {
@@ -19306,146 +20418,17 @@ async function getInstallationId(sageDirPath) {
   }
 }
 
-// ../core/dist/sage-proxy.js
-function mapSageProxyOs(platform) {
-  switch (platform) {
-    case "win32":
-      return "WINDOWS";
-    case "darwin":
-      return "MACOS";
-    case "linux":
-      return "LINUX";
-    default:
-      return platform;
-  }
-}
-function mapSageProxyArchitecture(arch) {
-  return arch.toUpperCase();
-}
-function buildSageProxyEnvelope(args) {
-  return {
-    identity: { uuid: args.iid },
-    product: { version_app: args.versionApp },
-    platform: {
-      os: args.platformOs ?? mapSageProxyOs(process.platform),
-      architecture: args.platformArchitecture ?? mapSageProxyArchitecture(process.arch)
-    },
-    agent: {
-      agent_runtime: args.agentRuntime,
-      agent_runtime_version: args.agentRuntimeVersion
-    }
-  };
-}
-
 // ../core/dist/detection-telemetry.js
 init_types2();
 var MAX_EFFECTIVE_TIMEOUT_MS = 1e3;
-var DEFAULT_TIMEOUT_MS = 1e3;
-var OPENCLAW_MAP = {
-  bash: "Bash",
-  exec: "Bash",
-  web_fetch: "WebFetch",
-  write: "Write",
-  edit: "Edit",
-  read: "Read",
-  apply_patch: "ApplyPatch"
-};
-var OPENCODE_MAP = {
-  bash: "Bash",
-  webfetch: "WebFetch",
-  write: "Write",
-  edit: "Edit",
-  read: "Read",
-  glob: "Glob",
-  grep: "Grep",
-  ls: "List",
-  codesearch: "CodeSearch",
-  websearch: "WebSearch",
-  question: "Question",
-  task: "Task",
-  read_lines: "ReadLines"
-};
-var CANONICAL_SET = /* @__PURE__ */ new Set([
-  "Bash",
-  "WebFetch",
-  "Write",
-  "Edit",
-  "Read",
-  "Delete",
-  "ApplyPatch",
-  "Glob",
-  "Grep",
-  "List",
-  "CodeSearch",
-  "WebSearch",
-  "Question",
-  "Task",
-  "ReadLines",
-  "MCP",
-  "Unknown"
-]);
-function normalizeDetectionTelemetryContext(agentRuntime, toolName, toolInput) {
-  const toolType = canonicalizeToolName(agentRuntime, toolName);
-  const content = buildContent(toolType, toolInput);
-  return { toolType, content };
-}
-function canonicalizeToolName(agentRuntime, toolName) {
-  if (CANONICAL_SET.has(toolName))
-    return toolName;
-  if (agentRuntime === "openclaw") {
-    return OPENCLAW_MAP[toolName] ?? "Unknown";
-  }
-  if (agentRuntime === "opencode") {
-    return OPENCODE_MAP[toolName] ?? "Unknown";
-  }
-  return "Unknown";
-}
-function asString(v) {
-  return typeof v === "string" ? v : void 0;
-}
-function buildContent(toolType, toolInput) {
-  const content = {};
-  switch (toolType) {
-    case "Bash": {
-      const command = asString(toolInput.command);
-      if (command)
-        content.command = command;
-      break;
-    }
-    case "WebFetch": {
-      const url = asString(toolInput.url);
-      if (url)
-        content.url = url;
-      break;
-    }
-    case "Write":
-    case "Edit":
-    case "Read":
-    case "Delete": {
-      const filePath = asString(toolInput.file_path) ?? asString(toolInput.filePath) ?? asString(toolInput.path);
-      if (filePath)
-        content.file_path = filePath;
-      break;
-    }
-  }
-  const packageName = asString(toolInput.package_name);
-  if (packageName)
-    content.package_name = packageName;
-  const packageVersion = asString(toolInput.package_version);
-  if (packageVersion)
-    content.package_version = packageVersion;
-  const packageRegistry = asString(toolInput.package_registry);
-  if (packageRegistry)
-    content.package_registry = packageRegistry;
-  return content;
-}
+var DEFAULT_TIMEOUT_MS2 = 1e3;
 function resolveTimeoutMs() {
   const envVal = process.env.SAGE_COMMUNITY_IQ_TIMEOUT_SECONDS;
   if (envVal === void 0 || envVal === "")
-    return DEFAULT_TIMEOUT_MS;
+    return DEFAULT_TIMEOUT_MS2;
   const parsed = Number.parseFloat(envVal);
   if (!Number.isFinite(parsed) || parsed <= 0)
-    return DEFAULT_TIMEOUT_MS;
+    return DEFAULT_TIMEOUT_MS2;
   const ms = Math.floor(parsed * 1e3);
   return Math.min(ms, MAX_EFFECTIVE_TIMEOUT_MS);
 }
@@ -19464,7 +20447,6 @@ async function sendCommunityIqDetection(args) {
     logger2.debug("Skipping detection telemetry: missing installation id");
     return;
   }
-  const { toolType, content } = normalizeDetectionTelemetryContext(args.agentRuntime, args.toolName, args.toolInput);
   const envelope = buildSageProxyEnvelope({
     iid,
     versionApp: VERSION,
@@ -19475,22 +20457,27 @@ async function sendCommunityIqDetection(args) {
     ...envelope,
     block_event: {
       hook_type: args.hookType ?? "PreToolUse",
-      tool_type: toolType,
+      // `args.toolName` is canonical (`CanonicalToolType`) — connectors
+      // canonicalize before calling `evaluateToolCall`, so no further
+      // mapping is needed here.
+      tool_type: args.toolName,
       verdict: "deny",
       user_action: "blocked",
       timestamp: (/* @__PURE__ */ new Date()).toISOString(),
       ...args.signals && Object.keys(args.signals).length > 0 ? { signals: args.signals } : {},
-      content
+      content: args.content ?? {}
     },
     event_id: args.eventId,
     comment: ""
   };
+  const extendedInfo = await loadExtendedInfo(void 0, logger2).catch(() => null);
+  const enriched = mergeExtendedInfo(payload, extendedInfo);
   const timeoutMs = resolveTimeoutMs();
   try {
     const response = await fetch(resolveEndpoint("/v2/detection"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(enriched),
       signal: AbortSignal.timeout(timeoutMs)
     });
     if (!response.ok) {
@@ -19502,6 +20489,7 @@ async function sendCommunityIqDetection(args) {
 }
 
 // ../core/dist/engine.js
+init_types2();
 var CONFIDENCE_THRESHOLD = 0.85;
 var SENSITIVITY_THRESHOLDS = {
   paranoid: 0.7,
@@ -19524,13 +20512,44 @@ var DECISION_PRIORITY = {
   ask: 1,
   deny: 2
 };
+var PI_LABEL_ONLY_SUFFIXES = /* @__PURE__ */ new Set([
+  "command",
+  "stdout",
+  "stderr",
+  "output"
+]);
+function displayContentName(contentName) {
+  const colonIdx = contentName.indexOf(":");
+  if (colonIdx === -1)
+    return contentName;
+  const rest = contentName.slice(colonIdx + 1);
+  if (PI_LABEL_ONLY_SUFFIXES.has(rest))
+    return contentName;
+  const trimmed = rest.replace(/[/\\]+$/, "");
+  const sepIdx = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  const base = sepIdx === -1 ? trimmed : trimmed.slice(sepIdx + 1);
+  return base || rest;
+}
+function buildPiReason(prefix, result) {
+  return `${prefix} in ${formatPiFinding(result)}`;
+}
+function formatPiFinding(result) {
+  const where = displayContentName(result.contentName);
+  const score = `score: ${result.risk.toFixed(3)}`;
+  const snippet = result.findings[0]?.replace(/\s+/g, " ").trim();
+  if (snippet)
+    return `${where} (${score}): "${snippet}"`;
+  return `${where} (${score})`;
+}
 var DecisionEngine = class {
   threshold;
+  sensitivity;
   constructor(sensitivity = "balanced") {
     this.threshold = SENSITIVITY_THRESHOLDS[sensitivity] ?? CONFIDENCE_THRESHOLD;
+    this.sensitivity = sensitivity;
   }
   async decide(sources) {
-    const signals = this.collectSignals(sources.heuristicMatches, sources.urlCheckResults, sources.packageCheckResults, sources.amsiCheckResults);
+    const signals = this.collectSignals(sources.heuristicMatches, sources.urlCheckResults, sources.packageCheckResults, sources.amsiCheckResults, sources.piCheckResults, sources.piThresholds);
     if (signals.length === 0) {
       return this.allowVerdict();
     }
@@ -19543,7 +20562,7 @@ var DecisionEngine = class {
     const allReasons = [...new Map(signals.map((s) => [s.reason, s.reason])).values()];
     const maxConfidence = Math.max(...signals.map((s) => s.confidence));
     let decision = top.decision;
-    if (decision === "deny" && maxConfidence < this.threshold) {
+    if (decision === "deny" && maxConfidence < this.threshold && top.source !== "pi_check") {
       decision = "ask";
     }
     return {
@@ -19557,7 +20576,7 @@ var DecisionEngine = class {
       reasons: allReasons
     };
   }
-  collectSignals(heuristicMatches, urlCheckResults, packageCheckResults, amsiCheckResults) {
+  collectSignals(heuristicMatches, urlCheckResults, packageCheckResults, amsiCheckResults, piCheckResults, piThresholds) {
     const signals = [];
     for (const match of heuristicMatches) {
       signals.push({
@@ -19582,18 +20601,6 @@ var DecisionEngine = class {
           source: "url_check",
           threatId: null,
           reason: `Malicious URL (${findingDetails})`,
-          artifact: result.url
-        });
-      }
-      for (const flag of result.flags) {
-        signals.push({
-          decision: "ask",
-          category: "network_egress",
-          confidence: 0.75,
-          severity: "warning",
-          source: "url_check",
-          threatId: null,
-          reason: `Suspicious URL: ${flag}`,
           artifact: result.url
         });
       }
@@ -19629,6 +20636,36 @@ var DecisionEngine = class {
             source: "amsi",
             threatId: null,
             reason: `AMSI: content blocked by admin policy in ${result.contentName} (result=${result.amsiResult})`,
+            artifact: result.contentName
+          });
+        }
+      }
+    }
+    if (piCheckResults) {
+      const highRisk = piThresholds?.highRisk ?? DEFAULT_PI_HIGH_RISK_THRESHOLD;
+      const mediumRisk = piThresholds?.mediumRisk ?? DEFAULT_PI_MEDIUM_RISK_THRESHOLD;
+      const suppressMediumPi = this.sensitivity === "relaxed";
+      for (const result of piCheckResults) {
+        if (result.risk >= highRisk) {
+          signals.push({
+            decision: "deny",
+            category: "prompt_injection",
+            confidence: result.risk,
+            severity: "critical",
+            source: "pi_check",
+            threatId: "PROMPT_INJECTION",
+            reason: buildPiReason("Prompt injection detected", result),
+            artifact: result.contentName
+          });
+        } else if (!suppressMediumPi && result.risk >= mediumRisk) {
+          signals.push({
+            decision: "ask",
+            category: "prompt_injection",
+            confidence: result.risk,
+            severity: "warning",
+            source: "pi_check",
+            threatId: "PROMPT_INJECTION",
+            reason: buildPiReason("Suspicious content detected", result),
             artifact: result.contentName
           });
         }
@@ -19706,27 +20743,27 @@ init_config();
 
 // ../core/dist/exceptions.js
 var import_node_crypto5 = require("node:crypto");
-var import_node_path9 = require("node:path");
+var import_node_path13 = require("node:path");
 init_config();
 init_file_utils();
 
 // ../core/dist/trusted-domains.js
-var import_promises3 = require("node:fs/promises");
-var import_node_path8 = require("node:path");
+var import_promises4 = require("node:fs/promises");
+var import_node_path12 = require("node:path");
 var import_yaml = __toESM(require_dist(), 1);
 init_file_utils();
 init_types2();
 async function loadTrustedDomains(allowlistsDir, logger2 = nullLogger) {
   let files;
   try {
-    files = (await (0, import_promises3.readdir)(allowlistsDir)).filter((f) => f.endsWith(".yaml")).sort();
+    files = (await (0, import_promises4.readdir)(allowlistsDir)).filter((f) => f.endsWith(".yaml")).sort();
   } catch {
     logger2.debug("Allowlists directory does not exist", { path: allowlistsDir });
     return [];
   }
   const domains = [];
   for (const filename of files) {
-    const filePath = (0, import_node_path8.join)(allowlistsDir, filename);
+    const filePath = (0, import_node_path12.join)(allowlistsDir, filename);
     let content;
     try {
       content = await getFileContent(filePath);
@@ -19953,7 +20990,7 @@ function matchesDomain(pattern, url) {
 function normalizePatternPath(pattern) {
   const home = getHomeDir();
   const expanded = pattern.startsWith("~/") || pattern === "~" ? `${home}${pattern.slice(1)}` : pattern;
-  return (0, import_node_path9.normalize)(expanded);
+  return (0, import_node_path13.normalize)(expanded);
 }
 function matchesPath(pattern, filePath) {
   const hasWildcard = pattern.includes("*");
@@ -19964,7 +21001,7 @@ function matchesPath(pattern, filePath) {
   const normalizedPath = normalizePatternPath(filePath);
   if (normalizedPath === normalizedPattern)
     return true;
-  if (normalizedPath.startsWith(normalizedPattern + import_node_path9.sep))
+  if (normalizedPath.startsWith(normalizedPattern + import_node_path13.sep))
     return true;
   return false;
 }
@@ -20728,7 +21765,7 @@ function extractFromRequirementsTxt(content) {
 }
 
 // ../core/dist/statusline.js
-var import_node_path10 = require("node:path");
+var import_node_path14 = require("node:path");
 init_config();
 init_file_utils();
 var STATUS_PREFIX = "statusline-";
@@ -20737,7 +21774,7 @@ function sanitizeSessionId(sessionId) {
   return sessionId.replace(/[^a-zA-Z0-9-]/g, "_");
 }
 function statusFilePath(sessionId) {
-  return (0, import_node_path10.join)(resolvePath(SAGE_DIR), `${STATUS_PREFIX}${sanitizeSessionId(sessionId)}${STATUS_SUFFIX}`);
+  return (0, import_node_path14.join)(resolvePath(SAGE_DIR), `${STATUS_PREFIX}${sanitizeSessionId(sessionId)}${STATUS_SUFFIX}`);
 }
 function emptyStatus() {
   return {
@@ -20770,8 +21807,8 @@ async function updateSessionStatus(sessionId, verdict) {
 }
 
 // ../core/dist/threat-loader.js
-var import_promises4 = require("node:fs/promises");
-var import_node_path11 = require("node:path");
+var import_promises5 = require("node:fs/promises");
+var import_node_path15 = require("node:path");
 var import_yaml2 = __toESM(require_dist(), 1);
 init_file_utils();
 init_types2();
@@ -20805,13 +21842,13 @@ async function loadThreats(threatDir, logger2 = nullLogger) {
   const threats = [];
   let files;
   try {
-    files = (await (0, import_promises4.readdir)(threatDir)).filter((f) => f.endsWith(".yaml")).sort();
+    files = (await (0, import_promises5.readdir)(threatDir)).filter((f) => f.endsWith(".yaml")).sort();
   } catch {
     logger2.warn("Threat directory does not exist or is unreadable", { path: threatDir });
     return threats;
   }
   for (const filename of files) {
-    const filePath = (0, import_node_path11.join)(threatDir, filename);
+    const filePath = (0, import_node_path15.join)(threatDir, filename);
     let content;
     try {
       content = await getFileContent(filePath);
@@ -20878,8 +21915,56 @@ async function loadThreats(threatDir, logger2 = nullLogger) {
   return threats;
 }
 
+// ../core/dist/tool-names.js
+var CANONICAL_TOOLS = [
+  "Bash",
+  "WebFetch",
+  "Write",
+  "Edit",
+  "Read",
+  "Delete",
+  "ApplyPatch",
+  "Glob",
+  "Grep",
+  "List",
+  "CodeSearch",
+  "WebSearch",
+  "Question",
+  "Task",
+  "ReadLines",
+  "MCP",
+  "Unknown"
+];
+var CANONICAL_SET = new Set(CANONICAL_TOOLS);
+
 // ../core/dist/evaluator.js
 init_types2();
+var AMSI_CONTENT_SNIPPET_MAX = 200;
+var AMSI_CONTENT_NAME_MAX = 256;
+function scrubAmsiContentName(contentName) {
+  const colon = contentName.indexOf(":");
+  if (colon < 0)
+    return scrubHomePath(contentName);
+  const head = contentName.slice(0, colon + 1);
+  const tail = contentName.slice(colon + 1);
+  return `${head}${scrubHomePath(tail)}`;
+}
+function buildAmsiSignal(r) {
+  const detectionName = r.amsiResult >= 32768 ? "AMSI|DETECTED" : r.amsiResult >= 16384 ? "AMSI|BLOCKED_BY_ADMIN" : (
+    // Defensive: callers should filter these out via `isDetected || isBlockedByAdmin`,
+    // but if a non-detected/non-blocked result still reaches here we emit a
+    // meaningful label rather than silently dropping the entry.
+    "AMSI|UNKNOWN"
+  );
+  const contentName = safeTruncate(scrubAmsiContentName(r.contentName), AMSI_CONTENT_NAME_MAX);
+  const snippet = r.content ? safeTruncate(scrubHomePath(r.content), AMSI_CONTENT_SNIPPET_MAX) : "";
+  return {
+    detection_name: detectionName,
+    content_name: contentName,
+    amsi_result: r.amsiResult,
+    ...snippet ? { content_snippet: snippet } : {}
+  };
+}
 function allowVerdict(source = "none") {
   return {
     decision: "allow",
@@ -20895,7 +21980,7 @@ function allowVerdict(source = "none") {
 async function evaluateToolCall(request, context) {
   const logger2 = context.logger ?? nullLogger;
   const config = await loadConfig(context.configPath, logger2).catch(() => ConfigSchema.parse({}));
-  if (request.artifacts.length === 0) {
+  if (request.artifacts.length === 0 && !config.pi_check.enabled) {
     return allowVerdict("no_artifacts");
   }
   try {
@@ -20915,7 +22000,15 @@ async function evaluateToolCall(request, context) {
         ]
       };
       try {
-        await logVerdict(config.logging, request.sessionId, request.toolName, request.toolInput, verdict2, false, request.conversationId, request.agentRuntime, request.hookType, void 0, void 0);
+        await logVerdict(config.logging, {
+          sessionId: request.sessionId,
+          toolName: request.toolName,
+          toolInput: request.toolInput,
+          verdict: verdict2,
+          conversationId: request.conversationId,
+          agentRuntime: request.agentRuntime,
+          hookType: request.hookType
+        });
       } catch {
       }
       return verdict2;
@@ -20924,7 +22017,16 @@ async function evaluateToolCall(request, context) {
       const allowlist = await loadAllowlist(config.allowlist, logger2);
       if (isAllowlisted(allowlist, request.artifacts)) {
         const allowV = allowVerdict("allowlisted");
-        await logVerdict(config.logging, request.sessionId, request.toolName, request.toolInput, allowV, true, request.conversationId, request.agentRuntime, request.hookType, void 0, void 0);
+        await logVerdict(config.logging, {
+          sessionId: request.sessionId,
+          toolName: request.toolName,
+          toolInput: request.toolInput,
+          verdict: allowV,
+          userOverride: true,
+          conversationId: request.conversationId,
+          agentRuntime: request.agentRuntime,
+          hookType: request.hookType
+        });
         return allowV;
       }
     } catch {
@@ -20933,22 +22035,31 @@ async function evaluateToolCall(request, context) {
     if (allowMatch) {
       const allowV = allowVerdict("exception");
       try {
-        await logVerdict(config.logging, request.sessionId, request.toolName, request.toolInput, allowV, true, request.conversationId, request.agentRuntime, request.hookType, void 0, void 0);
+        await logVerdict(config.logging, {
+          sessionId: request.sessionId,
+          toolName: request.toolName,
+          toolInput: request.toolInput,
+          verdict: allowV,
+          userOverride: true,
+          conversationId: request.conversationId,
+          agentRuntime: request.agentRuntime,
+          hookType: request.hookType
+        });
       } catch {
       }
       return allowV;
     }
   } catch {
   }
-  let cache = null;
+  let cache2 = null;
   try {
-    cache = new VerdictCache(config.cache, logger2, VERSION);
-    await cache.load();
+    cache2 = new VerdictCache(config.cache, logger2, VERSION);
+    await cache2.load();
   } catch {
-    cache = null;
+    cache2 = null;
   }
   const urls = request.artifacts.filter((artifact) => artifact.type === "url").map((artifact) => artifact.value);
-  const { cachedUrlVerdicts, uncachedUrls } = partitionUrlsByCache(urls, cache);
+  const { cachedUrlVerdicts, uncachedUrls } = partitionUrlsByCache(urls, cache2);
   let heuristicMatches = [];
   if (config.heuristics_enabled) {
     let threats = await loadThreats(context.threatsDir, logger2);
@@ -20961,7 +22072,7 @@ async function evaluateToolCall(request, context) {
     heuristicMatches = heuristics.match(request.artifacts);
   }
   let urlCheckResults = [];
-  const urlsToCheck = cache ? uncachedUrls : urls;
+  const urlsToCheck = cache2 ? uncachedUrls : urls;
   if (urlsToCheck.length > 0 && config.url_check.enabled) {
     try {
       const client = new UrlCheckClient(config.url_check, logger2);
@@ -20969,7 +22080,7 @@ async function evaluateToolCall(request, context) {
     } catch {
     }
   }
-  const packageCheckResults = await checkPackages(request, config, cache, logger2);
+  const packageCheckResults = await checkPackages(request, config, cache2, logger2);
   const amsiCheckResults = [];
   if (config.amsi_check.enabled && isAmsiSupported()) {
     let amsiClient = null;
@@ -20981,23 +22092,33 @@ async function evaluateToolCall(request, context) {
         if (request.toolName === "Bash") {
           const command = request.toolInput.command ?? "";
           if (command) {
-            scans.push({ content: command, name: `Bash:command` });
+            scans.push({ scanType: "Bash", name: "command", content: command });
           }
         } else if (request.toolName === "Write") {
           const filePath = request.toolInput.file_path ?? "";
           const content = request.toolInput.content ?? "";
           if (content) {
-            scans.push({ content, name: `Write:${filePath}` });
+            scans.push({ scanType: "Write", name: filePath, content });
           }
         } else if (request.toolName === "Edit") {
           const filePath = request.toolInput.file_path ?? "";
           const newString = request.toolInput.new_string ?? "";
           if (newString) {
-            scans.push({ content: newString, name: `Edit:${filePath}` });
+            scans.push({ scanType: "Edit", name: filePath, content: newString });
+          }
+        } else if (request.toolName === "ApplyPatch") {
+          const patch = request.toolInput.input ?? request.toolInput.patch ?? "";
+          if (patch) {
+            const target = request.artifacts.find((a) => a.type === "file_path");
+            scans.push({
+              scanType: "ApplyPatch",
+              name: target?.value ?? "unknown",
+              content: patch
+            });
           }
         }
         for (const scan of scans) {
-          const result = await amsiClient.scanString(scan.content, scan.name);
+          const result = await amsiClient.scanString(scan.scanType, scan.name, scan.content);
           if (result) {
             amsiCheckResults.push(result);
           }
@@ -21008,12 +22129,50 @@ async function evaluateToolCall(request, context) {
       amsiClient?.close();
     }
   }
+  const allPiResults = [];
+  const piDenySignals = [];
+  const heuristicPiDeny = heuristicMatches.some((m) => m.threat.action === "block" && m.threat.category === "prompt_injection");
+  const heuristicDeny = heuristicMatches.some((m) => m.threat.action === "block");
+  const urlAlreadyDenied = cachedUrlVerdicts.size > 0 && [...cachedUrlVerdicts.values()].some((v) => v.verdict !== "allow");
+  const urlCheckDenied = urlCheckResults.some((r) => r.isMalicious);
+  if (config.pi_check.enabled && !heuristicPiDeny && !heuristicDeny && !urlAlreadyDenied && !urlCheckDenied && request.toolName === "WebFetch") {
+    try {
+      const url = extractWebFetchUrl(request.toolInput);
+      if (url) {
+        const ext = getUrlExtension(url);
+        const skip = ext != null && !SCANNABLE_EXTENSIONS.has(ext);
+        if (!skip) {
+          const fetcher = new ContentFetchClient(4e3, config.pi_check.max_content_length, logger2);
+          const fetched = await fetcher.fetchTextContent(url);
+          if (fetched) {
+            const shouldScan = ext != null || isScannableContent(fetched.content);
+            if (shouldScan) {
+              const provider = createPiProvider(config, context, logger2);
+              const result = await provider.checkContent(fetched.content, `WebFetch:${url}`);
+              if (result) {
+                allPiResults.push(result);
+                if (result.risk >= config.pi_check.high_risk_threshold) {
+                  piDenySignals.push(result);
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch {
+    }
+  }
   const engine = new DecisionEngine(config.sensitivity);
   let verdict = await engine.decide({
     heuristicMatches,
     urlCheckResults,
     packageCheckResults: packageCheckResults.length > 0 ? packageCheckResults : void 0,
-    amsiCheckResults: amsiCheckResults.length > 0 ? amsiCheckResults : void 0
+    amsiCheckResults: amsiCheckResults.length > 0 ? amsiCheckResults : void 0,
+    piCheckResults: piDenySignals.length > 0 ? piDenySignals : void 0,
+    piThresholds: {
+      highRisk: config.pi_check.high_risk_threshold,
+      mediumRisk: config.pi_check.medium_risk_threshold
+    }
   });
   if (cachedUrlVerdicts.size > 0 && verdict.decision === "allow") {
     for (const [url, cachedVerdict] of cachedUrlVerdicts) {
@@ -21033,7 +22192,7 @@ async function evaluateToolCall(request, context) {
       break;
     }
   }
-  await cacheUrlResults(urlCheckResults, cache);
+  await cacheUrlResults(urlCheckResults, cache2);
   function formatPackageDetectionName(p) {
     const base = `PKG|${p.verdict}|registry=${p.registry}|name=${p.packageName}`;
     if (p.verdict === "suspicious_age") {
@@ -21054,7 +22213,7 @@ async function evaluateToolCall(request, context) {
     }));
   }
   if (urlCheckResults.length > 0) {
-    const relevant = urlCheckResults.filter((r) => r.isMalicious || r.flags.length > 0);
+    const relevant = urlCheckResults.filter((r) => r.isMalicious);
     if (relevant.length > 0) {
       auditSignals.url_checks = relevant.flatMap((r) => {
         return r.detections.map((d) => ({
@@ -21062,6 +22221,20 @@ async function evaluateToolCall(request, context) {
           url: r.url
         }));
       });
+    }
+  }
+  if (cachedUrlVerdicts.size > 0) {
+    for (const [url, cachedEntry] of cachedUrlVerdicts) {
+      if (cachedEntry.verdict !== "deny")
+        continue;
+      const labels = cachedEntry.urlSignalLabels ?? [];
+      if (labels.length === 0)
+        continue;
+      auditSignals.url_checks ??= [];
+      auditSignals.url_checks.push(...labels.map((label) => ({
+        detection_name: label,
+        url
+      })));
     }
   }
   if (packageCheckResults.length > 0) {
@@ -21082,10 +22255,39 @@ async function evaluateToolCall(request, context) {
       }));
     }
   }
+  if (allPiResults.length > 0) {
+    const piSnippetFloor = config.pi_check.medium_risk_threshold;
+    auditSignals.pi_checks = allPiResults.map((r) => ({
+      risk: r.risk,
+      model_id: r.modelId,
+      content_name: r.contentName,
+      ...r.contentSnippet && r.risk >= piSnippetFloor ? { content_snippet: scrubHomePath(r.contentSnippet) } : {}
+    }));
+  }
+  if (amsiCheckResults.length > 0) {
+    const relevantAmsi = amsiCheckResults.filter((r) => r.isDetected || r.isBlockedByAdmin);
+    if (relevantAmsi.length > 0) {
+      auditSignals.amsi_checks = relevantAmsi.map((r) => buildAmsiSignal(r));
+    }
+  }
   const eventId = (0, import_node_crypto6.randomUUID)();
   const resolvedSignals = Object.keys(auditSignals).length > 0 ? auditSignals : void 0;
+  const builtContent = buildContentSnapshot(request.toolName, request.toolInput, request.artifacts, auditSignals);
+  const resolvedContent = Object.keys(builtContent).length > 0 ? builtContent : void 0;
   try {
-    await logVerdict(config.logging, request.sessionId, request.toolName, request.toolInput, verdict, false, request.conversationId, request.agentRuntime, request.hookType, resolvedSignals, eventId);
+    await logVerdict(config.logging, {
+      sessionId: request.sessionId,
+      toolName: request.toolName,
+      toolInput: request.toolInput,
+      verdict,
+      conversationId: request.conversationId,
+      agentRuntime: request.agentRuntime,
+      hookType: request.hookType,
+      signals: resolvedSignals,
+      content: resolvedContent,
+      eventId,
+      toolUseId: request.toolUseId
+    });
   } catch {
   }
   if (verdict.decision === "deny") {
@@ -21093,9 +22295,10 @@ async function evaluateToolCall(request, context) {
       await sendCommunityIqDetection({
         eventId,
         agentRuntime: request.agentRuntime,
+        agentRuntimeVersion: request.agentRuntimeVersion,
         hookType: request.hookType,
         toolName: request.toolName,
-        toolInput: request.toolInput,
+        content: resolvedContent,
         signals: resolvedSignals,
         communityIqEnabled: config.community_iq,
         logger: logger2
@@ -21109,15 +22312,18 @@ async function evaluateToolCall(request, context) {
     } catch {
     }
   }
+  const piWarnings = allPiResults.filter((r) => r.risk >= config.pi_check.medium_risk_threshold && r.risk < config.pi_check.high_risk_threshold);
+  if (piWarnings.length > 0 && config.sensitivity !== "relaxed")
+    verdict.piWarnings = piWarnings;
   return verdict;
 }
-function partitionUrlsByCache(urls, cache) {
+function partitionUrlsByCache(urls, cache2) {
   const cachedUrlVerdicts = /* @__PURE__ */ new Map();
   let uncachedUrls = [];
-  if (cache && urls.length > 0) {
+  if (cache2 && urls.length > 0) {
     try {
       for (const url of urls) {
-        const cached = cache.getUrl(url);
+        const cached = cache2.getUrl(url);
         if (cached !== null) {
           cachedUrlVerdicts.set(url, cached);
         } else {
@@ -21130,8 +22336,8 @@ function partitionUrlsByCache(urls, cache) {
   }
   return { cachedUrlVerdicts, uncachedUrls };
 }
-async function cacheUrlResults(urlCheckResults, cache) {
-  if (!cache)
+async function cacheUrlResults(urlCheckResults, cache2) {
+  if (!cache2)
     return;
   try {
     for (const result of urlCheckResults) {
@@ -21143,14 +22349,10 @@ async function cacheUrlResults(urlCheckResults, cache) {
           reasons: [
             `URL check: malicious (${result.findings.map((finding) => `${finding.severityName}/${finding.typeName}`).join(", ")})`
           ],
-          source: "url_check"
-        };
-      } else if (result.flags.length > 0) {
-        cachedVerdict = {
-          verdict: "ask",
-          severity: "warning",
-          reasons: [`URL check: suspicious (${result.flags.join(", ")})`],
-          source: "url_check"
+          source: "url_check",
+          // Always populated for malicious URLs (possibly empty array). Locked in by
+          // evaluator.test.ts so a future refactor cannot silently drop the labels.
+          urlSignalLabels: result.detections
         };
       } else {
         cachedVerdict = {
@@ -21160,13 +22362,13 @@ async function cacheUrlResults(urlCheckResults, cache) {
           source: "url_check"
         };
       }
-      cache.putUrl(result.url, cachedVerdict, result.isMalicious);
+      cache2.putUrl(result.url, cachedVerdict, result.isMalicious);
     }
-    await cache.save();
+    await cache2.save();
   } catch {
   }
 }
-async function checkPackages(request, config, cache, logger2) {
+async function checkPackages(request, config, cache2, logger2) {
   const results = [];
   if (!config.package_check.enabled)
     return results;
@@ -21185,7 +22387,7 @@ async function checkPackages(request, config, cache, logger2) {
     const uncached = [];
     for (const pkg of parsedPackages) {
       const cacheKey2 = `${pkg.registry}:${pkg.name}${pkg.version ? `@${pkg.version}` : ""}`;
-      const cached = cache?.getPackage(cacheKey2);
+      const cached = cache2?.getPackage(cacheKey2);
       if (cached && cached.verdict !== "allow") {
         results.push({
           packageName: pkg.name,
@@ -21207,12 +22409,12 @@ async function checkPackages(request, config, cache, logger2) {
       }, logger2);
       const checked = await checker.checkPackages(uncached);
       results.push(...checked);
-      if (cache) {
+      if (cache2) {
         for (const result of checked) {
           const pkg = uncached.find((p) => p.name === result.packageName);
           const cacheKey2 = `${result.registry}:${result.packageName}${pkg?.version ? `@${pkg.version}` : ""}`;
           const isCritical = result.verdict === "malicious" || result.verdict === "not_found";
-          cache.putPackage(cacheKey2, {
+          cache2.putPackage(cacheKey2, {
             verdict: result.verdict === "clean" ? "allow" : isCritical ? "deny" : "ask",
             severity: isCritical ? "critical" : "warning",
             reasons: [result.details],
@@ -21224,6 +22426,14 @@ async function checkPackages(request, config, cache, logger2) {
   } catch {
   }
   return results;
+}
+function createPiProvider(config, _context, logger2) {
+  return new BundledPiProvider({
+    modelPath: config.pi_check.model_path,
+    maxContentLength: config.pi_check.max_content_length,
+    mediumRiskThreshold: config.pi_check.medium_risk_threshold,
+    logger: logger2
+  });
 }
 
 // ../core/dist/index.js
@@ -21254,23 +22464,21 @@ init_types2();
 // ../core/dist/marketplace-migration.js
 init_config();
 
+// ../core/dist/model-download.js
+init_types2();
+
 // ../core/dist/plugin-scan-cache.js
-var import_node_path12 = require("node:path");
+var import_node_path16 = require("node:path");
 init_file_utils();
 init_types2();
-var DEFAULT_CACHE_PATH = (0, import_node_path12.join)(getHomeDir(), ".sage", "plugin_scan_cache.json");
+var DEFAULT_CACHE_PATH = (0, import_node_path16.join)(getHomeDir(), ".sage", "plugin_scan_cache.json");
 
 // ../core/dist/plugin-scanner.js
-var import_node_path13 = require("node:path");
+var import_node_path17 = require("node:path");
 init_file_utils();
 init_types2();
-var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path13.join)(getHomeDir(), ".claude", "plugins", "installed_plugins.json");
+var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path17.join)(getHomeDir(), ".claude", "plugins", "installed_plugins.json");
 var MAX_FILE_SIZE = 512 * 1024;
-var STR_ARG = `(?:"((?:[^"\\\\]|\\\\.)*)"|'((?:[^'\\\\]|\\\\.)*)'|\`([^\`]*)\`)`;
-var JS_EXEC_RE = new RegExp(`\\bexec(?:File)?(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
-var JS_SPAWN_RE = new RegExp(`\\bspawn(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
-var JS_EXECA_RE = new RegExp(`\\bexeca\\s*\\(\\s*${STR_ARG}`, "g");
-var JS_BUN_SHELL_RE = new RegExp(`\\bBun\\.shell\\s*\\(\\s*${STR_ARG}`, "g");
 
 // ../core/dist/session-start.js
 init_config();
@@ -21293,8 +22501,8 @@ init_types2();
 var import_pino = __toESM(require_pino(), 1);
 
 // src/approval-tracker.ts
-var import_promises5 = require("node:fs/promises");
-var import_node_path14 = require("node:path");
+var import_promises6 = require("node:fs/promises");
+var import_node_path18 = require("node:path");
 var PENDING_STALE_MS2 = 60 * 60 * 1e3;
 var CONSUMED_TTL_MS = 10 * 60 * 1e3;
 var STALE_FILE_MS = 2 * 60 * 60 * 1e3;
@@ -21302,7 +22510,7 @@ function resolvedSageDir2() {
   return resolvePath(SAGE_DIR);
 }
 function pendingPath(sessionId) {
-  return (0, import_node_path14.join)(resolvedSageDir2(), `pending-approvals-${sanitizeSessionId(sessionId)}.json`);
+  return (0, import_node_path18.join)(resolvedSageDir2(), `pending-approvals-${sanitizeSessionId(sessionId)}.json`);
 }
 async function loadJson(path) {
   try {
@@ -21316,7 +22524,7 @@ async function saveOrDelete(path, data) {
   const resolved = resolvePath(path);
   if (Object.keys(data).length === 0) {
     try {
-      await (0, import_promises5.unlink)(resolved);
+      await (0, import_promises6.unlink)(resolved);
     } catch {
     }
   } else {
@@ -21362,14 +22570,21 @@ function formatBlockReason(verdict, branding = defaultBranding) {
   const emoji = severityEmoji(verdict.severity);
   const reasonText = verdict.reasons.length > 0 ? verdict.reasons[0] : verdict.category;
   if (isDeny) {
-    const header2 = `\u{1F6E1}\uFE0F ${branding.banner_text}: Threat Blocked`;
+    const header2 = `\u{1F6E1}\uFE0F ${branding.name}: Threat Blocked`;
     const lines2 = [header2, separatorLine(SEPARATOR_WIDTH)];
     lines2.push(`${emoji} ${"Threat".padEnd(PAD)}${reasonText}`);
     appendVerdictDetails(lines2, verdict);
     lines2.push(kv("Action", "Blocked"));
+    if (verdict.source === "pi_check") {
+      lines2.push("");
+      lines2.push("Do NOT attempt to fetch this URL again or access it through alternative tools.");
+      lines2.push(
+        "If this is a false positive, use the sage_report_false_positive MCP tool to report it."
+      );
+    }
     return lines2.join("\n");
   }
-  const header = `\u{1F6E1}\uFE0F ${branding.banner_text}: Suspicious Activity Detected`;
+  const header = `\u{1F6E1}\uFE0F ${branding.name}: Suspicious Activity Detected`;
   const lines = [header, separatorLine(SEPARATOR_WIDTH)];
   lines.push(`${emoji} ${"Threat".padEnd(PAD)}${reasonText}`);
   appendVerdictDetails(lines, verdict);
@@ -21388,7 +22603,7 @@ function makeResponse(verdict, branding) {
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
         permissionDecision: "deny",
-        permissionDecisionReason: `Blocked by ${branding.product_name}`
+        permissionDecisionReason: `Blocked by ${branding.name}`
       }
     };
   }
@@ -21401,13 +22616,14 @@ function makeResponse(verdict, branding) {
   };
 }
 function getPluginRoot() {
-  return (0, import_node_path15.resolve)(__dirname, "..", "..", "..");
+  return (0, import_node_path19.resolve)(__dirname, "..", "..", "..");
 }
 async function main() {
-  const branding = await loadBranding(logger);
+  const config = await loadConfig(void 0, logger);
+  const branding = resolveBranding(config.brand_key, logger);
   let rawInput;
   try {
-    rawInput = (0, import_node_fs.readFileSync)(0, "utf-8");
+    rawInput = (0, import_node_fs3.readFileSync)(0, "utf-8");
   } catch {
     process.stdout.write("{}\n");
     return;
@@ -21456,10 +22672,6 @@ async function main() {
       process.stdout.write("{}\n");
       return;
   }
-  if (artifacts.length === 0) {
-    process.stdout.write("{}\n");
-    return;
-  }
   const verdict = await evaluateToolCall(
     {
       sessionId,
@@ -21468,11 +22680,12 @@ async function main() {
       hookType: "PreToolUse",
       toolName,
       toolInput,
-      artifacts
+      artifacts,
+      toolUseId
     },
     {
-      threatsDir: (0, import_node_path15.join)(pluginRoot, "threats"),
-      allowlistsDir: (0, import_node_path15.join)(pluginRoot, "allowlists"),
+      threatsDir: (0, import_node_path19.join)(pluginRoot, "threats"),
+      allowlistsDir: (0, import_node_path19.join)(pluginRoot, "allowlists"),
       logger
     }
   );
@@ -21496,6 +22709,7 @@ async function main() {
   }
   process.stdout.write(`${JSON.stringify(makeResponse(verdict, branding))}
 `);
+  BundledPiProvider.exitIfModelLoaded();
 }
 main().catch((e) => {
   process.stdout.write(

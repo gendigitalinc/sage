@@ -82,6 +82,35 @@ async function pruneOrphanedTmpFiles(resolvedDir, maxAgeMs = 3e5) {
     }
   } catch {
   }
+  await pruneOrphanedModelDownloads((0, import_node_path.join)(resolvedDir, "models", ".download"));
+}
+async function pruneOrphanedModelDownloads(stagingDir, maxAgeMs = 60 * 60 * 1e3) {
+  let entries;
+  try {
+    entries = await fsPromises.readdir(stagingDir);
+  } catch {
+    return;
+  }
+  const now = Date.now();
+  for (const entry of entries) {
+    const fullPath = (0, import_node_path.join)(stagingDir, entry);
+    const isArchive = entry.endsWith(".tar.gz");
+    const isPartial = entry.endsWith(".partial");
+    const isStaging = entry.startsWith("stage-");
+    if (!isArchive && !isPartial && !isStaging)
+      continue;
+    try {
+      const s = await fsPromises.stat(fullPath);
+      if (now - s.mtimeMs <= maxAgeMs)
+        continue;
+      if (s.isDirectory()) {
+        await fsPromises.rm(fullPath, { recursive: true, force: true });
+      } else {
+        await fsPromises.unlink(fullPath);
+      }
+    } catch {
+    }
+  }
 }
 var import_node_crypto, fs, fsPromises, import_node_os, import_node_path, name1, name2;
 var init_file_utils = __esm({
@@ -4204,7 +4233,7 @@ var init_zod = __esm({
 });
 
 // ../core/dist/types.js
-var nullLogger, ArtifactTypeSchema, ArtifactSchema, SeveritySchema, ActionSchema, ThreatSchema, DecisionSchema, VerdictSeveritySchema, SensitivitySchema, UrlCheckConfigSchema, CacheConfigSchema, AllowlistConfigSchema, LoggingConfigSchema, FileCheckConfigSchema, PackageCheckConfigSchema, AmsiCheckConfigSchema, ExceptionDecisionSchema, ExceptionMatchSchema, ExceptionRuleSchema, ExceptionsFileSchema, ExceptionsConfigSchema, ConfigSchema, brandString, BrandingSchema, HookTypeSchema;
+var nullLogger, ArtifactTypeSchema, ArtifactSchema, SeveritySchema, ActionSchema, ThreatSchema, DecisionSchema, VerdictSeveritySchema, SensitivitySchema, UrlCheckConfigSchema, CacheConfigSchema, AllowlistConfigSchema, LoggingConfigSchema, FileCheckConfigSchema, PackageCheckConfigSchema, AmsiCheckConfigSchema, DEFAULT_PI_HIGH_RISK_THRESHOLD, DEFAULT_PI_MEDIUM_RISK_THRESHOLD, PiCheckConfigSchema, ExceptionDecisionSchema, ExceptionMatchSchema, ExceptionRuleSchema, ExceptionsFileSchema, ExceptionsConfigSchema, ConfigSchema, HookTypeSchema;
 var init_types2 = __esm({
   "../core/dist/types.js"() {
     "use strict";
@@ -4278,6 +4307,15 @@ var init_types2 = __esm({
     AmsiCheckConfigSchema = external_exports.object({
       enabled: external_exports.boolean().default(true)
     });
+    DEFAULT_PI_HIGH_RISK_THRESHOLD = 0.99;
+    DEFAULT_PI_MEDIUM_RISK_THRESHOLD = 0.5;
+    PiCheckConfigSchema = external_exports.object({
+      enabled: external_exports.boolean().default(false),
+      max_content_length: external_exports.number().default(16384),
+      model_path: external_exports.string().optional(),
+      high_risk_threshold: external_exports.number().default(DEFAULT_PI_HIGH_RISK_THRESHOLD),
+      medium_risk_threshold: external_exports.number().default(DEFAULT_PI_MEDIUM_RISK_THRESHOLD)
+    });
     ExceptionDecisionSchema = external_exports.enum(["allow", "deny"]);
     ExceptionMatchSchema = external_exports.enum(["executable", "domain", "path", "plugin", "regex"]);
     ExceptionRuleSchema = external_exports.object({
@@ -4298,6 +4336,7 @@ var init_types2 = __esm({
       file_check: FileCheckConfigSchema.default({}),
       package_check: PackageCheckConfigSchema.default({}),
       amsi_check: AmsiCheckConfigSchema.default({}),
+      pi_check: PiCheckConfigSchema.default({}),
       heuristics_enabled: external_exports.boolean().default(true),
       cache: CacheConfigSchema.default({}),
       allowlist: AllowlistConfigSchema.default({}),
@@ -4305,17 +4344,9 @@ var init_types2 = __esm({
       logging: LoggingConfigSchema.default({}),
       sensitivity: SensitivitySchema.default("balanced"),
       disabled_threats: external_exports.array(external_exports.string()).default([]),
+      brand_key: external_exports.string().min(1).max(32).regex(/^[a-z0-9_-]+$/u).optional(),
       community_iq: external_exports.boolean().default(true)
     });
-    brandString = external_exports.string().min(1).max(64).regex(/^[^\p{Cc}]+$/u, "No control characters");
-    BrandingSchema = external_exports.object({
-      product_name: brandString.default("Sage"),
-      banner_text: external_exports.string().min(1).max(128).regex(/^[^\p{Cc}]+$/u).optional(),
-      brand_key: external_exports.string().min(1).max(32).regex(/^[a-z0-9_-]+$/u).optional()
-    }).transform((b) => ({
-      ...b,
-      banner_text: b.banner_text ?? b.product_name
-    }));
     HookTypeSchema = external_exports.enum([
       "PreToolUse",
       "PostToolUse",
@@ -4389,6 +4420,17 @@ function normalizeStateFilePath(configuredPath, fallbackPath, field, logger2) {
   });
   return fallbackPath;
 }
+function sanitizeBrandKey(data, logger2) {
+  const brandKey = data.brand_key;
+  if (brandKey === void 0)
+    return data;
+  if (typeof brandKey === "string" && brandKey.length >= 1 && brandKey.length <= 32 && BRAND_KEY_RE.test(brandKey)) {
+    return data;
+  }
+  logger2.warn(`Invalid brand_key in config \u2014 ignoring`, { brand_key: brandKey });
+  const { brand_key: _, ...rest } = data;
+  return rest;
+}
 function sanitizeConfigPaths(config, logger2) {
   const cachePath = defaultCachePath();
   const allowlistPath = defaultAllowlistPath();
@@ -4433,14 +4475,15 @@ async function loadConfig(configPath, logger2 = nullLogger) {
     logger2.warn(`Config file ${path} does not contain a JSON object`);
     return sanitizeConfigPaths(ConfigSchema.parse({}), logger2);
   }
+  const sanitized = sanitizeBrandKey(data, logger2);
   try {
-    return sanitizeConfigPaths(ConfigSchema.parse(data), logger2);
+    return sanitizeConfigPaths(ConfigSchema.parse(sanitized), logger2);
   } catch (e) {
     logger2.warn(`Config validation failed, using defaults`, { error: String(e) });
     return sanitizeConfigPaths(ConfigSchema.parse({}), logger2);
   }
 }
-var import_node_path2, SAGE_DIR;
+var import_node_path2, SAGE_DIR, BRAND_KEY_RE;
 var init_config = __esm({
   "../core/dist/config.js"() {
     "use strict";
@@ -4448,6 +4491,7 @@ var init_config = __esm({
     init_file_utils();
     init_types2();
     SAGE_DIR = "~/.sage";
+    BRAND_KEY_RE = /^[a-z0-9_-]+$/u;
   }
 });
 
@@ -5393,7 +5437,7 @@ var require_range = __commonJS({
       parseRange(range) {
         const memoOpts = (this.options.includePrerelease && FLAG_INCLUDE_PRERELEASE) | (this.options.loose && FLAG_LOOSE);
         const memoKey = memoOpts + ":" + range;
-        const cached = cache.get(memoKey);
+        const cached = cache2.get(memoKey);
         if (cached) {
           return cached;
         }
@@ -5427,7 +5471,7 @@ var require_range = __commonJS({
           rangeMap.delete("");
         }
         const result = [...rangeMap.values()];
-        cache.set(memoKey, result);
+        cache2.set(memoKey, result);
         return result;
       }
       intersects(range, options) {
@@ -5466,7 +5510,7 @@ var require_range = __commonJS({
     };
     module2.exports = Range;
     var LRU = require_lrucache();
-    var cache = new LRU();
+    var cache2 = new LRU();
     var parseOptions = require_parse_options();
     var Comparator = require_comparator();
     var debug = require_debug();
@@ -6378,6 +6422,14 @@ var require_semver2 = __commonJS({
       compareIdentifiers: identifiers.compareIdentifiers,
       rcompareIdentifiers: identifiers.rcompareIdentifiers
     };
+  }
+});
+
+// ../core/dist/clients/pi-deps-installer.js
+var init_pi_deps_installer = __esm({
+  "../core/dist/clients/pi-deps-installer.js"() {
+    "use strict";
+    init_types2();
   }
 });
 
@@ -10329,10 +10381,10 @@ var require_resolve_block_map = __commonJS({
       let offset = bm.offset;
       let commentEnd = null;
       for (const collItem of bm.items) {
-        const { start, key, sep: sep2, value } = collItem;
+        const { start, key, sep: sep3, value } = collItem;
         const keyProps = resolveProps.resolveProps(start, {
           indicator: "explicit-key-ind",
-          next: key ?? sep2?.[0],
+          next: key ?? sep3?.[0],
           offset,
           onError,
           parentIndent: bm.indent,
@@ -10346,7 +10398,7 @@ var require_resolve_block_map = __commonJS({
             else if ("indent" in key && key.indent !== bm.indent)
               onError(offset, "BAD_INDENT", startColMsg);
           }
-          if (!keyProps.anchor && !keyProps.tag && !sep2) {
+          if (!keyProps.anchor && !keyProps.tag && !sep3) {
             commentEnd = keyProps.end;
             if (keyProps.comment) {
               if (map.comment)
@@ -10370,7 +10422,7 @@ var require_resolve_block_map = __commonJS({
         ctx.atKey = false;
         if (utilMapIncludes.mapIncludes(ctx, map.items, keyNode))
           onError(keyStart, "DUPLICATE_KEY", "Map keys must be unique");
-        const valueProps = resolveProps.resolveProps(sep2 ?? [], {
+        const valueProps = resolveProps.resolveProps(sep3 ?? [], {
           indicator: "map-value-ind",
           next: value,
           offset: keyNode.range[2],
@@ -10386,7 +10438,7 @@ var require_resolve_block_map = __commonJS({
             if (ctx.options.strict && keyProps.start < valueProps.found.offset - 1024)
               onError(keyNode.range, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit block mapping key");
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep2, null, valueProps, onError);
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep3, null, valueProps, onError);
           if (ctx.schema.compat)
             utilFlowIndentCheck.flowIndentCheck(bm.indent, value, onError);
           offset = valueNode.range[2];
@@ -10477,7 +10529,7 @@ var require_resolve_end = __commonJS({
       let comment = "";
       if (end) {
         let hasSpace = false;
-        let sep2 = "";
+        let sep3 = "";
         for (const token of end) {
           const { source, type } = token;
           switch (type) {
@@ -10491,13 +10543,13 @@ var require_resolve_end = __commonJS({
               if (!comment)
                 comment = cb;
               else
-                comment += sep2 + cb;
-              sep2 = "";
+                comment += sep3 + cb;
+              sep3 = "";
               break;
             }
             case "newline":
               if (comment)
-                sep2 += source;
+                sep3 += source;
               hasSpace = true;
               break;
             default:
@@ -10540,18 +10592,18 @@ var require_resolve_flow_collection = __commonJS({
       let offset = fc.offset + fc.start.source.length;
       for (let i = 0; i < fc.items.length; ++i) {
         const collItem = fc.items[i];
-        const { start, key, sep: sep2, value } = collItem;
+        const { start, key, sep: sep3, value } = collItem;
         const props = resolveProps.resolveProps(start, {
           flow: fcName,
           indicator: "explicit-key-ind",
-          next: key ?? sep2?.[0],
+          next: key ?? sep3?.[0],
           offset,
           onError,
           parentIndent: fc.indent,
           startOnNewline: false
         });
         if (!props.found) {
-          if (!props.anchor && !props.tag && !sep2 && !value) {
+          if (!props.anchor && !props.tag && !sep3 && !value) {
             if (i === 0 && props.comma)
               onError(props.comma, "UNEXPECTED_TOKEN", `Unexpected , in ${fcName}`);
             else if (i < fc.items.length - 1)
@@ -10605,8 +10657,8 @@ var require_resolve_flow_collection = __commonJS({
             }
           }
         }
-        if (!isMap && !sep2 && !props.found) {
-          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep2, null, props, onError);
+        if (!isMap && !sep3 && !props.found) {
+          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep3, null, props, onError);
           coll.items.push(valueNode);
           offset = valueNode.range[2];
           if (isBlock(value))
@@ -10618,7 +10670,7 @@ var require_resolve_flow_collection = __commonJS({
           if (isBlock(key))
             onError(keyNode.range, "BLOCK_IN_FLOW", blockMsg);
           ctx.atKey = false;
-          const valueProps = resolveProps.resolveProps(sep2 ?? [], {
+          const valueProps = resolveProps.resolveProps(sep3 ?? [], {
             flow: fcName,
             indicator: "map-value-ind",
             next: value,
@@ -10629,8 +10681,8 @@ var require_resolve_flow_collection = __commonJS({
           });
           if (valueProps.found) {
             if (!isMap && !props.found && ctx.options.strict) {
-              if (sep2)
-                for (const st of sep2) {
+              if (sep3)
+                for (const st of sep3) {
                   if (st === valueProps.found)
                     break;
                   if (st.type === "newline") {
@@ -10647,7 +10699,7 @@ var require_resolve_flow_collection = __commonJS({
             else
               onError(valueProps.start, "MISSING_CHAR", `Missing , or : between ${fcName} items`);
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep2, null, valueProps, onError) : null;
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep3, null, valueProps, onError) : null;
           if (valueNode) {
             if (isBlock(value))
               onError(valueNode.range, "BLOCK_IN_FLOW", blockMsg);
@@ -10827,7 +10879,7 @@ var require_resolve_block_scalar = __commonJS({
           chompStart = i + 1;
       }
       let value = "";
-      let sep2 = "";
+      let sep3 = "";
       let prevMoreIndented = false;
       for (let i = 0; i < contentStart; ++i)
         value += lines[i][0].slice(trimIndent) + "\n";
@@ -10844,24 +10896,24 @@ var require_resolve_block_scalar = __commonJS({
           indent = "";
         }
         if (type === Scalar.Scalar.BLOCK_LITERAL) {
-          value += sep2 + indent.slice(trimIndent) + content;
-          sep2 = "\n";
+          value += sep3 + indent.slice(trimIndent) + content;
+          sep3 = "\n";
         } else if (indent.length > trimIndent || content[0] === "	") {
-          if (sep2 === " ")
-            sep2 = "\n";
-          else if (!prevMoreIndented && sep2 === "\n")
-            sep2 = "\n\n";
-          value += sep2 + indent.slice(trimIndent) + content;
-          sep2 = "\n";
+          if (sep3 === " ")
+            sep3 = "\n";
+          else if (!prevMoreIndented && sep3 === "\n")
+            sep3 = "\n\n";
+          value += sep3 + indent.slice(trimIndent) + content;
+          sep3 = "\n";
           prevMoreIndented = true;
         } else if (content === "") {
-          if (sep2 === "\n")
+          if (sep3 === "\n")
             value += "\n";
           else
-            sep2 = "\n";
+            sep3 = "\n";
         } else {
-          value += sep2 + content;
-          sep2 = " ";
+          value += sep3 + content;
+          sep3 = " ";
           prevMoreIndented = false;
         }
       }
@@ -11043,25 +11095,25 @@ var require_resolve_flow_scalar = __commonJS({
       if (!match)
         return source;
       let res = match[1];
-      let sep2 = " ";
+      let sep3 = " ";
       let pos = first.lastIndex;
       line.lastIndex = pos;
       while (match = line.exec(source)) {
         if (match[1] === "") {
-          if (sep2 === "\n")
-            res += sep2;
+          if (sep3 === "\n")
+            res += sep3;
           else
-            sep2 = "\n";
+            sep3 = "\n";
         } else {
-          res += sep2 + match[1];
-          sep2 = " ";
+          res += sep3 + match[1];
+          sep3 = " ";
         }
         pos = line.lastIndex;
       }
       const last = /[ \t]*(.*)/sy;
       last.lastIndex = pos;
       match = last.exec(source);
-      return res + sep2 + (match?.[1] ?? "");
+      return res + sep3 + (match?.[1] ?? "");
     }
     function doubleQuotedValue(source, onError) {
       let res = "";
@@ -11863,14 +11915,14 @@ var require_cst_stringify = __commonJS({
         }
       }
     }
-    function stringifyItem({ start, key, sep: sep2, value }) {
+    function stringifyItem({ start, key, sep: sep3, value }) {
       let res = "";
       for (const st of start)
         res += st.source;
       if (key)
         res += stringifyToken(key);
-      if (sep2)
-        for (const st of sep2)
+      if (sep3)
+        for (const st of sep3)
           res += st.source;
       if (value)
         res += stringifyToken(value);
@@ -13020,18 +13072,18 @@ var require_parser = __commonJS({
         if (this.type === "map-value-ind") {
           const prev = getPrevProps(this.peek(2));
           const start = getFirstKeyStartProps(prev);
-          let sep2;
+          let sep3;
           if (scalar.end) {
-            sep2 = scalar.end;
-            sep2.push(this.sourceToken);
+            sep3 = scalar.end;
+            sep3.push(this.sourceToken);
             delete scalar.end;
           } else
-            sep2 = [this.sourceToken];
+            sep3 = [this.sourceToken];
           const map = {
             type: "block-map",
             offset: scalar.offset,
             indent: scalar.indent,
-            items: [{ start, key: scalar, sep: sep2 }]
+            items: [{ start, key: scalar, sep: sep3 }]
           };
           this.onKeyLine = true;
           this.stack[this.stack.length - 1] = map;
@@ -13184,15 +13236,15 @@ var require_parser = __commonJS({
                 } else if (isFlowToken(it.key) && !includesToken(it.sep, "newline")) {
                   const start2 = getFirstKeyStartProps(it.start);
                   const key = it.key;
-                  const sep2 = it.sep;
-                  sep2.push(this.sourceToken);
+                  const sep3 = it.sep;
+                  sep3.push(this.sourceToken);
                   delete it.key;
                   delete it.sep;
                   this.stack.push({
                     type: "block-map",
                     offset: this.offset,
                     indent: this.indent,
-                    items: [{ start: start2, key, sep: sep2 }]
+                    items: [{ start: start2, key, sep: sep3 }]
                   });
                 } else if (start.length > 0) {
                   it.sep = it.sep.concat(start, this.sourceToken);
@@ -13386,13 +13438,13 @@ var require_parser = __commonJS({
             const prev = getPrevProps(parent);
             const start = getFirstKeyStartProps(prev);
             fixFlowSeqItems(fc);
-            const sep2 = fc.end.splice(1, fc.end.length);
-            sep2.push(this.sourceToken);
+            const sep3 = fc.end.splice(1, fc.end.length);
+            sep3.push(this.sourceToken);
             const map = {
               type: "block-map",
               offset: fc.offset,
               indent: fc.indent,
-              items: [{ start, key: fc, sep: sep2 }]
+              items: [{ start, key: fc, sep: sep3 }]
             };
             this.onKeyLine = true;
             this.stack[this.stack.length - 1] = map;
@@ -16085,7 +16137,7 @@ var require_transport = __commonJS({
     "use strict";
     var { createRequire } = require("module");
     var getCallers = require_caller();
-    var { join: join14, isAbsolute: isAbsolute2, sep: sep2 } = require("node:path");
+    var { join: join14, isAbsolute: isAbsolute2, sep: sep3 } = require("node:path");
     var sleep = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
     var ThreadStream = require_thread_stream();
@@ -16193,7 +16245,7 @@ var require_transport = __commonJS({
         let fixTarget2;
         for (const filePath of callers) {
           try {
-            const context = filePath === "node:repl" ? process.cwd() + sep2 : filePath;
+            const context = filePath === "node:repl" ? process.cwd() + sep3 : filePath;
             fixTarget2 = createRequire(context).resolve(origin);
             break;
           } catch (err) {
@@ -16615,12 +16667,12 @@ var require_levels = __commonJS({
     function genLsCache(instance) {
       const formatter = instance[formattersSym].level;
       const { labels } = instance.levels;
-      const cache = {};
+      const cache2 = {};
       for (const label in labels) {
         const level = formatter(labels[label], Number(label));
-        cache[label] = JSON.stringify(level).slice(0, -1);
+        cache2[label] = JSON.stringify(level).slice(0, -1);
       }
-      instance[lsCacheSym] = cache;
+      instance[lsCacheSym] = cache2;
       return instance;
     }
     function isStandardLevel(level, useOnlyCustomLevels) {
@@ -17976,7 +18028,7 @@ var require_pino = __commonJS({
 });
 
 // src/session-start.ts
-var import_node_fs = require("node:fs");
+var import_node_fs3 = require("node:fs");
 var import_promises9 = require("node:fs/promises");
 var import_node_path14 = require("node:path");
 
@@ -17997,6 +18049,7 @@ var import_promises = require("node:fs/promises");
 var import_node_path3 = require("node:path");
 init_config();
 init_file_utils();
+var AUDIT_LOG_SCHEMA_VERSION = 1;
 async function rotateIfNeeded(filePath, maxBytes, maxFiles) {
   if (maxBytes <= 0 || maxFiles <= 0)
     return;
@@ -18028,7 +18081,8 @@ async function appendEntry(config, entry) {
   const path = resolvePath(config.path);
   await (0, import_promises.mkdir)((0, import_node_path3.dirname)(path), { recursive: true });
   await rotateIfNeeded(path, config.max_bytes, config.max_files);
-  await (0, import_promises.appendFile)(path, `${JSON.stringify(entry)}
+  const stamped = { ...entry, schema_version: AUDIT_LOG_SCHEMA_VERSION };
+  await (0, import_promises.appendFile)(path, `${JSON.stringify(stamped)}
 `);
 }
 async function logPluginScan(config, pluginKey, pluginVersion, findings) {
@@ -18048,43 +18102,20 @@ async function logPluginScan(config, pluginKey, pluginVersion, findings) {
   }
 }
 
-// ../core/dist/branding.js
-var import_node_path4 = require("node:path");
-init_config();
-init_file_utils();
-init_types2();
-var defaultBranding = BrandingSchema.parse({});
-function defaultBrandingPath() {
-  return (0, import_node_path4.join)(resolvePath(SAGE_DIR), "branding.json");
-}
-async function loadBranding(logger2 = nullLogger, brandingPath) {
-  const path = brandingPath ?? defaultBrandingPath();
-  let raw;
-  try {
-    raw = await getFileContent(path);
-  } catch {
+// ../core/dist/brands.js
+var defaultBranding = { name: "Sage", short_name: "Sage" };
+var BRANDS = {
+  norton: { name: "Norton AI Agent Protection", short_name: "Norton" }
+};
+function resolveBranding(brandKey, logger2) {
+  if (!brandKey)
+    return defaultBranding;
+  const entry = BRANDS[brandKey];
+  if (!entry) {
+    logger2?.warn(`Unknown brand_key "${brandKey}" in config \u2014 using default branding`);
     return defaultBranding;
   }
-  return parseBranding(raw, path, logger2);
-}
-function parseBranding(raw, path, logger2) {
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch (e) {
-    logger2.warn(`Failed to parse branding from ${path}`, { error: String(e) });
-    return defaultBranding;
-  }
-  if (typeof data !== "object" || data === null || Array.isArray(data)) {
-    logger2.warn(`Branding file ${path} does not contain a JSON object`);
-    return defaultBranding;
-  }
-  try {
-    return BrandingSchema.parse(data);
-  } catch (e) {
-    logger2.warn("Branding validation failed, using defaults", { error: String(e) });
-    return defaultBranding;
-  }
+  return { ...entry, brand_key: brandKey };
 }
 
 // ../core/dist/cache.js
@@ -18099,8 +18130,147 @@ init_types2();
 var chldproc1 = "node:child_";
 var chldproc2 = "process";
 var chldproc = require(chldproc1 + chldproc2);
+function spawn(command, args, options) {
+  return chldproc.spawn(command, args, options);
+}
 
 // ../core/dist/clients/amsi.js
+var AMSI_RESULT_DETECTED = 32768;
+var AMSI_RESULT_BLOCKED_BY_ADMIN_START = 16384;
+var MAX_SCAN_LENGTH = 1048576;
+var PS_TIMEOUT = 15e3;
+function isWSL() {
+  if (process.platform !== "linux")
+    return false;
+  return !!process["env"]["WSL_DISTRO_NAME"];
+}
+function isAmsiSupported() {
+  return process.platform === "win32" || isWSL();
+}
+function interpretAmsiResult(amsiResult, content, contentName) {
+  return {
+    content: content.length > 200 ? `${content.slice(0, 200)}...` : content,
+    contentName,
+    amsiResult,
+    isDetected: amsiResult >= AMSI_RESULT_DETECTED,
+    isBlockedByAdmin: amsiResult >= AMSI_RESULT_BLOCKED_BY_ADMIN_START && amsiResult < AMSI_RESULT_DETECTED
+  };
+}
+var KoffiAmsiBackend = class {
+  logger;
+  context = null;
+  available = false;
+  /** Koffi library handle — must be closed to let the event loop drain. */
+  /* biome-ignore lint/suspicious/noExplicitAny: koffi Library type is not exported */
+  lib = null;
+  /* biome-ignore lint/suspicious/noExplicitAny: koffi FFI functions have dynamic signatures */
+  fnOpenSession = null;
+  /* biome-ignore lint/suspicious/noExplicitAny: koffi FFI functions have dynamic signatures */
+  fnScanBuffer = null;
+  /* biome-ignore lint/suspicious/noExplicitAny: koffi FFI functions have dynamic signatures */
+  fnCloseSession = null;
+  /* biome-ignore lint/suspicious/noExplicitAny: koffi FFI functions have dynamic signatures */
+  fnUninitialize = null;
+  constructor(logger2) {
+    this.logger = logger2;
+  }
+  get isAvailable() {
+    return this.available;
+  }
+  async init() {
+    try {
+      const koffiModule = await import("koffi");
+      const koffi = koffiModule.default ?? koffiModule;
+      const lib = koffi.load("amsi.dll");
+      this.lib = lib;
+      const _HAMSICONTEXT = koffi.pointer("HAMSICONTEXT", koffi.opaque());
+      const _HAMSISESSION = koffi.pointer("HAMSISESSION", koffi.opaque());
+      const AmsiInitialize = lib.func("int32 __stdcall AmsiInitialize(str16 appName, _Out_ HAMSICONTEXT *ctx)");
+      this.fnOpenSession = lib.func("int32 __stdcall AmsiOpenSession(HAMSICONTEXT ctx, _Out_ HAMSISESSION *session)");
+      this.fnScanBuffer = lib.func("int32 __stdcall AmsiScanBuffer(HAMSICONTEXT ctx, void *buf, uint32 len, str16 contentName, HAMSISESSION session, _Out_ int32 *result)");
+      this.fnCloseSession = lib.func("void __stdcall AmsiCloseSession(HAMSICONTEXT ctx, HAMSISESSION session)");
+      this.fnUninitialize = lib.func("void __stdcall AmsiUninitialize(HAMSICONTEXT ctx)");
+      const ctxOut = [null];
+      const hr = AmsiInitialize("Sage", ctxOut);
+      if (hr !== 0) {
+        this.logger.warn("AMSI: koffi AmsiInitialize failed", { hr });
+        this.close();
+        return;
+      }
+      this.context = ctxOut[0];
+      const sessOut = [null];
+      const hr2 = this.fnOpenSession(this.context, sessOut);
+      if (hr2 !== 0) {
+        this.logger.warn("AMSI: koffi AmsiOpenSession failed", { hr: hr2 });
+        this.close();
+        return;
+      }
+      try {
+        this.fnCloseSession(this.context, sessOut[0]);
+      } catch {
+      }
+      this.available = true;
+      this.logger.debug("AMSI: koffi backend initialized");
+    } catch (e) {
+      this.logger.debug("AMSI: koffi backend init failed", { error: String(e) });
+      this.close();
+    }
+  }
+  async scanString(content, contentName) {
+    if (!this.available || !this.fnOpenSession || !this.fnScanBuffer || !this.context) {
+      return null;
+    }
+    const sessOut = [null];
+    const hrOpen = this.fnOpenSession(this.context, sessOut);
+    if (hrOpen !== 0) {
+      this.logger.warn("AMSI: koffi AmsiOpenSession failed in scan", { hr: hrOpen, contentName });
+      return null;
+    }
+    const session = sessOut[0];
+    try {
+      const truncated = content.length > MAX_SCAN_LENGTH ? content.slice(0, MAX_SCAN_LENGTH) : content;
+      const buf = Buffer.from(truncated, "utf-8");
+      const resultOut = [0];
+      const hr = this.fnScanBuffer(this.context, buf, buf.length, contentName, session, resultOut);
+      if (hr !== 0) {
+        this.logger.warn("AMSI: koffi AmsiScanBuffer failed", { hr, contentName });
+        return null;
+      }
+      const amsiResult = resultOut[0] ?? 0;
+      this.logger.debug("AMSI: koffi scan result", { contentName, amsiResult });
+      return interpretAmsiResult(amsiResult, content, contentName);
+    } catch (e) {
+      this.logger.warn("AMSI: koffi scanBuffer failed", { error: String(e), contentName });
+      return null;
+    } finally {
+      try {
+        if (this.fnCloseSession && this.context) {
+          this.fnCloseSession(this.context, session);
+        }
+      } catch {
+      }
+    }
+  }
+  close() {
+    try {
+      if (this.context && this.fnUninitialize) {
+        this.fnUninitialize(this.context);
+      }
+    } catch {
+    }
+    this.fnOpenSession = null;
+    this.fnScanBuffer = null;
+    this.fnCloseSession = null;
+    this.fnUninitialize = null;
+    this.context = null;
+    this.available = false;
+    try {
+      this.lib?.close();
+    } catch {
+    }
+    this.lib = null;
+  }
+};
 var AMSI_CSHARP_TYPE = `
 using System;
 using System.Runtime.InteropServices;
@@ -18125,34 +18295,45 @@ public class SageAmsi {
     static extern void AmsiUninitialize(IntPtr ctx);
 
     private static IntPtr _ctx;
-    private static IntPtr _session;
     private static bool _initialized;
 
     public static bool Init() {
         int hr = AmsiInitialize("Sage", out _ctx);
         if (hr != 0) return false;
-        hr = AmsiOpenSession(_ctx, out _session);
+        // Verify we can open a session, then close it immediately.
+        // Actual sessions are opened per-scan to avoid cross-file tainting.
+        IntPtr sess;
+        hr = AmsiOpenSession(_ctx, out sess);
         if (hr != 0) {
             AmsiUninitialize(_ctx);
             return false;
         }
+        AmsiCloseSession(_ctx, sess);
         _initialized = true;
         return true;
     }
 
     public static int Scan(string content, string contentName) {
         if (!_initialized) return -1;
-        byte[] bytes = Encoding.UTF8.GetBytes(content);
-        int result;
-        int hr = AmsiScanBuffer(_ctx, bytes, (uint)bytes.Length,
-                                contentName, _session, out result);
+        // Open a fresh session per scan so a detection in one file
+        // does not taint subsequent scans (sessions are correlation scopes).
+        IntPtr session;
+        int hr = AmsiOpenSession(_ctx, out session);
         if (hr != 0) return -1;
-        return result;
+        try {
+            byte[] bytes = Encoding.UTF8.GetBytes(content);
+            int result;
+            hr = AmsiScanBuffer(_ctx, bytes, (uint)bytes.Length,
+                                    contentName, session, out result);
+            if (hr != 0) return -1;
+            return result;
+        } finally {
+            AmsiCloseSession(_ctx, session);
+        }
     }
 
     public static void Shutdown() {
         if (!_initialized) return;
-        AmsiCloseSession(_ctx, _session);
         AmsiUninitialize(_ctx);
         _initialized = false;
     }
@@ -18219,20 +18400,268 @@ ${AMSI_CSHARP_TYPE}
     [Console]::Out.WriteLine("-1")
 }
 `;
+var PersistentPowershellAmsiBackend = class {
+  logger;
+  process = null;
+  available = false;
+  stdoutBuffer = "";
+  pendingResponse = null;
+  constructor(logger2) {
+    this.logger = logger2;
+  }
+  get isAvailable() {
+    return this.available;
+  }
+  waitForLine(timeout) {
+    return new Promise((resolve5, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingResponse = null;
+        reject(new Error("timeout"));
+      }, timeout);
+      this.pendingResponse = { resolve: resolve5, reject, timer };
+    });
+  }
+  async init() {
+    try {
+      this.process = spawn("powershell.exe", [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        PS_PERSISTENT_SCRIPT
+      ], {
+        stdio: ["pipe", "pipe", "pipe"],
+        windowsHide: true
+      });
+      this.process.on("error", (err) => {
+        this.logger.debug("AMSI: PowerShell process error", { error: String(err) });
+        this.available = false;
+        if (this.pendingResponse) {
+          const { reject, timer } = this.pendingResponse;
+          this.pendingResponse = null;
+          clearTimeout(timer);
+          reject(err);
+        }
+      });
+      this.process.on("exit", () => {
+        this.available = false;
+        if (this.pendingResponse) {
+          const { reject, timer } = this.pendingResponse;
+          this.pendingResponse = null;
+          clearTimeout(timer);
+          reject(new Error("process exited"));
+        }
+      });
+      this.process.stdout?.on("data", (chunk) => {
+        this.stdoutBuffer += chunk.toString();
+        let idx = this.stdoutBuffer.indexOf("\n");
+        while (idx !== -1) {
+          const line = this.stdoutBuffer.slice(0, idx).trim();
+          this.stdoutBuffer = this.stdoutBuffer.slice(idx + 1);
+          if (this.pendingResponse) {
+            const { resolve: resolve5, timer } = this.pendingResponse;
+            this.pendingResponse = null;
+            clearTimeout(timer);
+            resolve5(line);
+          }
+          idx = this.stdoutBuffer.indexOf("\n");
+        }
+      });
+      this.process.stdin?.on("error", () => {
+      });
+      this.process.stderr?.on("data", (chunk) => {
+        this.logger.debug("AMSI: PowerShell stderr", {
+          data: chunk.toString().slice(0, 200)
+        });
+      });
+      const readyLine = await this.waitForLine(PS_TIMEOUT);
+      if (readyLine === "READY") {
+        this.available = true;
+        this.logger.debug("AMSI: PowerShell persistent backend initialized");
+      } else {
+        this.logger.debug("AMSI: PowerShell unexpected ready signal", { readyLine });
+        this.close();
+      }
+    } catch (e) {
+      this.logger.debug("AMSI: PowerShell persistent backend init failed", {
+        error: String(e)
+      });
+      this.close();
+    }
+  }
+  async scanString(content, contentName) {
+    if (!this.available || !this.process)
+      return null;
+    const truncated = content.length > MAX_SCAN_LENGTH ? content.slice(0, MAX_SCAN_LENGTH) : content;
+    try {
+      const req = JSON.stringify({ content: truncated, contentName });
+      this.process.stdin?.write(`${req}
+`);
+      const line = await this.waitForLine(PS_TIMEOUT);
+      const amsiResult = parseInt(line, 10);
+      if (Number.isNaN(amsiResult) || amsiResult < 0) {
+        this.logger.warn("AMSI: PowerShell scan returned invalid result", {
+          stdout: line.slice(0, 100),
+          contentName
+        });
+        return null;
+      }
+      this.logger.debug("AMSI: PowerShell scan result", { contentName, amsiResult });
+      return interpretAmsiResult(amsiResult, content, contentName);
+    } catch (e) {
+      this.logger.warn("AMSI: PowerShell scan failed", { error: String(e), contentName });
+      return null;
+    }
+  }
+  close() {
+    if (this.process) {
+      try {
+        this.process.stdin?.end();
+      } catch {
+      }
+      try {
+        this.process.kill();
+      } catch {
+      }
+      this.process = null;
+    }
+    if (this.pendingResponse) {
+      const { reject, timer } = this.pendingResponse;
+      this.pendingResponse = null;
+      clearTimeout(timer);
+      reject(new Error("closed"));
+    }
+    this.available = false;
+  }
+};
+var WslPowershellAmsiBackend = class {
+  logger;
+  available = false;
+  constructor(logger2) {
+    this.logger = logger2;
+  }
+  get isAvailable() {
+    return this.available;
+  }
+  async init() {
+    this.available = true;
+    this.logger.debug("AMSI: PowerShell one-shot backend ready (WSL)");
+  }
+  async scanString(content, contentName) {
+    if (!this.available)
+      return null;
+    const truncated = content.length > MAX_SCAN_LENGTH ? content.slice(0, MAX_SCAN_LENGTH) : content;
+    return new Promise((resolve5) => {
+      try {
+        const ps = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", PS_ONESHOT_SCRIPT], { stdio: ["pipe", "pipe", "pipe"] });
+        let stdout = "";
+        const timer = setTimeout(() => {
+          this.logger.warn("AMSI: PowerShell one-shot timeout", { contentName });
+          try {
+            ps.kill();
+          } catch {
+          }
+          resolve5(null);
+        }, PS_TIMEOUT);
+        ps.stdout?.on("data", (chunk) => {
+          stdout += chunk.toString();
+        });
+        ps.stderr?.on("data", (chunk) => {
+          this.logger.debug("AMSI: PowerShell one-shot stderr", {
+            data: chunk.toString().slice(0, 200)
+          });
+        });
+        ps.on("error", (err) => {
+          clearTimeout(timer);
+          this.logger.debug("AMSI: PowerShell one-shot error", { error: String(err) });
+          resolve5(null);
+        });
+        ps.on("exit", () => {
+          clearTimeout(timer);
+          const amsiResult = parseInt(stdout.trim(), 10);
+          if (Number.isNaN(amsiResult) || amsiResult < 0) {
+            this.logger.warn("AMSI: PowerShell one-shot invalid result", {
+              stdout: stdout.slice(0, 100),
+              contentName
+            });
+            resolve5(null);
+            return;
+          }
+          this.logger.debug("AMSI: PowerShell one-shot result", { contentName, amsiResult });
+          resolve5(interpretAmsiResult(amsiResult, content, contentName));
+        });
+        const req = JSON.stringify({ content: truncated, contentName });
+        ps.stdin?.write(`${req}
+`);
+        ps.stdin?.end();
+      } catch (e) {
+        this.logger.warn("AMSI: PowerShell one-shot failed", { error: String(e), contentName });
+        resolve5(null);
+      }
+    });
+  }
+  close() {
+    this.available = false;
+  }
+};
+var AmsiClient = class {
+  logger;
+  backend = null;
+  constructor(logger2 = nullLogger) {
+    this.logger = logger2;
+  }
+  get isAvailable() {
+    return this.backend?.isAvailable ?? false;
+  }
+  async init() {
+    const wsl = isWSL();
+    if (process.platform !== "win32" && !wsl) {
+      this.logger.debug("AMSI: skipping, not Windows");
+      return;
+    }
+    if (!wsl) {
+      const koffi = new KoffiAmsiBackend(this.logger);
+      await koffi.init();
+      if (koffi.isAvailable) {
+        this.backend = koffi;
+        return;
+      }
+    }
+    const ps = wsl ? new WslPowershellAmsiBackend(this.logger) : new PersistentPowershellAmsiBackend(this.logger);
+    await ps.init();
+    if (ps.isAvailable) {
+      this.backend = ps;
+      return;
+    }
+    this.logger.debug("AMSI: no backend available");
+  }
+  async scanString(scanType, contentName, content) {
+    const formattedName = `[Sage:${scanType}]:${contentName}`;
+    return await this.backend?.scanString(content, formattedName) ?? null;
+  }
+  close() {
+    this.backend?.close();
+    this.backend = null;
+  }
+};
+
+// ../core/dist/clients/content-fetch.js
+init_types2();
 
 // ../core/dist/clients/file-check.js
 init_types2();
 
 // ../core/dist/version.js
-var import_node_path5 = require("node:path");
+var import_node_path4 = require("node:path");
 var import_node_url = require("node:url");
 init_file_utils();
 var import_meta = {};
 function resolveVersion() {
   if (true)
-    return "0.8.0";
+    return "0.9.0";
   try {
-    const pkgPath = (0, import_node_path5.join)((0, import_node_path5.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
+    const pkgPath = (0, import_node_path4.join)((0, import_node_path4.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
     const pkg = JSON.parse(getFileContentSync(pkgPath));
     if (typeof pkg.version === "string")
       return pkg.version;
@@ -18375,8 +18804,81 @@ var FileCheckClient = class {
   }
 };
 
-// ../core/dist/clients/package-registry.js
-var import_semver = __toESM(require_semver2(), 1);
+// ../core/dist/model-storage.js
+var import_node_fs = require("node:fs");
+var import_node_path5 = require("node:path");
+init_config();
+var MODEL_SCHEMA_VERSION = "v1";
+var REQUIRED_MODELS_BY_SCHEMA = {
+  v1: ["pi-model"]
+};
+var REQUIRED_MODEL_FILES = {
+  "pi-model": [
+    "model_int8.onnx",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "vocab.txt",
+    "config.json"
+  ]
+};
+function getModelStorageRoot(sageDir = resolvePath("~/.sage")) {
+  return (0, import_node_path5.join)(resolvePath(sageDir), "models");
+}
+function getModelDir(modelName, schema = MODEL_SCHEMA_VERSION, sageDir) {
+  return (0, import_node_path5.join)(getModelStorageRoot(sageDir), schema, modelName);
+}
+function isModelPresent(modelName, schema = MODEL_SCHEMA_VERSION, sageDir) {
+  const dir = getModelDir(modelName, schema, sageDir);
+  const files = REQUIRED_MODEL_FILES[modelName];
+  if (!files || files.length === 0)
+    return false;
+  return files.every((f) => (0, import_node_fs.existsSync)((0, import_node_path5.resolve)(dir, f)));
+}
+function missingRequiredModels(schema = MODEL_SCHEMA_VERSION, sageDir) {
+  const required = REQUIRED_MODELS_BY_SCHEMA[schema] ?? [];
+  return required.filter((name) => !isModelPresent(name, schema, sageDir));
+}
+function anyRequiredModelMissing(schema = MODEL_SCHEMA_VERSION, sageDir) {
+  return missingRequiredModels(schema, sageDir).length > 0;
+}
+
+// ../core/dist/clients/model-downloader.js
+init_types2();
+var STALE_LOCK_MS = 60 * 60 * 1e3;
+
+// ../core/dist/sage-proxy.js
+function mapSageProxyOs(platform) {
+  switch (platform) {
+    case "win32":
+      return "WINDOWS";
+    case "darwin":
+      return "MACOS";
+    case "linux":
+      return "LINUX";
+    default:
+      return platform;
+  }
+}
+function mapSageProxyArchitecture(arch) {
+  return arch.toUpperCase();
+}
+function buildSageProxyEnvelope(args) {
+  return {
+    identity: { uuid: args.iid },
+    product: { version_app: args.versionApp },
+    platform: {
+      os: args.platformOs ?? mapSageProxyOs(process.platform),
+      architecture: args.platformArchitecture ?? mapSageProxyArchitecture(process.arch)
+    },
+    agent: {
+      agent_runtime: args.agentRuntime,
+      agent_runtime_version: args.agentRuntimeVersion
+    }
+  };
+}
+
+// ../core/dist/clients/model-manifest.js
 init_types2();
 
 // ../core/dist/clients/url-check.js
@@ -18425,7 +18927,10 @@ var UrlCheckClient = class {
     return batchResults.flat();
   }
   async checkBatch(urls) {
-    const queries = urls.map((url) => ({ key: { "url-like": url } }));
+    const queries = urls.map((url) => ({
+      key: { "url-like": url },
+      include: { "detection-infos": true }
+    }));
     const payload = {
       queries,
       "client-info": {
@@ -18467,7 +18972,6 @@ var UrlCheckClient = class {
       const classification = success.classification ?? {};
       const detectionInfos = classification["detection-infos"] ?? [];
       const classResult = classification.result ?? {};
-      const flags = success.flags ?? [];
       const malicious = classResult.malicious;
       const detections = detectionInfos.filter((info) => typeof info.name === "string").map((info) => {
         return info.name;
@@ -18480,8 +18984,7 @@ var UrlCheckClient = class {
         url,
         isMalicious: Boolean(malicious),
         detections,
-        findings,
-        flags
+        findings
       };
     } catch (e) {
       this.logger.warn("Failed to parse answer", { error: String(e) });
@@ -18490,18 +18993,271 @@ var UrlCheckClient = class {
   }
 };
 
+// ../core/dist/clients/package-registry.js
+var import_semver = __toESM(require_semver2(), 1);
+init_types2();
+
+// ../core/dist/clients/pi-check.js
+init_types2();
+
+// ../core/dist/index.js
+init_pi_deps_installer();
+
+// ../core/dist/clients/skill-check.js
+init_types2();
+var DEFAULT_TIMEOUT3 = 5;
+var SERVICE_NAME3 = "sage";
+var MAX_IDS_PER_REQUEST = 50;
+var REQUEST_HEADERS3 = [
+  { name: "Accept", value: "application/json" },
+  { name: "Content-Type", value: "application/json" },
+  { name: "User-Agent", value: SERVICE_NAME3 }
+];
+var SkillCheckClient = class {
+  endpoint;
+  timeoutMs;
+  logger;
+  constructor(config, logger2 = nullLogger) {
+    this.endpoint = config?.endpoint ?? resolveEndpoint("/v2/skill-check");
+    this.timeoutMs = (config?.timeout_seconds ?? DEFAULT_TIMEOUT3) * 1e3;
+    this.logger = logger2;
+  }
+  /**
+   * Check a list of skill IDs against the proxy.
+   *
+   * Returns a Map keyed by skill id. A `null` value means the proxy had
+   * no opinion on that skill (analogous to a clean verdict). Skill ids
+   * not found in the response are simply absent from the map.
+   *
+   * Fails-open: on any error returns an empty Map. Per-batch errors do
+   * not poison results from successful batches.
+   */
+  async checkSkills(skillIds) {
+    const out = /* @__PURE__ */ new Map();
+    if (skillIds.length === 0)
+      return out;
+    const unique = [...new Set(skillIds)];
+    const batches = [];
+    for (let i = 0; i < unique.length; i += MAX_IDS_PER_REQUEST) {
+      batches.push(unique.slice(i, i + MAX_IDS_PER_REQUEST));
+    }
+    const batchResults = await Promise.all(batches.map((batch) => this.checkBatch(batch)));
+    for (const batch of batchResults) {
+      for (const [id, result] of batch) {
+        out.set(id, result);
+      }
+    }
+    return out;
+  }
+  async checkBatch(skillIds) {
+    const out = /* @__PURE__ */ new Map();
+    try {
+      const response = await fetch(this.endpoint, {
+        method: "POST",
+        headers: Object.fromEntries(REQUEST_HEADERS3.map((h) => [h.name, h.value])),
+        body: JSON.stringify({
+          skill_ids: skillIds,
+          client_info: {
+            product_name: SERVICE_NAME3,
+            product_version: VERSION
+          }
+        }),
+        signal: AbortSignal.timeout(this.timeoutMs)
+      });
+      if (!response.ok) {
+        this.logger.warn(`SkillCheck HTTP error: ${response.status}`);
+        return out;
+      }
+      const data = await response.json();
+      const results = data.results ?? {};
+      for (const id of skillIds) {
+        if (!(id in results))
+          continue;
+        const raw = results[id];
+        if (raw === null || raw === void 0) {
+          out.set(id, null);
+          continue;
+        }
+        const parsed = this.parseResult(id, raw);
+        out.set(id, parsed);
+      }
+    } catch (e) {
+      this.logger.warn("SkillCheck batch request failed", { error: String(e) });
+    }
+    return out;
+  }
+  parseResult(skillId, raw) {
+    const recommendationsRaw = raw.recommendations ?? [];
+    const recommendations = recommendationsRaw.filter((r) => typeof r === "string");
+    const categoriesRaw = raw.threat_categories ?? [];
+    const threatCategories = categoriesRaw.filter((c) => typeof c === "string");
+    return {
+      skillId,
+      verdict: typeof raw.verdict === "string" ? raw.verdict : void 0,
+      overallRiskLevel: typeof raw.overall_risk_level === "string" ? raw.overall_risk_level : void 0,
+      summary: typeof raw.summary === "string" ? raw.summary : void 0,
+      recommendations,
+      threatCategories
+    };
+  }
+};
+
 // ../core/dist/index.js
 init_config();
 
+// ../core/dist/content-snapshot.js
+var CONTENT_FIELD_LIMITS = Object.freeze({
+  command: 512,
+  url: 512,
+  file_path: 512,
+  package_name: 256,
+  package_version: 128,
+  package_registry: 128
+});
+function safeTruncate(value, maxLen) {
+  if (maxLen <= 0)
+    return "";
+  if (value.length <= maxLen)
+    return value;
+  const cutIndex = maxLen;
+  const codeUnit = value.charCodeAt(cutIndex - 1);
+  if (codeUnit >= 55296 && codeUnit <= 56319) {
+    return value.slice(0, cutIndex - 1);
+  }
+  return value.slice(0, cutIndex);
+}
+
+// ../core/dist/extended-info.js
+var import_promises2 = require("node:fs/promises");
+var import_node_os2 = require("node:os");
+var import_node_path6 = require("node:path");
+init_file_utils();
+init_types2();
+var EXTENDED_INFO_FILE_MAX_BYTES = 1024;
+var EXTENDED_INFO_MAX_GROUPS = 16;
+var EXTENDED_INFO_MAX_KEYS_PER_GROUP = 32;
+var EXTENDED_INFO_MAX_LEAF_CHARS = 256;
+var EXTENDED_INFO_FILENAME = "extended-info.json";
+var cache = /* @__PURE__ */ new Map();
+function isPlainObjectValue(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function sanitizeLeaves(groupKey, rawGroup, logger2) {
+  const entries = Object.entries(rawGroup);
+  const overflow = entries.length > EXTENDED_INFO_MAX_KEYS_PER_GROUP;
+  const retained = overflow ? entries.slice(0, EXTENDED_INFO_MAX_KEYS_PER_GROUP) : entries;
+  if (overflow) {
+    logger2.debug(`extended-info: dropped overflow keys in group '${groupKey}' (kept first ${EXTENDED_INFO_MAX_KEYS_PER_GROUP} of ${entries.length})`);
+  }
+  const out = {};
+  for (const [leafKey, leafValue] of retained) {
+    if (typeof leafValue === "string") {
+      out[leafKey] = safeTruncate(leafValue, EXTENDED_INFO_MAX_LEAF_CHARS);
+      continue;
+    }
+    if (typeof leafValue === "number" || typeof leafValue === "boolean") {
+      out[leafKey] = leafValue;
+      continue;
+    }
+    logger2.debug(`extended-info: dropped non-scalar leaf '${groupKey}.${leafKey}' (type ${typeof leafValue})`);
+  }
+  return out;
+}
+function sanitizeDocument(parsed, logger2) {
+  const out = {};
+  for (const [groupKey, groupValue] of Object.entries(parsed)) {
+    if (!isPlainObjectValue(groupValue)) {
+      logger2.debug(`extended-info: dropped non-object group '${groupKey}'`);
+      continue;
+    }
+    out[groupKey] = sanitizeLeaves(groupKey, groupValue, logger2);
+  }
+  return out;
+}
+async function loadExtendedInfo(sageDirPath, logger2 = nullLogger) {
+  const sageDir = sageDirPath ?? (0, import_node_path6.join)((0, import_node_os2.homedir)(), ".sage");
+  const filePath = (0, import_node_path6.join)(sageDir, EXTENDED_INFO_FILENAME);
+  const cached = cache.get(filePath);
+  if (cached)
+    return cached.value;
+  const value = await loadExtendedInfoUncached(filePath, logger2);
+  cache.set(filePath, { value });
+  return value;
+}
+async function loadExtendedInfoUncached(filePath, logger2) {
+  let size;
+  try {
+    const info = await (0, import_promises2.stat)(filePath);
+    if (!info.isFile()) {
+      logger2.debug(`extended-info: not a regular file at ${filePath}`);
+      return null;
+    }
+    size = info.size;
+  } catch {
+    return null;
+  }
+  if (size > EXTENDED_INFO_FILE_MAX_BYTES) {
+    logger2.debug(`extended-info: file size ${size} exceeds cap ${EXTENDED_INFO_FILE_MAX_BYTES}; ignoring`);
+    return null;
+  }
+  let raw;
+  try {
+    raw = await getFileContent(filePath, "utf-8");
+  } catch {
+    return null;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    logger2.debug(`extended-info: invalid JSON: ${err}`);
+    return null;
+  }
+  if (!isPlainObjectValue(parsed)) {
+    logger2.debug("extended-info: top-level value is not a non-null object");
+    return null;
+  }
+  const groupCount = Object.keys(parsed).length;
+  if (groupCount > EXTENDED_INFO_MAX_GROUPS) {
+    logger2.debug(`extended-info: ${groupCount} top-level groups exceed cap ${EXTENDED_INFO_MAX_GROUPS}; rejecting whole file`);
+    return null;
+  }
+  return sanitizeDocument(parsed, logger2);
+}
+function mergeExtendedInfo(envelope, extendedInfo) {
+  const out = { ...envelope };
+  if (!extendedInfo)
+    return out;
+  for (const [groupKey, groupValue] of Object.entries(extendedInfo)) {
+    const existing = out[groupKey];
+    if (existing === void 0 || existing === null) {
+      out[groupKey] = { ...groupValue };
+      continue;
+    }
+    if (!isPlainObjectValue(existing)) {
+      continue;
+    }
+    const merged = { ...existing };
+    for (const [leafKey, leafValue] of Object.entries(groupValue)) {
+      const current = merged[leafKey];
+      if (current === void 0 || current === null) {
+        merged[leafKey] = leafValue;
+      }
+    }
+    out[groupKey] = merged;
+  }
+  return out;
+}
+
 // ../core/dist/installation-id.js
 var import_node_crypto2 = require("node:crypto");
-var import_promises2 = require("node:fs/promises");
-var import_node_path6 = require("node:path");
+var import_promises3 = require("node:fs/promises");
+var import_node_path7 = require("node:path");
 init_config();
 init_file_utils();
 async function getInstallationId(sageDirPath) {
   const sageDir = sageDirPath ?? resolvePath("~/.sage");
-  const idPath = (0, import_node_path6.join)(sageDir, "installation-id");
+  const idPath = (0, import_node_path7.join)(sageDir, "installation-id");
   let fileExists = false;
   try {
     const existing = await getFileContent(idPath, "utf-8");
@@ -18513,8 +19269,8 @@ async function getInstallationId(sageDirPath) {
   }
   try {
     const id = (0, import_node_crypto2.randomUUID)();
-    await (0, import_promises2.mkdir)(sageDir, { recursive: true, mode: 448 });
-    await (0, import_promises2.writeFile)(idPath, id, { encoding: "utf-8", mode: 384, flag: fileExists ? "w" : "wx" });
+    await (0, import_promises3.mkdir)(sageDir, { recursive: true, mode: 448 });
+    await (0, import_promises3.writeFile)(idPath, id, { encoding: "utf-8", mode: 384, flag: fileExists ? "w" : "wx" });
     return id;
   } catch (err) {
     if (err.code === "EEXIST") {
@@ -18529,38 +19285,10 @@ async function getInstallationId(sageDirPath) {
   }
 }
 
-// ../core/dist/sage-proxy.js
-function mapSageProxyOs(platform) {
-  switch (platform) {
-    case "win32":
-      return "WINDOWS";
-    case "darwin":
-      return "MACOS";
-    case "linux":
-      return "LINUX";
-    default:
-      return platform;
-  }
-}
-function mapSageProxyArchitecture(arch) {
-  return arch.toUpperCase();
-}
-function buildSageProxyEnvelope(args) {
-  return {
-    identity: { uuid: args.iid },
-    product: { version_app: args.versionApp },
-    platform: {
-      os: args.platformOs ?? mapSageProxyOs(process.platform),
-      architecture: args.platformArchitecture ?? mapSageProxyArchitecture(process.arch)
-    },
-    agent: {
-      agent_runtime: args.agentRuntime,
-      agent_runtime_version: args.agentRuntimeVersion
-    }
-  };
-}
-
 // ../core/dist/detection-telemetry.js
+init_types2();
+
+// ../core/dist/engine.js
 init_types2();
 
 // ../core/dist/evaluator.js
@@ -18572,80 +19300,9 @@ init_config();
 init_file_utils();
 
 // ../core/dist/trusted-domains.js
-var import_promises3 = require("node:fs/promises");
-var import_node_path7 = require("node:path");
 var import_yaml = __toESM(require_dist(), 1);
 init_file_utils();
 init_types2();
-async function loadTrustedDomains(allowlistsDir, logger2 = nullLogger) {
-  let files;
-  try {
-    files = (await (0, import_promises3.readdir)(allowlistsDir)).filter((f) => f.endsWith(".yaml")).sort();
-  } catch {
-    logger2.debug("Allowlists directory does not exist", { path: allowlistsDir });
-    return [];
-  }
-  const domains = [];
-  for (const filename of files) {
-    const filePath = (0, import_node_path7.join)(allowlistsDir, filename);
-    let content;
-    try {
-      content = await getFileContent(filePath);
-    } catch (e) {
-      logger2.warn(`Failed to read ${filename}`, { error: String(e) });
-      continue;
-    }
-    let data;
-    try {
-      data = (0, import_yaml.parse)(content);
-    } catch (e) {
-      logger2.warn(`Failed to parse ${filename}`, { error: String(e) });
-      continue;
-    }
-    if (!Array.isArray(data)) {
-      logger2.warn(`Expected list in ${filename}, got ${typeof data}`);
-      continue;
-    }
-    for (const entry of data) {
-      if (typeof entry !== "object" || entry === null) {
-        logger2.warn(`Skipping non-object entry in ${filename}`);
-        continue;
-      }
-      const record = entry;
-      const domain = record.domain;
-      const reason = record.reason;
-      if (!domain || typeof domain !== "string") {
-        logger2.warn(`Skipping entry without valid 'domain' in ${filename}`);
-        continue;
-      }
-      if (!reason || typeof reason !== "string") {
-        logger2.warn(`Skipping entry without valid 'reason' in ${filename}`);
-        continue;
-      }
-      domains.push({ domain: domain.toLowerCase(), reason });
-    }
-  }
-  logger2.debug(`Loaded ${domains.length} trusted domains from ${allowlistsDir}`);
-  return domains;
-}
-function extractDomain(url) {
-  try {
-    const parsed = new URL(url);
-    return parsed.hostname.toLowerCase() || null;
-  } catch {
-    return null;
-  }
-}
-function isTrustedDomain(domain, trusted) {
-  const domainLower = domain.toLowerCase();
-  for (const td of trusted) {
-    if (domainLower === td.domain)
-      return true;
-    if (domainLower.endsWith(`.${td.domain}`))
-      return true;
-  }
-  return false;
-}
 
 // ../core/dist/exceptions.js
 init_types2();
@@ -18806,69 +19463,6 @@ function extractUrls(text) {
   return urls;
 }
 
-// ../core/dist/heuristics.js
-var TRUSTED_DOMAIN_SUPPRESSIBLE = /* @__PURE__ */ new Set([
-  "CLT-CMD-001",
-  "CLT-CMD-002",
-  "CLT-SUPPLY-001",
-  "CLT-SUPPLY-004"
-]);
-var HeuristicsEngine = class {
-  threatMap = /* @__PURE__ */ new Map();
-  trustedDomains;
-  constructor(threats, trustedDomains) {
-    this.trustedDomains = trustedDomains ?? [];
-    for (const threat of threats) {
-      for (const matchType of threat.matchOn) {
-        const artifactType = matchType === "domain" ? "url" : matchType;
-        const existing = this.threatMap.get(artifactType);
-        if (existing) {
-          existing.push(threat);
-        } else {
-          this.threatMap.set(artifactType, [threat]);
-        }
-      }
-    }
-  }
-  isSuppressedByTrustedDomain(match) {
-    if (this.trustedDomains.length === 0)
-      return false;
-    if (!TRUSTED_DOMAIN_SUPPRESSIBLE.has(match.threat.id))
-      return false;
-    const urls = extractUrls(match.matchValue);
-    if (urls.length === 0)
-      return false;
-    for (const url of urls) {
-      const domain = extractDomain(url);
-      if (!domain)
-        return false;
-      if (!isTrustedDomain(domain, this.trustedDomains))
-        return false;
-    }
-    return true;
-  }
-  match(artifacts) {
-    const matches = [];
-    for (const artifact of artifacts) {
-      const threats = this.threatMap.get(artifact.type) ?? [];
-      for (const threat of threats) {
-        const m = threat.compiledPattern.exec(artifact.value);
-        if (m) {
-          matches.push({
-            threat,
-            artifact: artifact.value,
-            matchValue: m[0]
-          });
-        }
-      }
-    }
-    if (this.trustedDomains.length > 0) {
-      return matches.filter((m) => !this.isSuppressedByTrustedDomain(m));
-    }
-    return matches;
-  }
-};
-
 // ../core/dist/package-checker.js
 init_types2();
 
@@ -18924,113 +19518,31 @@ async function pruneSessionStatusFiles(maxAgeMs = 24 * 60 * 60 * 1e3) {
 }
 
 // ../core/dist/threat-loader.js
-var import_promises4 = require("node:fs/promises");
-var import_node_path9 = require("node:path");
 var import_yaml2 = __toESM(require_dist(), 1);
 init_file_utils();
 init_types2();
-var REQUIRED_FIELDS = /* @__PURE__ */ new Set([
-  "id",
-  "category",
-  "severity",
-  "confidence",
-  "action",
-  "pattern",
-  "match_on",
-  "title"
-]);
-function parseExpiresAt(value) {
-  if (value == null)
-    return null;
-  try {
-    const date = new Date(String(value));
-    return Number.isNaN(date.getTime()) ? null : date;
-  } catch {
-    return null;
-  }
-}
-function isExpired(entry) {
-  const expiresAt = parseExpiresAt(entry.expires_at);
-  if (expiresAt === null)
-    return false;
-  return Date.now() > expiresAt.getTime();
-}
-async function loadThreats(threatDir, logger2 = nullLogger) {
-  const threats = [];
-  let files;
-  try {
-    files = (await (0, import_promises4.readdir)(threatDir)).filter((f) => f.endsWith(".yaml")).sort();
-  } catch {
-    logger2.warn("Threat directory does not exist or is unreadable", { path: threatDir });
-    return threats;
-  }
-  for (const filename of files) {
-    const filePath = (0, import_node_path9.join)(threatDir, filename);
-    let content;
-    try {
-      content = await getFileContent(filePath);
-    } catch (e) {
-      logger2.warn(`Failed to read ${filename}`, { error: String(e) });
-      continue;
-    }
-    let data;
-    try {
-      data = (0, import_yaml2.parse)(content);
-    } catch (e) {
-      logger2.warn(`Failed to parse ${filename}`, { error: String(e) });
-      continue;
-    }
-    if (!Array.isArray(data)) {
-      logger2.warn(`Expected list in ${filename}, got ${typeof data}`);
-      continue;
-    }
-    for (const entry of data) {
-      if (typeof entry !== "object" || entry === null) {
-        logger2.warn(`Skipping non-object entry in ${filename}`);
-        continue;
-      }
-      const record = entry;
-      const keys = new Set(Object.keys(record));
-      const missing = [...REQUIRED_FIELDS].filter((f) => !keys.has(f));
-      if (missing.length > 0) {
-        logger2.warn(`Skipping threat in ${filename}: missing fields ${missing.join(", ")}`);
-        continue;
-      }
-      if (record.revoked === true)
-        continue;
-      if (isExpired(record))
-        continue;
-      let compiledPattern;
-      try {
-        const flags = record.case_insensitive === true ? "i" : "";
-        compiledPattern = new RegExp(record.pattern, flags);
-      } catch (e) {
-        logger2.warn(`Skipping threat ${record.id}: invalid regex pattern`, {
-          error: String(e)
-        });
-        continue;
-      }
-      const rawMatchOn = record.match_on;
-      const matchOn = new Set(Array.isArray(rawMatchOn) ? rawMatchOn : [rawMatchOn]);
-      threats.push({
-        id: record.id,
-        version: typeof record.version === "number" ? record.version : void 0,
-        category: record.category,
-        severity: record.severity,
-        confidence: Number(record.confidence),
-        action: record.action,
-        pattern: record.pattern,
-        compiledPattern,
-        matchOn,
-        title: record.title,
-        expiresAt: parseExpiresAt(record.expires_at),
-        revoked: false
-      });
-    }
-  }
-  logger2.debug(`Loaded ${threats.length} threats from ${threatDir}`);
-  return threats;
-}
+
+// ../core/dist/tool-names.js
+var CANONICAL_TOOLS = [
+  "Bash",
+  "WebFetch",
+  "Write",
+  "Edit",
+  "Read",
+  "Delete",
+  "ApplyPatch",
+  "Glob",
+  "Grep",
+  "List",
+  "CodeSearch",
+  "WebSearch",
+  "Question",
+  "Task",
+  "ReadLines",
+  "MCP",
+  "Unknown"
+];
+var CANONICAL_SET = new Set(CANONICAL_TOOLS);
 
 // ../core/dist/evaluator.js
 init_types2();
@@ -19059,15 +19571,35 @@ function formatUpdateNotice(result) {
   return `\u2B06\uFE0F  Update available: v${result.currentVersion} \u2192 v${result.latestVersion} (https://github.com/gendigitalinc/sage)`;
 }
 function formatStartupClean(version, versionCheck, branding = defaultBranding) {
-  const base = `\u{1F6E1}\uFE0F ${branding.banner_text} v${version} \u2705 No threats found`;
+  const base = `\u{1F6E1}\uFE0F ${branding.name} v${version} \u2705 No threats found`;
   if (versionCheck?.updateAvailable) {
     return `${base}
 ${formatUpdateNotice(versionCheck)}`;
   }
   return base;
 }
-function formatThreatBanner(version, results, versionCheck, branding = defaultBranding) {
-  const header = `\u{1F6E1}\uFE0F ${branding.banner_text} v${version} \u2014 Threat Detected`;
+function totalHighCrit(results) {
+  let n = 0;
+  for (const r of results) {
+    for (const f of r.findings) {
+      if (f.severity === "critical" || f.severity === "high")
+        n++;
+    }
+  }
+  return n;
+}
+function findFirstHighCrit(results) {
+  for (const r of results) {
+    for (const f of r.findings) {
+      if (f.severity === "critical" || f.severity === "high") {
+        return { plugin: r.plugin, finding: f };
+      }
+    }
+  }
+  return null;
+}
+function formatThreatBannerVerbose(version, results, versionCheck, branding) {
+  const header = `\u{1F6E1}\uFE0F ${branding.name} v${version} \u2014 Threat Detected`;
   const lines = [" ", header, separatorLine(SEPARATOR_WIDTH)];
   const MAX_FINDINGS = 5;
   let first = true;
@@ -19089,6 +19621,12 @@ function formatThreatBanner(version, results, versionCheck, branding = defaultBr
       lines.push(kv("Source", f.sourceFile));
       const actionLabel = f.action === "block" ? "Blocked" : "Flagged";
       lines.push(kv("Action", actionLabel));
+      if (f.recommendations && f.recommendations.length > 0) {
+        lines.push(kv("Recommendations", ""));
+        for (const rec of f.recommendations) {
+          lines.push(`   ${" ".repeat(PAD)}- ${rec}`);
+        }
+      }
     }
     const overflow = highCrit.length - MAX_FINDINGS;
     if (overflow > 0) {
@@ -19102,14 +19640,41 @@ function formatThreatBanner(version, results, versionCheck, branding = defaultBr
   }
   return lines.join("\n");
 }
-function formatSessionStartMessage(version, result, branding = defaultBranding) {
+function formatThreatBannerCompact(version, results, versionCheck, branding) {
+  const total = totalHighCrit(results);
+  const first = findFirstHighCrit(results);
+  if (!first || total === 0) {
+    return formatStartupClean(version, versionCheck, branding);
+  }
+  const emoji = severityEmoji(first.finding.severity);
+  const lines = [
+    `\u{1F6E1}\uFE0F ${branding.name} v${version} \u2014 Threat Detected in ${first.plugin.key}`,
+    `${emoji} ${first.finding.title} (${first.finding.severity.toUpperCase()})`,
+    first.finding.sourceFile
+  ];
+  const remaining = total - 1;
+  if (remaining > 0) {
+    lines.push(`\u2026and ${remaining} more finding${remaining === 1 ? "" : "s"}`);
+  }
+  if (versionCheck?.updateAvailable) {
+    lines.push(formatUpdateNotice(versionCheck));
+  }
+  return lines.join("\n");
+}
+function formatThreatBanner(version, results, versionCheck, branding = defaultBranding, style = "verbose") {
+  if (style === "compact") {
+    return formatThreatBannerCompact(version, results, versionCheck, branding);
+  }
+  return formatThreatBannerVerbose(version, results, versionCheck, branding);
+}
+function formatSessionStartMessage(version, result, branding = defaultBranding, style = "verbose") {
   if (result.scanResults.length > 0) {
-    return formatThreatBanner(version, result.scanResults, result.versionCheck, branding);
+    return formatThreatBanner(version, result.scanResults, result.versionCheck, branding, style);
   }
   return formatStartupClean(version, result.versionCheck, branding);
 }
 function formatMigrationNotice(branding = defaultBranding) {
-  return `\u26A0\uFE0F  ${branding.product_name} has moved \u2192 run: /plugin marketplace remove sage && /plugin marketplace add https://github.com/gendigitalinc/sage.git`;
+  return `\u26A0\uFE0F  ${branding.name} has moved \u2192 run: /plugin marketplace remove sage && /plugin marketplace add https://github.com/gendigitalinc/sage.git`;
 }
 
 // ../core/dist/guard.js
@@ -19117,13 +19682,13 @@ init_config();
 init_types2();
 
 // ../core/dist/marketplace-migration.js
-var import_promises5 = require("node:fs/promises");
-var import_node_path10 = require("node:path");
+var import_promises4 = require("node:fs/promises");
+var import_node_path9 = require("node:path");
 init_config();
 async function needsMarketplaceMigration(marketplacesPath) {
   try {
-    const filePath = marketplacesPath ?? (0, import_node_path10.join)(resolvePath("~/.claude"), "plugins", "known_marketplaces.json");
-    const raw = await (0, import_promises5.readFile)(filePath, "utf-8");
+    const filePath = marketplacesPath ?? (0, import_node_path9.join)(resolvePath("~/.claude"), "plugins", "known_marketplaces.json");
+    const raw = await (0, import_promises4.readFile)(filePath, "utf-8");
     const data = JSON.parse(raw);
     if (typeof data !== "object" || data === null || Array.isArray(data))
       return false;
@@ -19142,13 +19707,16 @@ async function needsMarketplaceMigration(marketplacesPath) {
   }
 }
 
+// ../core/dist/model-download.js
+init_types2();
+
 // ../core/dist/plugin-scan-cache.js
 var import_node_crypto4 = require("node:crypto");
-var import_promises6 = require("node:fs/promises");
-var import_node_path11 = require("node:path");
+var import_promises5 = require("node:fs/promises");
+var import_node_path10 = require("node:path");
 init_file_utils();
 init_types2();
-var DEFAULT_CACHE_PATH = (0, import_node_path11.join)(getHomeDir(), ".sage", "plugin_scan_cache.json");
+var DEFAULT_CACHE_PATH = (0, import_node_path10.join)(getHomeDir(), ".sage", "plugin_scan_cache.json");
 var CACHE_TTL_DAYS = 7;
 function cacheKey(pluginKey, version, lastUpdated) {
   return `${pluginKey}:${version}:${lastUpdated}`;
@@ -19160,13 +19728,13 @@ async function computeConfigHash(sageVersion, ...dirs) {
   for (const dir of dirs) {
     let files;
     try {
-      files = (await (0, import_promises6.readdir)(dir)).filter((f) => f.endsWith(".yaml")).sort();
+      files = (await (0, import_promises5.readdir)(dir)).filter((f) => f.endsWith(".yaml")).sort();
     } catch {
       continue;
     }
     for (const file of files) {
       try {
-        const content = await getFileContent((0, import_node_path11.join)(dir, file));
+        const content = await getFileContent((0, import_node_path10.join)(dir, file));
         h.update(content);
       } catch {
       }
@@ -19207,11 +19775,11 @@ async function loadScanCache(configHash = "", cachePath = DEFAULT_CACHE_PATH, lo
     return { configHash, entries: {} };
   }
 }
-async function saveScanCache(cache, cachePath = DEFAULT_CACHE_PATH, logger2 = nullLogger) {
+async function saveScanCache(cache2, cachePath = DEFAULT_CACHE_PATH, logger2 = nullLogger) {
   try {
     const data = {
-      config_hash: cache.configHash,
-      entries: Object.fromEntries(Object.entries(cache.entries).map(([key, entry]) => [
+      config_hash: cache2.configHash,
+      entries: Object.fromEntries(Object.entries(cache2.entries).map(([key, entry]) => [
         key,
         {
           plugin_key: entry.pluginKey,
@@ -19226,9 +19794,9 @@ async function saveScanCache(cache, cachePath = DEFAULT_CACHE_PATH, logger2 = nu
     logger2.warn(`Failed to save scan cache to ${cachePath}`, { error: String(e) });
   }
 }
-function isCached(cache, pluginKey, version, lastUpdated) {
+function isCached(cache2, pluginKey, version, lastUpdated) {
   const key = cacheKey(pluginKey, version, lastUpdated);
-  const entry = cache.entries[key];
+  const entry = cache2.entries[key];
   if (!entry)
     return false;
   try {
@@ -19239,15 +19807,15 @@ function isCached(cache, pluginKey, version, lastUpdated) {
     return false;
   }
 }
-function getCached(cache, pluginKey, version, lastUpdated) {
-  if (!isCached(cache, pluginKey, version, lastUpdated))
+function getCached(cache2, pluginKey, version, lastUpdated) {
+  if (!isCached(cache2, pluginKey, version, lastUpdated))
     return null;
   const key = cacheKey(pluginKey, version, lastUpdated);
-  return cache.entries[key] ?? null;
+  return cache2.entries[key] ?? null;
 }
-function storeResult(cache, pluginKey, version, lastUpdated, findings) {
+function storeResult(cache2, pluginKey, version, lastUpdated, findings) {
   const key = cacheKey(pluginKey, version, lastUpdated);
-  cache.entries[key] = {
+  cache2.entries[key] = {
     pluginKey,
     version,
     scannedAt: (/* @__PURE__ */ new Date()).toISOString(),
@@ -19256,13 +19824,179 @@ function storeResult(cache, pluginKey, version, lastUpdated, findings) {
 }
 
 // ../core/dist/plugin-scanner.js
-var import_node_crypto5 = require("node:crypto");
+var import_node_crypto6 = require("node:crypto");
 var import_promises7 = require("node:fs/promises");
 var import_node_path12 = require("node:path");
 init_file_utils();
+
+// ../core/dist/skill-id.js
+var import_node_crypto5 = require("node:crypto");
+var import_promises6 = require("node:fs/promises");
+var import_node_path11 = require("node:path");
+var SKIP_DIRS = /* @__PURE__ */ new Set(["node_modules", ".git", "__pycache__"]);
+function isContained(childReal, rootReal) {
+  return childReal === rootReal || childReal.startsWith(`${rootReal}${import_node_path11.sep}`);
+}
+function normalizePath(p) {
+  let out = p.replace(/\\/g, "/").normalize("NFC");
+  out = out.split("/").filter((c) => c !== "" && c !== ".").join("/");
+  while (out.startsWith("./") || out.startsWith("/")) {
+    out = out.startsWith("./") ? out.slice(2) : out.slice(1);
+  }
+  return out;
+}
+async function entriesFromDirectory(dirPath) {
+  const absDir = (0, import_node_path11.resolve)(dirPath);
+  const rootReal = await (0, import_promises6.realpath)(absDir);
+  const entries = [];
+  const visited = /* @__PURE__ */ new Set();
+  async function walk(currentPath) {
+    const real = await (0, import_promises6.realpath)(currentPath);
+    if (visited.has(real))
+      return;
+    if (!isContained(real, rootReal))
+      return;
+    visited.add(real);
+    const items = await (0, import_promises6.readdir)(currentPath);
+    const dirs = [];
+    const files = [];
+    for (const item of items) {
+      const fullPath = (0, import_node_path11.join)(currentPath, item);
+      const st = await (0, import_promises6.stat)(fullPath);
+      if (st.isDirectory())
+        dirs.push(item);
+      else if (st.isFile())
+        files.push(item);
+    }
+    dirs.sort();
+    files.sort();
+    for (const d of dirs) {
+      const fullPath = (0, import_node_path11.join)(currentPath, d);
+      const relPath = (0, import_node_path11.relative)(absDir, fullPath).replace(/\\/g, "/");
+      entries.push({ entryPath: relPath, isDir: true, content: Buffer.alloc(0) });
+      await walk(fullPath);
+    }
+    for (const f of files) {
+      const fullPath = (0, import_node_path11.join)(currentPath, f);
+      const fileReal = await (0, import_promises6.realpath)(fullPath);
+      if (!isContained(fileReal, rootReal))
+        continue;
+      const relPath = (0, import_node_path11.relative)(absDir, fullPath).replace(/\\/g, "/");
+      entries.push({
+        entryPath: relPath,
+        isDir: false,
+        content: await (0, import_promises6.readFile)(fullPath)
+      });
+    }
+  }
+  await walk(absDir);
+  return entries;
+}
+function computeSkillId(entries) {
+  let normalized = entries.map((e) => ({ ...e, entryPath: normalizePath(e.entryPath) })).filter((e) => e.entryPath !== "");
+  if (normalized.length > 0) {
+    const topLevel = new Set(normalized.map((e) => e.entryPath.split("/")[0]));
+    if (topLevel.size === 1) {
+      const prefix = `${[...topLevel][0]}/`;
+      normalized = normalized.map((e) => ({
+        ...e,
+        entryPath: e.entryPath.startsWith(prefix) ? e.entryPath.slice(prefix.length) : e.entryPath
+      })).filter((e) => e.entryPath !== "");
+    }
+  }
+  normalized = normalized.filter((e) => e.entryPath !== "skill.sig");
+  const fileHashes = {};
+  const treeEntries = [];
+  for (const e of normalized) {
+    const contentHash = (0, import_node_crypto5.createHash)("sha256").update(e.isDir ? Buffer.alloc(0) : e.content).digest("hex");
+    const entryType = e.isDir ? "dir" : "file";
+    treeEntries.push({ type: entryType, entryPath: e.entryPath, hash: contentHash });
+    if (!e.isDir)
+      fileHashes[e.entryPath] = contentHash;
+  }
+  treeEntries.sort((a, b) => a.entryPath < b.entryPath ? -1 : a.entryPath > b.entryPath ? 1 : 0);
+  const skillHasher = (0, import_node_crypto5.createHash)("sha256");
+  for (const e of treeEntries) {
+    skillHasher.update(Buffer.from(`${e.type}\0${e.entryPath}\0${e.hash}
+`, "utf8"));
+  }
+  return { skillId: skillHasher.digest("hex"), fileHashes };
+}
+async function findSkillPackages(rootDir) {
+  const found = [];
+  let rootReal;
+  try {
+    const rootStat = await (0, import_promises6.stat)(rootDir);
+    if (!rootStat.isDirectory())
+      return found;
+    rootReal = await (0, import_promises6.realpath)((0, import_node_path11.resolve)(rootDir));
+  } catch {
+    return found;
+  }
+  const visited = /* @__PURE__ */ new Set();
+  async function walk(dir) {
+    let real;
+    try {
+      real = await (0, import_promises6.realpath)(dir);
+    } catch {
+      return;
+    }
+    if (visited.has(real))
+      return;
+    if (!isContained(real, rootReal))
+      return;
+    visited.add(real);
+    let items;
+    try {
+      items = await (0, import_promises6.readdir)(dir);
+    } catch {
+      return;
+    }
+    items.sort();
+    if (items.includes("SKILL.md")) {
+      try {
+        const st = await (0, import_promises6.stat)((0, import_node_path11.join)(dir, "SKILL.md"));
+        if (st.isFile())
+          found.push(dir);
+      } catch {
+      }
+    }
+    for (const item of items) {
+      if (SKIP_DIRS.has(item))
+        continue;
+      const fullPath = (0, import_node_path11.join)(dir, item);
+      let st;
+      try {
+        st = await (0, import_promises6.stat)(fullPath);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) {
+        await walk(fullPath);
+      }
+    }
+  }
+  await walk((0, import_node_path11.resolve)(rootDir));
+  return found;
+}
+async function computeSkillIdsForRoot(rootDir) {
+  const folders = await findSkillPackages(rootDir);
+  const out = [];
+  for (const folder of folders) {
+    try {
+      const entries = await entriesFromDirectory(folder);
+      const { skillId } = computeSkillId(entries);
+      out.push({ folder, skillId });
+    } catch {
+    }
+  }
+  return out;
+}
+
+// ../core/dist/plugin-scanner.js
 init_types2();
 var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path12.join)(getHomeDir(), ".claude", "plugins", "installed_plugins.json");
-var SCANNABLE_EXTENSIONS = /* @__PURE__ */ new Set([
+var SCANNABLE_EXTENSIONS2 = /* @__PURE__ */ new Set([
   ".py",
   ".js",
   ".ts",
@@ -19281,7 +20015,6 @@ var SCANNABLE_EXTENSIONS = /* @__PURE__ */ new Set([
   ".ini",
   ".conf"
 ]);
-var SKIP_DIRS = /* @__PURE__ */ new Set(["node_modules", ".git", "__pycache__"]);
 var MAX_FILE_SIZE = 512 * 1024;
 async function discoverPlugins(registryPath = DEFAULT_PLUGINS_REGISTRY, logger2 = nullLogger) {
   let raw;
@@ -19323,7 +20056,7 @@ async function walkPluginFiles(installPath, logger2) {
       return;
     }
     if (stats.isFile()) {
-      if (SCANNABLE_EXTENSIONS.has((0, import_node_path12.extname)(dirOrFile).toLowerCase()) && stats.size <= MAX_FILE_SIZE) {
+      if (SCANNABLE_EXTENSIONS2.has((0, import_node_path12.extname)(dirOrFile).toLowerCase()) && stats.size <= MAX_FILE_SIZE) {
         files.push(dirOrFile);
       }
       return;
@@ -19350,122 +20083,15 @@ async function walkPluginFiles(installPath, logger2) {
   }
   return files;
 }
-function isHarmlessEcho(line) {
-  if (!/^(echo|printf)\b/.test(line))
-    return false;
-  const withoutQuotes = line.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, "");
-  return !withoutQuotes.includes("|");
-}
-var JS_TS_EXTENSIONS = /* @__PURE__ */ new Set([".js", ".ts", ".mjs", ".mts"]);
-var STRING_OR_COMMENT_RE = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`|\/\/.*$|\/\*[\s\S]*?\*\//gm;
-function stripJsComments(src) {
-  return src.replace(STRING_OR_COMMENT_RE, (match) => {
-    if (match.startsWith("//") || match.startsWith("/*"))
-      return "";
-    return match;
-  });
-}
-var STR_ARG = `(?:"((?:[^"\\\\]|\\\\.)*)"|'((?:[^'\\\\]|\\\\.)*)'|\`([^\`]*)\`)`;
-var JS_EXEC_RE = new RegExp(`\\bexec(?:File)?(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
-var JS_SPAWN_RE = new RegExp(`\\bspawn(?:Sync)?\\s*\\(\\s*${STR_ARG}`, "g");
-var JS_SPAWN_ARGS_RE = /\bspawn(?:Sync)?\s*\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|`([^`]*)`)\s*,\s*\[([^\]]*)\]/g;
-var SHELL_EXECUTABLES = /* @__PURE__ */ new Set([
-  "bash",
-  "sh",
-  "zsh",
-  "dash",
-  "ksh",
-  "csh",
-  "fish",
-  "cmd",
-  "cmd.exe",
-  "powershell",
-  "powershell.exe",
-  "pwsh"
-]);
-function isShellExecutable(exe) {
-  const basename = exe.split("/").pop()?.split("\\").pop() ?? exe;
-  return SHELL_EXECUTABLES.has(basename);
-}
-var JS_EXECA_RE = new RegExp(`\\bexeca\\s*\\(\\s*${STR_ARG}`, "g");
-var JS_EXECA_ARGS_RE = /\bexeca\s*\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|`([^`]*)`)\s*,\s*\[([^\]]*)\]/g;
-var JS_BUN_SHELL_RE = new RegExp(`\\bBun\\.shell\\s*\\(\\s*${STR_ARG}`, "g");
-var JS_BUN_DOLLAR_RE = /\bBun\.\$`([^`]+)`/g;
-var JS_ZX_RE = /(?<!\w)\$`([^`]+)`/g;
-function extractCommandsFromJsTs(content, fileName) {
-  const commands = /* @__PURE__ */ new Set();
-  const stripped = stripJsComments(content);
-  const collapsed = stripped.replace(/\n/g, " ");
-  function addMatch(m) {
-    const val = m[1] ?? m[2] ?? m[3];
-    if (val)
-      commands.add(val.trim());
-  }
-  for (const re of [JS_EXEC_RE, JS_SPAWN_RE, JS_EXECA_RE, JS_BUN_SHELL_RE]) {
-    for (const m of collapsed.matchAll(re)) {
-      addMatch(m);
-    }
-  }
-  for (const re of [JS_BUN_DOLLAR_RE, JS_ZX_RE]) {
-    for (const m of collapsed.matchAll(re)) {
-      if (m[1])
-        commands.add(m[1].trim());
-    }
-  }
-  for (const re of [JS_SPAWN_ARGS_RE, JS_EXECA_ARGS_RE]) {
-    for (const arrMatch of collapsed.matchAll(re)) {
-      const exe = (arrMatch[1] ?? arrMatch[2] ?? arrMatch[3] ?? "").trim();
-      if (!isShellExecutable(exe))
-        continue;
-      const arrayContent = arrMatch[4] ?? "";
-      const strLitRe = new RegExp(STR_ARG, "g");
-      for (const strMatch of arrayContent.matchAll(strLitRe)) {
-        const val = strMatch[1] ?? strMatch[2] ?? strMatch[3];
-        if (val)
-          commands.add(val.trim());
-      }
-    }
-  }
-  return [...commands].map((value) => ({
-    type: "command",
-    value,
-    context: `plugin_file:${fileName}`
-  }));
-}
-function extractArtifactsFromFile(filePath, content) {
-  const artifacts = [];
-  const fileName = filePath.split("/").pop() ?? filePath;
-  for (const url of extractUrls(content)) {
-    if (url.includes("://127.0.0.1") || url.includes("://localhost"))
-      continue;
-    artifacts.push({ type: "url", value: url, context: `plugin_file:${fileName}` });
-  }
-  const ext = (0, import_node_path12.extname)(filePath).toLowerCase();
-  if ([".sh", ".bash", ".zsh", ".py"].includes(ext)) {
-    for (const line of content.split("\n")) {
-      const trimmed = line.trim();
-      if (trimmed && !trimmed.startsWith("#") && !trimmed.startsWith("//") && !isHarmlessEcho(trimmed)) {
-        artifacts.push({
-          type: "command",
-          value: trimmed,
-          context: `plugin_file:${fileName}`
-        });
-      }
-    }
-  }
-  if (JS_TS_EXTENSIONS.has(ext)) {
-    artifacts.push(...extractCommandsFromJsTs(content, fileName));
-  }
-  return artifacts;
-}
-async function scanPlugin(plugin, threats, options = {}) {
-  const { checkUrls = true, checkFileHashes = true, trustedDomains, logger: logger2 = nullLogger } = options;
+async function scanPlugin(plugin, options = {}) {
+  const { checkUrls = true, checkFileHashes = true, checkSkills = true, amsiClient = null, logger: logger2 = nullLogger } = options;
   const result = { plugin, findings: [] };
+  const skillCheckPromise = checkSkills ? runSkillCheck(plugin, result.findings, logger2) : Promise.resolve();
   const files = await walkPluginFiles(plugin.installPath, logger2);
-  if (files.length === 0)
+  if (files.length === 0) {
+    await skillCheckPromise;
     return result;
-  const commandThreats = threats.filter((t) => t.matchOn.has("command"));
-  const heuristics = new HeuristicsEngine(commandThreats, trustedDomains);
+  }
   const allUrls = [];
   const hashToFiles = /* @__PURE__ */ new Map();
   for (const filePath of files) {
@@ -19477,26 +20103,29 @@ async function scanPlugin(plugin, threats, options = {}) {
     } catch {
       continue;
     }
-    const artifacts = extractArtifactsFromFile(filePath, content);
-    if (artifacts.length > 0) {
-      const matches = heuristics.match(artifacts);
-      for (const match of matches) {
-        result.findings.push({
-          threatId: match.threat.id,
-          title: match.threat.title,
-          severity: match.threat.severity,
-          confidence: match.threat.confidence,
-          action: match.threat.action,
-          artifact: match.artifact.slice(0, 200),
-          sourceFile: (0, import_node_path12.relative)(plugin.installPath, filePath)
-        });
+    if (amsiClient) {
+      try {
+        const scanName = `${plugin.key}/${(0, import_node_path12.relative)(plugin.installPath, filePath)}`;
+        const amsiResult = await amsiClient.scanString("Plugin", scanName, content);
+        if (amsiResult && (amsiResult.isDetected || amsiResult.isBlockedByAdmin)) {
+          result.findings.push({
+            threatId: "AMSI_SCAN",
+            title: `AMSI detection (result=${amsiResult.amsiResult})`,
+            severity: "critical",
+            confidence: 1,
+            action: "block",
+            artifact: content.slice(0, 200),
+            sourceFile: (0, import_node_path12.relative)(plugin.installPath, filePath)
+          });
+        }
+      } catch {
       }
     }
     if (checkUrls) {
       allUrls.push(...extractUrls(content));
     }
     if (checkFileHashes) {
-      const sha256 = (0, import_node_crypto5.createHash)("sha256").update(rawBytes).digest("hex");
+      const sha256 = (0, import_node_crypto6.createHash)("sha256").update(rawBytes).digest("hex");
       const existing = hashToFiles.get(sha256);
       if (existing) {
         existing.push(filePath);
@@ -19551,11 +20180,44 @@ async function scanPlugin(plugin, threats, options = {}) {
     } catch {
     }
   })() : Promise.resolve();
-  await Promise.all([urlCheckPromise, fileCheckPromise]);
+  await Promise.all([urlCheckPromise, fileCheckPromise, skillCheckPromise]);
   return result;
+}
+async function runSkillCheck(plugin, findings, logger2) {
+  try {
+    const skills = await computeSkillIdsForRoot(plugin.installPath);
+    if (skills.length === 0)
+      return;
+    const ids = skills.map((s) => s.skillId);
+    const client = new SkillCheckClient(void 0, logger2);
+    const verdicts = await client.checkSkills(ids);
+    for (const { folder, skillId } of skills) {
+      const verdict = verdicts.get(skillId);
+      if (!verdict)
+        continue;
+      const risk = (verdict.overallRiskLevel ?? "").toUpperCase();
+      if (risk !== "HIGH" && risk !== "CRITICAL")
+        continue;
+      const severity = risk === "CRITICAL" ? "critical" : "high";
+      findings.push({
+        threatId: "SKILL_CHECK",
+        title: verdict.summary?.trim() || `Risky skill detected (${risk})`,
+        severity,
+        confidence: 1,
+        action: "log",
+        artifact: skillId.slice(0, 16),
+        sourceFile: (0, import_node_path12.relative)(plugin.installPath, folder) || ".",
+        recommendations: verdict.recommendations.length > 0 ? verdict.recommendations : void 0
+      });
+    }
+  } catch (e) {
+    logger2.debug("Skill check failed", { error: String(e) });
+  }
 }
 
 // ../core/dist/session-start.js
+var import_node_child_process = require("node:child_process");
+var import_node_fs2 = require("node:fs");
 init_config();
 init_file_utils();
 
@@ -19570,7 +20232,8 @@ function fromCachedFinding(finding) {
     confidence: finding.confidence,
     action: finding.action,
     artifact: finding.artifact,
-    sourceFile: finding.source_file
+    sourceFile: finding.source_file,
+    recommendations: finding.recommendations
   };
 }
 function toFindingData(finding) {
@@ -19581,7 +20244,8 @@ function toFindingData(finding) {
     confidence: finding.confidence,
     action: finding.action,
     artifact: finding.artifact,
-    source_file: finding.sourceFile
+    source_file: finding.sourceFile,
+    recommendations: finding.recommendations
   };
 }
 function toAuditFindingData(finding) {
@@ -19590,23 +20254,39 @@ function toAuditFindingData(finding) {
 }
 async function runSessionStartScan(context) {
   const logger2 = context.logger ?? nullLogger;
-  const threats = await loadThreats(context.threatsDir, logger2);
-  const trustedDomains = await loadTrustedDomains(context.allowlistsDir, logger2);
-  if (threats.length === 0) {
-    return [];
-  }
+  const sageConfig = await loadConfig(context.configPath, logger2);
   const plugins = context.plugins;
   if (plugins.length === 0) {
     return [];
   }
   let exceptions = [];
   try {
-    const sageConfig = await loadConfig(context.configPath, logger2);
     exceptions = await loadExceptions(sageConfig.exceptions, logger2);
   } catch {
   }
+  let amsiClient = null;
+  if (sageConfig.amsi_check.enabled && isAmsiSupported()) {
+    try {
+      amsiClient = new AmsiClient(logger2);
+      await amsiClient.init();
+      if (!amsiClient.isAvailable) {
+        amsiClient.close();
+        amsiClient = null;
+      }
+    } catch {
+      amsiClient?.close();
+      amsiClient = null;
+    }
+  }
+  try {
+    return await scanAllPlugins(context, sageConfig, plugins, exceptions, amsiClient, logger2);
+  } finally {
+    amsiClient?.close();
+  }
+}
+async function scanAllPlugins(context, config, plugins, exceptions, amsiClient, logger2) {
   const configHash = await computeConfigHash(context.sageVersion ?? "", context.threatsDir, context.allowlistsDir);
-  const cache = await loadScanCache(configHash, context.scanCachePath, logger2);
+  const cache2 = await loadScanCache(configHash, context.scanCachePath, logger2);
   const resultsWithFindings = [];
   let cacheModified = false;
   for (const plugin of plugins) {
@@ -19632,7 +20312,7 @@ async function runSessionStartScan(context) {
     if (allowMatch) {
       continue;
     }
-    const cached = getCached(cache, plugin.key, plugin.version, plugin.lastUpdated);
+    const cached = getCached(cache2, plugin.key, plugin.version, plugin.lastUpdated);
     if (cached && cached.findings.length === 0) {
       continue;
     }
@@ -19643,25 +20323,24 @@ async function runSessionStartScan(context) {
       });
       continue;
     }
-    const result = await scanPlugin(plugin, threats, {
+    const result = await scanPlugin(plugin, {
       checkUrls: context.checkUrls ?? true,
       checkFileHashes: context.checkFileHashes ?? true,
-      trustedDomains,
+      amsiClient,
       logger: logger2
     });
-    storeResult(cache, plugin.key, plugin.version, plugin.lastUpdated, result.findings.map(toFindingData));
+    storeResult(cache2, plugin.key, plugin.version, plugin.lastUpdated, result.findings.map(toFindingData));
     cacheModified = true;
     if (result.findings.length > 0) {
       resultsWithFindings.push(result);
     }
   }
   if (cacheModified) {
-    await saveScanCache(cache, context.scanCachePath, logger2);
+    await saveScanCache(cache2, context.scanCachePath, logger2);
   }
   try {
-    const sageConfig = await loadConfig(context.configPath, logger2);
     for (const result of resultsWithFindings) {
-      await logPluginScan(sageConfig.logging, result.plugin.key, result.plugin.version, result.findings.map(toAuditFindingData));
+      await logPluginScan(config.logging, result.plugin.key, result.plugin.version, result.findings.map(toAuditFindingData));
     }
   } catch {
   }
@@ -19698,6 +20377,14 @@ async function checkForUpdate(currentVersion, logger2 = nullLogger, timeoutMs = 
       logger2.debug("Skipping version check: missing installation id");
       return null;
     }
+    const envelope = buildSageProxyEnvelope({
+      iid: context.iid,
+      versionApp: currentVersion,
+      agentRuntime: context.agentRuntime,
+      agentRuntimeVersion: context.agentRuntimeVersion ?? "unknown"
+    });
+    const extendedInfo = await loadExtendedInfo(void 0, logger2).catch(() => null);
+    const enriched = mergeExtendedInfo(envelope, extendedInfo);
     const response = await fetch(resolveEndpoint("/v2/version-check"), {
       method: "POST",
       signal: AbortSignal.timeout(timeoutMs),
@@ -19705,12 +20392,7 @@ async function checkForUpdate(currentVersion, logger2 = nullLogger, timeoutMs = 
         Accept: "application/json",
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(buildSageProxyEnvelope({
-        iid: context.iid,
-        versionApp: currentVersion,
-        agentRuntime: context.agentRuntime,
-        agentRuntimeVersion: context.agentRuntimeVersion ?? "unknown"
-      }))
+      body: JSON.stringify(enriched)
     });
     if (!response.ok) {
       logger2.debug(`Version check HTTP ${response.status}`);
@@ -19739,6 +20421,16 @@ async function runSessionStart(ctx) {
   const sageDirPath = resolvePath(ctx.sageDirPath ?? "~/.sage");
   pruneOrphanedTmpFiles(sageDirPath).catch(() => {
   });
+  maybeSpawnModelDownloadWorker({
+    sageDirPath,
+    workerPath: ctx.modelDownloadWorkerPath,
+    configPath: ctx.configPath,
+    agentRuntime: ctx.agentRuntime,
+    agentRuntimeVersion: ctx.agentRuntimeVersion,
+    versionApp: ctx.version,
+    logger: logger2
+  }).catch(() => {
+  });
   const iidPromise = getInstallationId(sageDirPath).catch(() => void 0);
   const [scanResults, versionCheck] = await Promise.all([
     runSessionStartScan({
@@ -19765,10 +20457,57 @@ async function runSessionStart(ctx) {
   ]);
   return { scanResults, versionCheck };
 }
+async function maybeSpawnModelDownloadWorker(args) {
+  if (!args.workerPath)
+    return;
+  if (!(0, import_node_fs2.existsSync)(args.workerPath)) {
+    args.logger.debug(`model download worker script not found at ${args.workerPath}`);
+    return;
+  }
+  if (!anyRequiredModelMissing(MODEL_SCHEMA_VERSION, args.sageDirPath))
+    return;
+  let piEnabled = false;
+  try {
+    const config = await loadConfig(args.configPath, args.logger);
+    piEnabled = config.pi_check.enabled && !config.pi_check.model_path;
+  } catch {
+    piEnabled = false;
+  }
+  if (!piEnabled)
+    return;
+  spawnModelDownloadWorker({
+    sageDirPath: args.sageDirPath,
+    workerPath: args.workerPath,
+    agentRuntime: args.agentRuntime,
+    agentRuntimeVersion: args.agentRuntimeVersion,
+    versionApp: args.versionApp,
+    logger: args.logger
+  });
+}
+function spawnModelDownloadWorker(args) {
+  const logger2 = args.logger ?? nullLogger;
+  try {
+    const child = (0, import_node_child_process.spawn)(process.execPath, [args.workerPath], {
+      detached: true,
+      stdio: "ignore",
+      env: {
+        ...process.env,
+        SAGE_DIR: args.sageDirPath,
+        SAGE_AGENT_RUNTIME: String(args.agentRuntime ?? "unknown"),
+        SAGE_AGENT_RUNTIME_VERSION: args.agentRuntimeVersion ?? "",
+        SAGE_VERSION_APP: args.versionApp ?? "",
+        SAGE_MODEL_SCHEMA: MODEL_SCHEMA_VERSION
+      }
+    });
+    child.unref();
+  } catch (err) {
+    logger2.debug(`failed to spawn model download worker: ${err}`);
+  }
+}
 
 // ../core/dist/scan-handler.js
-async function runPluginScan(logger2, context, plugins, threatsDir, allowlistsDir, version, agentRuntime, branding = defaultBranding) {
-  logger2.info(`${branding.product_name} plugin scan started (${context})`, {
+async function runPluginScan(logger2, context, plugins, threatsDir, allowlistsDir, version, agentRuntime, branding = defaultBranding, modelDownloadWorkerPath, style = "verbose") {
+  logger2.info(`${branding.name} plugin scan started (${context})`, {
     threatsDir,
     allowlistsDir
   });
@@ -19778,13 +20517,14 @@ async function runPluginScan(logger2, context, plugins, threatsDir, allowlistsDi
     allowlistsDir,
     version,
     logger: logger2,
-    agentRuntime
+    agentRuntime,
+    modelDownloadWorkerPath
   });
-  logger2.info(`${branding.product_name} plugin scan (${context}) complete`, {
+  logger2.info(`${branding.name} plugin scan (${context}) complete`, {
     findings: result.scanResults.length,
     updateAvailable: result.versionCheck?.updateAvailable ?? false
   });
-  return formatSessionStartMessage(version, result, branding);
+  return formatSessionStartMessage(version, result, branding, style);
 }
 
 // ../core/dist/index.js
@@ -19872,6 +20612,9 @@ async function pruneStaleSessionFiles(logger2 = nullLogger) {
   }
 }
 
+// src/constants.ts
+var STATUSLINE_MARKER = "sage-statusline.cjs";
+
 // src/session-start.ts
 var logger = (0, import_pino.default)({ level: "warn" }, import_pino.default.destination(2));
 function getPluginRoot() {
@@ -19879,7 +20622,7 @@ function getPluginRoot() {
 }
 function getPluginManifest(pluginRoot) {
   try {
-    const manifest = (0, import_node_fs.readFileSync)((0, import_node_path14.join)(pluginRoot, ".claude-plugin", "plugin.json"), "utf-8");
+    const manifest = (0, import_node_fs3.readFileSync)((0, import_node_path14.join)(pluginRoot, ".claude-plugin", "plugin.json"), "utf-8");
     const parsed = JSON.parse(manifest);
     return {
       name: parsed.name ?? null,
@@ -19889,10 +20632,9 @@ function getPluginManifest(pluginRoot) {
     return { name: null, version: "0.0.0" };
   }
 }
-var STATUSLINE_MARKER = "sage-statusline.cjs";
 function getSessionId() {
   try {
-    const input = (0, import_node_fs.readFileSync)(0, "utf-8");
+    const input = (0, import_node_fs3.readFileSync)(0, "utf-8");
     const parsed = JSON.parse(input);
     return parsed.session_id ?? "unknown";
   } catch {
@@ -19915,13 +20657,36 @@ async function readSettingsJson(path) {
   }
   return null;
 }
+var INTERPRETERS = /^(bash|sh|zsh|dash|fish|env|node|deno|python\d?|perl|ruby)$/;
+var SCRIPT_READ_LIMIT = 64 * 1024;
+async function scriptReferencesMarker(command, home) {
+  const tokens = command.match(/(?:"([^"]+)"|'([^']+)'|(\S+))/g) ?? [];
+  const scriptToken = tokens.map((raw) => raw.replace(/^["']|["']$/g, "")).find((t) => !t.startsWith("-") && !INTERPRETERS.test((0, import_node_path14.basename)(t)));
+  if (!scriptToken) return false;
+  const resolved = scriptToken.replace(/^~/, home);
+  try {
+    const info = await (0, import_promises9.stat)(resolved);
+    if (!info.isFile()) return false;
+    const handle = await (0, import_promises9.open)(resolved, "r");
+    try {
+      const len = Math.min(info.size, SCRIPT_READ_LIMIT);
+      const buf = Buffer.alloc(len);
+      await handle.read(buf, 0, len, 0);
+      return buf.toString("utf8").includes(STATUSLINE_MARKER);
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    return false;
+  }
+}
 async function configureStatusLine(pluginRoot, branding) {
   const home = process.env.HOME ?? "";
   if (!home) return null;
   const settingsPath = (0, import_node_path14.join)(home, ".claude", "settings.json");
   const settings = await readSettingsJson(settingsPath);
   if (settings === null) {
-    return `${branding.product_name}: ${settingsPath} appears corrupt \u2014 skipping status line auto-configuration.`;
+    return `${branding.name}: ${settingsPath} appears corrupt \u2014 skipping status line auto-configuration.`;
   }
   const statuslineCjs = (0, import_node_path14.join)(pluginRoot, "packages", "claude-code", "dist", "sage-statusline.cjs");
   const command = `node "${statuslineCjs}"`;
@@ -19935,7 +20700,10 @@ async function configureStatusLine(pluginRoot, branding) {
     return null;
   }
   if (existingCommand) {
-    return `${branding.product_name} status line: You already have a custom status line. To add ${branding.product_name} status, include \`node "${statuslineCjs}"\` in your script or pipe its output alongside yours.`;
+    if (await scriptReferencesMarker(existingCommand, home)) {
+      return null;
+    }
+    return `${branding.name} status line: You already have a custom status line. To add ${branding.name} status, include \`node "${statuslineCjs}"\` in your script or pipe its output alongside yours.`;
   }
   settings.statusLine = { type: "command", command };
   await atomicWriteJson(settingsPath, settings);
@@ -19943,21 +20711,15 @@ async function configureStatusLine(pluginRoot, branding) {
 }
 async function main() {
   const sessionId = getSessionId();
-  const branding = await loadBranding(logger);
+  const config = await loadConfig(void 0, logger);
+  const branding = resolveBranding(config.brand_key, logger);
   await pruneStaleSessionFiles(logger);
   pruneSessionStatusFiles().catch(() => {
-  });
-  initSessionStatus(sessionId).catch(() => {
   });
   const pluginRoot = getPluginRoot();
   const threatsDir = (0, import_node_path14.join)(pluginRoot, "threats");
   const allowlistsDir = (0, import_node_path14.join)(pluginRoot, "allowlists");
   const manifest = getPluginManifest(pluginRoot);
-  let statusLineHint = null;
-  try {
-    statusLineHint = await configureStatusLine(pluginRoot, branding);
-  } catch {
-  }
   let plugins = await discoverPlugins(void 0, logger);
   if (manifest.name) {
     const prefix = `${manifest.name}@`;
@@ -19971,8 +20733,18 @@ async function main() {
     allowlistsDir,
     manifest.version,
     "claude-code",
-    branding
+    branding,
+    (0, import_node_path14.resolve)(__dirname, "model-download-worker.cjs")
   );
+  try {
+    await initSessionStatus(sessionId);
+  } catch {
+  }
+  let statusLineHint = null;
+  try {
+    statusLineHint = await configureStatusLine(pluginRoot, branding);
+  } catch {
+  }
   const migrationNeeded = await needsMarketplaceMigration();
   let finalMsg = migrationNeeded ? `${statusMsg}
 ${formatMigrationNotice(branding)}` : statusMsg;

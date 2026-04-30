@@ -3,43 +3,37 @@ import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
-	type AgentRuntime,
 	type Branding,
 	ConfigSchema,
-	checkForUpdate,
-	getInstallationId,
 	getRecentEntries,
-	loadBrandingSync,
 	loadConfig,
-	pruneOrphanedTmpFiles,
+	loadConfigSync,
+	resolveBranding,
 	resolvePath,
 	type SessionStatus,
 } from "@gendigital/sage-core";
 import * as vscode from "vscode";
 import { disabledUntilKey, shouldAutoEnable } from "./auto_enable_logic.js";
-import type {
-	ManagedHookHealth,
-	ManagedHookInstallOptions,
-	ManagedHookScope,
-} from "./managedHooks.js";
+import { createExtensionLogger } from "./extension-logger.js";
+import type { ManagedHookHealth, ManagedHookInstallOptions } from "./managedHooks.js";
 import {
 	installCursorMcpServer,
 	registerVsCodeMcpServerProvider,
 	removeCursorMcpServer,
 } from "./mcp_config_installer.js";
+import { createExtensionScanHandler } from "./startup-scan.js";
 
 interface ManagedHookInstaller {
 	installManagedHooks(
 		options: ManagedHookInstallOptions,
 		branding?: Branding,
 	): Promise<ManagedHookHealth>;
-	removeManagedHooks(scope: ManagedHookScope): Promise<string>;
+	removeManagedHooks(): Promise<string>;
 	getHookHealth(options: ManagedHookInstallOptions): Promise<ManagedHookHealth>;
 }
 
 interface ExtensionTarget {
 	hostName: string;
-	scopeSettingKey: string;
 	installer: ManagedHookInstaller;
 }
 
@@ -47,51 +41,38 @@ export function activateManagedHooksExtension(
 	context: vscode.ExtensionContext,
 	target: ExtensionTarget,
 ): void {
-	const branding = loadBrandingSync();
-
-	// Best-effort cleanup of orphaned .tmp files from crashed atomic writes
-	pruneOrphanedTmpFiles(resolvePath("~/.sage")).catch(() => {});
+	const config = loadConfigSync();
+	const branding = resolveBranding(config.brand_key);
 
 	// Watch ~/.sage/ for statusline file changes and show IDE notifications
 	setupStatusFileWatcher(context, branding);
 
-	const version = (context.extension.packageJSON as Record<string, unknown>).version as string;
-	if (version) {
-		const agentRuntime: AgentRuntime = target.hostName === "Cursor" ? "cursor" : "vscode";
-		const sageDirPath = resolvePath("~/.sage");
-		getInstallationId(sageDirPath)
-			.then((iid) => {
-				if (!iid) {
-					return;
-				}
-
-				checkForUpdate(version, undefined, undefined, {
-					agentRuntime,
-					agentRuntimeVersion: vscode.version,
-					iid,
-				}).then((result) => {
-					if (result?.updateAvailable) {
-						void vscode.window.showInformationMessage(
-							`${branding.product_name}: Update available v${result.currentVersion} → v${result.latestVersion} (https://github.com/gendigitalinc/sage)`,
-						);
-					}
-				});
-			})
-			.catch(() => {
-				// Fail-open: never block extension activation
-			});
-	}
+	// Session-start plugin scan (fire-and-forget, fail-open).
+	// runSessionStart (called internally) handles update check, model download,
+	// and temp-file cleanup — no need to duplicate those here.
+	const logger = createExtensionLogger(branding);
+	const scanHandler = createExtensionScanHandler(
+		context,
+		target.hostName,
+		logger,
+		branding,
+		(msg) => {
+			if (msg.includes("Threat Detected")) {
+				void vscode.window.showErrorMessage(msg);
+			} else if (msg.includes("Update available")) {
+				void vscode.window.showInformationMessage(msg);
+			} else {
+				logger.info(msg);
+			}
+		},
+	);
+	scanHandler().catch(() => {});
 
 	// Set brand context variable for command palette filtering
 	if (branding.brand_key) {
 		const knownBrands = extractKnownBrandsFromManifest(context);
 		if (knownBrands.has(branding.brand_key)) {
 			vscode.commands.executeCommand("setContext", "sage.brandKey", branding.brand_key);
-		} else {
-			// Fail-open: unknown brand_key → keep default commands visible
-			void vscode.window.showWarningMessage(
-				`${branding.product_name}: Unknown brand_key "${branding.brand_key}" in ~/.sage/branding.json — using default commands.`,
-			);
 		}
 	}
 
@@ -113,28 +94,26 @@ export function activateManagedHooksExtension(
 
 	registerForAllVariants("sage.enableProtection", async () => {
 		await errorBoundary(async () => {
-			const scope = getScope(target.scopeSettingKey);
-			const hookHealth = await target.installer.installManagedHooks({ context, scope }, branding);
+			const hookHealth = await target.installer.installManagedHooks({ context }, branding);
 			if (target.hostName === "Cursor") {
 				await installCursorMcpServer(context);
 			}
-			await context.globalState.update(disabledUntilKey(target.hostName, scope), undefined);
+			await context.globalState.update(disabledUntilKey(target.hostName), undefined);
 			vscode.window.showInformationMessage(
-				`${branding.product_name} enabled for ${target.hostName}. Managed hooks configured at ${hookHealth.configPath}.`,
+				`${branding.short_name} enabled for ${target.hostName}. Managed hooks configured at ${hookHealth.configPath}.`,
 			);
 		});
 	});
 
 	registerForAllVariants("sage.disableProtection", async () => {
 		await errorBoundary(async () => {
-			const scope = getScope(target.scopeSettingKey);
-			const configPath = await target.installer.removeManagedHooks(scope);
+			const configPath = await target.installer.removeManagedHooks();
 			if (target.hostName === "Cursor") {
 				await removeCursorMcpServer();
 			}
-			await context.globalState.update(disabledUntilKey(target.hostName, scope), Date.now());
+			await context.globalState.update(disabledUntilKey(target.hostName), Date.now());
 			vscode.window.showInformationMessage(
-				`${branding.product_name} disabled until restart. Hooks removed from ${configPath}. Protection will re-enable on next startup.`,
+				`${branding.short_name} disabled until restart. Hooks removed from ${configPath}. Protection will re-enable on next startup.`,
 			);
 		});
 	});
@@ -169,8 +148,7 @@ export function activateManagedHooksExtension(
 
 	registerForAllVariants("sage.showHookHealth", async () => {
 		await errorBoundary(async () => {
-			const scope = getScope(target.scopeSettingKey);
-			const health = await target.installer.getHookHealth({ context, scope });
+			const health = await target.installer.getHookHealth({ context });
 			const config = await loadConfig();
 			const recentEntries = await getRecentEntries(config.logging, 1);
 			const latest =
@@ -216,40 +194,33 @@ async function autoEnableOnStartup(
 			registerVsCodeMcpServerProvider(context);
 		}
 
-		const scope = getScope(target.scopeSettingKey);
-
-		const key = disabledUntilKey(target.hostName, scope);
+		const key = disabledUntilKey(target.hostName);
 		const disabledAt = context.globalState.get<number>(key);
 		if (!shouldAutoEnable(disabledAt, Date.now())) {
 			return;
 		}
 		await context.globalState.update(key, undefined);
 
-		const hookHealth = await target.installer.getHookHealth({ context, scope }).catch(() => null);
+		const hookHealth = await target.installer.getHookHealth({ context }).catch(() => null);
 		const hasManagedHooks = !!hookHealth && hookHealth.installedEvents.length > 0;
 		if (!hasManagedHooks) {
-			await target.installer.installManagedHooks({ context, scope }, branding);
+			await target.installer.installManagedHooks({ context }, branding);
 		}
 
 		if (target.hostName === "Cursor") {
 			await installCursorMcpServer(context);
 		}
 
-		const shownKey = `sage.autoEnabledShown.${target.hostName}.${scope}`;
+		const shownKey = `sage.autoEnabledShown.${target.hostName}`;
 		if (!context.globalState.get<boolean>(shownKey)) {
 			await context.globalState.update(shownKey, true);
 			void vscode.window.showInformationMessage(
-				`${branding.product_name}: Protection auto-enabled for ${target.hostName}. Disable via "${branding.product_name}: Disable protection until restart".`,
+				`${branding.short_name}: Protection auto-enabled for ${target.hostName}. Disable via "${branding.short_name}: Disable protection until restart".`,
 			);
 		}
 	} catch {
 		// Fail-open: never block extension activation.
 	}
-}
-
-function getScope(scopeSettingKey: string): ManagedHookScope {
-	const value = vscode.workspace.getConfiguration().get<string>(scopeSettingKey);
-	return value === "workspace" ? "workspace" : "user";
 }
 
 async function ensureFile(filePath: string, content: string): Promise<void> {
@@ -267,7 +238,7 @@ function withErrorBoundary(branding: Branding) {
 			await work();
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			void vscode.window.showErrorMessage(`${branding.product_name}: ${message}`);
+			void vscode.window.showErrorMessage(`${branding.short_name}: ${message}`);
 		}
 	};
 }
@@ -306,13 +277,13 @@ function setupStatusFileWatcher(context: vscode.ExtensionContext, branding: Bran
 					const reason = data.lastReason ?? "Threat detected";
 					const category = data.lastCategory ?? "unknown";
 					void vscode.window.showErrorMessage(
-						`${branding.product_name} blocked: ${reason} (${category})`,
+						`${branding.short_name} blocked: ${reason} (${category})`,
 					);
 				} else if (data.flagged > prev.flagged) {
 					const reason = data.lastReason ?? "Action flagged";
 					const category = data.lastCategory ?? "unknown";
 					void vscode.window.showWarningMessage(
-						`${branding.product_name} flagged: ${reason} (${category})`,
+						`${branding.short_name} flagged: ${reason} (${category})`,
 					);
 				}
 

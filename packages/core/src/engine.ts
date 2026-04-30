@@ -7,11 +7,13 @@ import type {
 	Decision,
 	HeuristicMatch,
 	PackageCheckResult,
+	PiCheckResult,
 	SignalSources,
 	UrlCheckResult,
 	Verdict,
 	VerdictSeverity,
 } from "./types.js";
+import { DEFAULT_PI_HIGH_RISK_THRESHOLD, DEFAULT_PI_MEDIUM_RISK_THRESHOLD } from "./types.js";
 
 /** Default confidence threshold. */
 export const CONFIDENCE_THRESHOLD = 0.85;
@@ -56,11 +58,43 @@ interface Signal {
 	artifact: string;
 }
 
+const PI_LABEL_ONLY_SUFFIXES: ReadonlySet<string> = new Set([
+	"command",
+	"stdout",
+	"stderr",
+	"output",
+]);
+
+function displayContentName(contentName: string): string {
+	const colonIdx = contentName.indexOf(":");
+	if (colonIdx === -1) return contentName;
+	const rest = contentName.slice(colonIdx + 1);
+	if (PI_LABEL_ONLY_SUFFIXES.has(rest)) return contentName;
+	const trimmed = rest.replace(/[/\\]+$/, "");
+	const sepIdx = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+	const base = sepIdx === -1 ? trimmed : trimmed.slice(sepIdx + 1);
+	return base || rest;
+}
+
+function buildPiReason(prefix: string, result: PiCheckResult): string {
+	return `${prefix} in ${formatPiFinding(result)}`;
+}
+
+function formatPiFinding(result: PiCheckResult): string {
+	const where = displayContentName(result.contentName);
+	const score = `score: ${result.risk.toFixed(3)}`;
+	const snippet = result.findings[0]?.replace(/\s+/g, " ").trim();
+	if (snippet) return `${where} (${score}): "${snippet}"`;
+	return `${where} (${score})`;
+}
+
 export class DecisionEngine {
 	private readonly threshold: number;
+	private readonly sensitivity: string;
 
 	constructor(sensitivity = "balanced") {
 		this.threshold = SENSITIVITY_THRESHOLDS[sensitivity] ?? CONFIDENCE_THRESHOLD;
+		this.sensitivity = sensitivity;
 	}
 
 	async decide(sources: SignalSources): Promise<Verdict> {
@@ -69,6 +103,8 @@ export class DecisionEngine {
 			sources.urlCheckResults,
 			sources.packageCheckResults,
 			sources.amsiCheckResults,
+			sources.piCheckResults,
+			sources.piThresholds,
 		);
 
 		if (signals.length === 0) {
@@ -88,7 +124,13 @@ export class DecisionEngine {
 		const maxConfidence = Math.max(...signals.map((s) => s.confidence));
 
 		let decision = top.decision;
-		if (decision === "deny" && maxConfidence < this.threshold) {
+		// PI check signals bypass the sensitivity-driven deny→ask demotion: the
+		// model already made a binary decision at its configured threshold and
+		// the v8 model scores deny signals in the 0.93–0.99 band, which exceeds
+		// every sensitivity level. Sensitivity coupling for medium-risk PI
+		// signals lives in `collectSignals` (relaxed mode suppresses them) so
+		// the suppressed signal never reaches the engine's decision step.
+		if (decision === "deny" && maxConfidence < this.threshold && top.source !== "pi_check") {
 			decision = "ask";
 		}
 
@@ -109,6 +151,8 @@ export class DecisionEngine {
 		urlCheckResults: UrlCheckResult[],
 		packageCheckResults?: PackageCheckResult[],
 		amsiCheckResults?: AmsiCheckResult[],
+		piCheckResults?: PiCheckResult[],
+		piThresholds?: { highRisk: number; mediumRisk: number },
 	): Signal[] {
 		const signals: Signal[] = [];
 
@@ -138,19 +182,6 @@ export class DecisionEngine {
 					source: "url_check",
 					threatId: null,
 					reason: `Malicious URL (${findingDetails})`,
-					artifact: result.url,
-				});
-			}
-
-			for (const flag of result.flags) {
-				signals.push({
-					decision: "ask",
-					category: "network_egress",
-					confidence: 0.75,
-					severity: "warning",
-					source: "url_check",
-					threatId: null,
-					reason: `Suspicious URL: ${flag}`,
 					artifact: result.url,
 				});
 			}
@@ -187,6 +218,38 @@ export class DecisionEngine {
 						source: "amsi",
 						threatId: null,
 						reason: `AMSI: content blocked by admin policy in ${result.contentName} (result=${result.amsiResult})`,
+						artifact: result.contentName,
+					});
+				}
+			}
+		}
+
+		if (piCheckResults) {
+			const highRisk = piThresholds?.highRisk ?? DEFAULT_PI_HIGH_RISK_THRESHOLD;
+			const mediumRisk = piThresholds?.mediumRisk ?? DEFAULT_PI_MEDIUM_RISK_THRESHOLD;
+			const suppressMediumPi = this.sensitivity === "relaxed";
+
+			for (const result of piCheckResults) {
+				if (result.risk >= highRisk) {
+					signals.push({
+						decision: "deny",
+						category: "prompt_injection",
+						confidence: result.risk,
+						severity: "critical",
+						source: "pi_check",
+						threatId: "PROMPT_INJECTION",
+						reason: buildPiReason("Prompt injection detected", result),
+						artifact: result.contentName,
+					});
+				} else if (!suppressMediumPi && result.risk >= mediumRisk) {
+					signals.push({
+						decision: "ask",
+						category: "prompt_injection",
+						confidence: result.risk,
+						severity: "warning",
+						source: "pi_check",
+						threatId: "PROMPT_INJECTION",
+						reason: buildPiReason("Suspicious content detected", result),
 						artifact: result.contentName,
 					});
 				}

@@ -1,5 +1,16 @@
 # @gendigital/sage-mcp
 
+## 0.9.0
+
+### Minor Changes
+
+- Bundle brand definitions internally and resolve via `config.brand_key`. Replaces `product_name`/`banner_text` with `name` (full) and `short_name` (for space-constrained notification bubbles).
+- improve audit log and telemetry to produce accurate data for verdict tracking and reporting issues
+
+### Patch Changes
+- Updated dependencies
+  - @gendigital/sage-core@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes

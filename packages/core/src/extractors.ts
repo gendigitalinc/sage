@@ -10,8 +10,8 @@ const URL_PATTERN = /https?:\/\/[^\s"')<>[\]{}]+/g;
 /** Trailing punctuation that's likely not part of the URL. */
 const TRAILING_PUNCT = /[.,;:!?]+$/;
 
-/** Maximum content size to scan (64KB). */
-const MAX_CONTENT_SIZE = 64 * 1024;
+/** Maximum per-string content size to scan (64KB). Single source of truth. */
+export const MAX_CONTENT_SIZE = 64 * 1024;
 
 /** Detect base64-decode piped to execution: echo "..." | base64 -d | bash */
 const BASE64_DECODE_EXEC =

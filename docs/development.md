@@ -36,18 +36,26 @@ Bypass any hook with `--no-verify` (e.g. `git commit --no-verify`).
 | `pnpm test -- --reporter=verbose` | Verbose test output |
 | `pnpm test -- <file>` | Run a single test file |
 | `pnpm test -- -t "name"` | Run tests matching name |
-| `pnpm test:e2e` | All E2E tests (Claude Code + OpenClaw + OpenCode + Cursor + VS Code) |
+| `pnpm test:e2e` | All E2E tests (Claude Code + OpenClaw + OpenCode + Cursor + VS Code + Copilot CLI) |
 | `pnpm test:e2e:claude` | Claude Code E2E tests only |
 | `pnpm test:e2e:openclaw` | OpenClaw E2E tests only |
 | `pnpm test:e2e:opencode` | OpenCode E2E tests only |
 | `pnpm test:e2e:cursor` | Cursor extension E2E tests only |
 | `pnpm test:e2e:vscode` | VS Code extension E2E tests only |
+| `pnpm test:e2e:copilot-cli` | Copilot CLI E2E tests only |
 | `pnpm build:sea` | Build standalone SEA binaries |
 | `pnpm lint` | Lint with Biome |
 | `pnpm lint:fix` | Lint + auto-fix |
 | `pnpm check` | Type check all packages |
 | `pnpm changeset` | Create a changeset for your changes |
 | `pnpm run version` | Apply changesets: bump versions, generate changelogs, sync manifests |
+| `pnpm eval:pi` | PI (prompt-injection) accuracy benchmark (manual; requires the model to be present at `~/.sage/models/<schema>/pi-model/`) |
+
+### `pnpm eval:pi`
+
+The PI model is not part of the repo. Before the first run, place the model under `~/.sage/models/<schema>/pi-model/`.
+
+If the model directory is missing or incomplete, the script exits non-zero with a list of the specific files it couldn't find plus a hint on how to populate the directory. The first run on a fresh machine also installs the model runtime into the model directory's `node_modules/` (the same one-time install the runtime does), so expect the cold start to take longer that one time only.
 
 ## Test Tiers
 
@@ -60,12 +68,13 @@ Bypass any hook with `--no-verify` (e.g. `git commit --no-verify`).
 | E2E (OpenCode) | OpenCode CLI smoke test | `packages/opencode/src/__tests__/e2e.test.ts` | OpenCode CLI executable |
 | E2E (Cursor extension) | Sage extension in Cursor Extension Host | `packages/extension/src/__tests__/e2e.test.ts` | Installed Cursor executable (`agent` CLI required for headless Cursor-agent sub-suite) |
 | E2E (VS Code extension) | Sage extension in VS Code Extension Host | `packages/extension/src/__tests__/e2e.test.ts` | Installed VS Code executable |
+| E2E (Copilot CLI) | Sage hooks in Copilot CLI | `packages/extension/src/__tests__/e2e-copilot-cli.test.ts` | `copilot` CLI + GitHub auth |
 
-`pnpm test` runs unit and integration tests. E2E is excluded — run separately with `pnpm test:e2e` (all), `pnpm test:e2e:claude`, `pnpm test:e2e:openclaw`, `pnpm test:e2e:opencode`, `pnpm test:e2e:cursor`, or `pnpm test:e2e:vscode`.
+`pnpm test` runs unit and integration tests. E2E is excluded — run separately with `pnpm test:e2e` (all), `pnpm test:e2e:claude`, `pnpm test:e2e:openclaw`, `pnpm test:e2e:opencode`, `pnpm test:e2e:cursor`, `pnpm test:e2e:vscode`, or `pnpm test:e2e:copilot-cli`.
 
 ### Dummy Canary Rules
 
-E2E tests use dummy canary rules (`threats/dummy.yaml`) instead of real threat patterns. The canary rules match harmless, highly-specific marker strings (e.g. `__sage_test_deny_cmd_a75bf229__`) that would never appear in real usage. This avoids AI models self-refusing "dangerous-looking" prompts before Sage gets a chance to intercept them. Distribution packages exclude `dummy*.yaml` via `sync-assets` filters in each connector.
+E2E tests use dummy canary rules (`threats/dummy.yaml`) instead of real threat patterns. The canary rules match harmless, highly-specific marker strings (e.g. `__sage_test_deny_cmd_a75bf229__`) that would never appear in real usage. This avoids AI models self-refusing "dangerous-looking" prompts before Sage gets a chance to intercept them. Canary rules are included in all distribution packages alongside real threat definitions.
 
 **Claude Code E2E prerequisites:** `claude` CLI in PATH, valid `ANTHROPIC_API_KEY`, and Sage must **not** be installed via the Claude Code marketplace (duplicate-plugin conflict with `--plugin-dir`).
 
@@ -98,6 +107,32 @@ Extension hooks always exit with code `0`; the host reads the JSON response from
 ```bash
 pnpm test:e2e:cursor
 pnpm test:e2e:vscode
+```
+
+### Copilot CLI E2E Setup
+
+The Copilot CLI E2E tests load Sage as a plugin via `--plugin-dir` (same pattern as the Claude Code E2E with `--plugin-dir`) and verify that Copilot CLI respects hook verdicts. No changes are made to the real `~/.copilot/` directory.
+
+**Prerequisites:**
+
+- `copilot` CLI in PATH (install via [GitHub Copilot CLI docs](https://docs.github.com/copilot/how-tos/copilot-cli))
+- Authenticated: `copilot login`, or set `GITHUB_TOKEN` / `GH_TOKEN` / `COPILOT_GITHUB_TOKEN`
+- Extension must be built (handled by Vitest `globalSetup`)
+
+The suite auto-skips if `copilot` is not in PATH. It does **not** detect missing auth — if the CLI is present but not authenticated, tests will fail with auth errors rather than skipping.
+
+The tests use `claude-haiku-4.5` by default for reliable tool-calling behavior. The tests use the same dummy canary rules as other E2E suites.
+
+**Optional environment variables:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `COPILOT_E2E_MODEL` | `claude-haiku-4.5` | Model to use for E2E tests |
+
+**Running the tests:**
+
+```bash
+pnpm test:e2e:copilot-cli
 ```
 
 ### OpenClaw E2E Setup
