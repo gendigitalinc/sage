@@ -445,3 +445,106 @@
   # Upstream: ATR-2026-00114 (token interception). Catches the deception
   # pattern where an agent is instructed to exfiltrate a real credential
   # while labeling it as encrypted/encoded/obfuscated.
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Added 2026-05-12 — privilege_escalation gap rules from ATR upstream.
+# Generated via agent-threat-rules/converters/sage; see docs/INTEROP.md and
+# threats/.atr-bridge-config.yaml for the bridge integration mechanism.
+# ═══════════════════════════════════════════════════════════════════════════
+
+- id: "CLT-PRV-001a"
+  category: privilege_escalation
+  severity: critical
+  confidence: 0.9
+  action: block
+  pattern: "\\b(?:destination|dest|target|output|out_path|out_file|file|path|to|filename|filepath|file_path)[\"\\x27]?\\s*[:=]\\s*[\"\\x27]?[^\"\\x27,)]{0,40}(?:AppData[\\\\/]+Roaming[\\\\/]+Microsoft[\\\\/]+Windows[\\\\/]+Start Menu[\\\\/]+Programs[\\\\/]+Startup|[\\\\/]+Start Menu[\\\\/]+Programs[\\\\/]+Startup[\\\\/]+|[\\\\/]+\\.config[\\\\/]+autostart[\\\\/]+|[\\\\/]+\\.config[\\\\/]+systemd[\\\\/]+user[\\\\/]+|/etc/cron\\.(?:hourly|daily|weekly|monthly|d)/|/etc/init\\.d/|/etc/systemd/system/|/Library/LaunchAgents/|/Library/LaunchDaemons/|~/Library/LaunchAgents/)"
+  match_on: content
+  case_insensitive: true
+  title: "Microsoft Semantic Kernel SessionsPythonPlugin Arbitrary File Write + Startup Persistence (CVE-20..."
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00441 (MIT) — https://github.com/Agent-Threat-Rule/agent-threat-rules/blob/main/rules/privilege-escalation/ATR-2026-00441.yaml
+
+  # Detects: Tool descriptor referencing Semantic Kernel SessionsPythonPlugin or its fully-qualified variants — narrowed to SK-specific identifiers.
+- id: "CLT-PRV-001b"
+  category: privilege_escalation
+  severity: critical
+  confidence: 0.9
+  action: block
+  pattern: "\\b(?:SessionsPythonPlugin|Microsoft\\.SemanticKernel\\.Plugins\\.[A-Za-z]*Sessions|kernel_function_download_file|sessions_python)\\b"
+  match_on: content
+  case_insensitive: true
+  title: "Microsoft Semantic Kernel SessionsPythonPlugin Arbitrary File Write + Startup Persistence (CVE-20..."
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00441 (MIT) — https://github.com/Agent-Threat-Rule/agent-threat-rules/blob/main/rules/privilege-escalation/ATR-2026-00441.yaml
+
+  # Detects: Tool descriptor that explicitly advertises file-write to arbitrary / user-supplied / unvalidated paths — over-privileged descriptor pattern that enables CVE-2026-25592.
+- id: "CLT-PRV-001c"
+  category: privilege_escalation
+  severity: critical
+  confidence: 0.9
+  action: block
+  pattern: "(?:download|write|save)[^.]{0,120}\\b(?:to\\s+)?(?:arbitrary\\s+(?:path|location)|any\\s+(?:directory|location|path)|user[-_]?(?:supplied|specified|provided)\\s+path|unvalidated\\s+path)\\b"
+  match_on: content
+  case_insensitive: true
+  title: "Microsoft Semantic Kernel SessionsPythonPlugin Arbitrary File Write + Startup Persistence (CVE-20..."
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00441 (MIT) — https://github.com/Agent-Threat-Rule/agent-threat-rules/blob/main/rules/privilege-escalation/ATR-2026-00441.yaml
+
+  # Detects: Direct file-write function call whose destination argument is an autostart path — explicit exploit signature with two anchors (call site + path).
+- id: "CLT-PRV-001d"
+  category: privilege_escalation
+  severity: critical
+  confidence: 0.9
+  action: block
+  pattern: "\\b(?:DownloadFileAsync|download_file|fs\\.writeFile|writeFile(?:Sync)?)\\s*\\(\\s*[\"\\x27]?[^)]{0,200}(?:[\\\\/]+Start Menu[\\\\/]+Programs[\\\\/]+Startup[\\\\/]+|AppData[\\\\/]+Roaming[\\\\/]+Microsoft[\\\\/]+Windows|[\\\\/]+\\.config[\\\\/]+autostart[\\\\/]+|/etc/cron\\.(?:hourly|daily|weekly|monthly|d)/|/Library/LaunchAgents/|/etc/systemd/system/)"
+  match_on: content
+  case_insensitive: true
+  title: "Microsoft Semantic Kernel SessionsPythonPlugin Arbitrary File Write + Startup Persistence (CVE-20..."
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00441 (MIT) — https://github.com/Agent-Threat-Rule/agent-threat-rules/blob/main/rules/privilege-escalation/ATR-2026-00441.yaml
+
+  # Detects: Windows registry Run-key persistence (`reg add HKCU\..\Run`, full Run-key path, or `regedit /s`) — alternative persistence vector. Word-boundary anchored to avoid substring matches in normal English (register, regex, aggregated).
+- id: "CLT-PRV-001e"
+  category: privilege_escalation
+  severity: critical
+  confidence: 0.9
+  action: block
+  pattern: "(?:\\breg\\s+add\\s+(?:HKCU|HKLM|HKEY_)|HKCU\\\\\\\\Software\\\\\\\\Microsoft\\\\\\\\Windows\\\\\\\\CurrentVersion\\\\\\\\Run|HKLM\\\\\\\\Software\\\\\\\\Microsoft\\\\\\\\Windows\\\\\\\\CurrentVersion\\\\\\\\Run|\\bregedit(?:\\.exe)?\\s+/s\\s+)"
+  match_on: content
+  case_insensitive: true
+  title: "Microsoft Semantic Kernel SessionsPythonPlugin Arbitrary File Write + Startup Persistence (CVE-20..."
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00441 (MIT) — https://github.com/Agent-Threat-Rule/agent-threat-rules/blob/main/rules/privilege-escalation/ATR-2026-00441.yaml
+
+  # Detects: Detects tools or agent instructions that invoke eval(), Function(), vm.runInNewContext(), or similar dynamic code execution primitives.
+- id: "CLT-PRV-002"
+  category: privilege_escalation
+  severity: critical
+  confidence: 0.65
+  action: require_approval
+  pattern: "(?:eval\\s*\\()|(?:new\\s+Function\\s*\\()|(?:vm\\.(runIn|createContext|compileFunction))|(?:require\\s*\\(\\s*['\"]child_process['\"])|(?:import\\s*\\(\\s*['\"]child_process)|(?:(?:process\\.binding|Reflect\\.construct\\s*\\(\\s*Function))"
+  match_on: content
+  case_insensitive: true
+  title: "Remote Code Execution via eval() and Dynamic Code Injection"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00110 (MIT) — https://github.com/Agent-Threat-Rule/agent-threat-rules/blob/main/rules/privilege-escalation/ATR-2026-00110.yaml
+
+  # Detects: Detects shell metacharacter injection patterns in tool arguments or agent-generated commands.
+- id: "CLT-PRV-003"
+  category: privilege_escalation
+  severity: critical
+  confidence: 0.65
+  action: require_approval
+  pattern: "(?:;\\s*(?:rm|cat|curl|wget|nc|ncat|bash|sh|python|perl|ruby|php))|(?:\\$\\([^)]+\\))|(?:`(?:rm|cat|curl|wget|nc|ncat|bash|sh|python|perl|ruby|php|whoami|id|uname|env|printenv|set|export|eval|exec|chmod|chown|kill|pkill|dd|mkfs|mount|umount|sudo|su|passwd)[^`]*`)|(?:(?:&&|\\|\\|)\\s*(?:curl|wget|nc|ncat|bash|sh|python|perl))|(?:\\|\\s*(?:nc|ncat|bash|sh|curl|wget|tee))|(?:(?:\\\\x00|%00|%0a|%0d))"
+  match_on: content
+  title: "Shell Metacharacter Injection in Tool Arguments"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00111 (MIT) — https://github.com/Agent-Threat-Rule/agent-threat-rules/blob/main/rules/privilege-escalation/ATR-2026-00111.yaml
