@@ -13,6 +13,8 @@ import {
 	type Branding,
 	discoverPlugins,
 	formatMigrationNotice,
+	getClaudeConfigDir,
+	getHomeDir,
 	initSessionStatus,
 	type Logger,
 	loadConfig,
@@ -120,10 +122,8 @@ async function scriptReferencesMarker(command: string, home: string): Promise<bo
  * - Another statusLine without Sage → return a hint message for the user
  */
 async function configureStatusLine(pluginRoot: string, branding: Branding): Promise<string | null> {
-	const home = process.env.HOME ?? "";
-	if (!home) return null;
-
-	const settingsPath = join(home, ".claude", "settings.json");
+	const home = getHomeDir();
+	const settingsPath = join(getClaudeConfigDir(), "settings.json");
 	const settings = await readSettingsJson(settingsPath);
 	if (settings === null) {
 		return `${branding.name}: ${settingsPath} appears corrupt — skipping status line auto-configuration.`;

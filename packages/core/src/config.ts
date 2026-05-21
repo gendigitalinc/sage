@@ -4,7 +4,7 @@
  */
 
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { getFileContent, getFileContentSync, getHomeDir } from "./file-utils.js";
+import { getFileContent, getFileContentSync, getHomeDir, getProcEnv } from "./file-utils.js";
 import type { Config, Logger } from "./types.js";
 import { ConfigSchema, nullLogger } from "./types.js";
 
@@ -44,6 +44,12 @@ export function resolvePath(pathStr: string): string {
 		return join(home, pathStr.slice(1));
 	}
 	return pathStr;
+}
+
+/** Returns the Claude Code config directory, honouring CLAUDE_CONFIG_DIR if set. */
+export function getClaudeConfigDir(): string {
+	const env = getProcEnv().CLAUDE_CONFIG_DIR;
+	return env ? resolvePath(env) : join(getHomeDir(), ".claude");
 }
 
 function isWithinDirectory(baseDir: string, targetPath: string): boolean {
