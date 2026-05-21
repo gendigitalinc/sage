@@ -25,13 +25,16 @@ import type { AmsiClient } from "./clients/amsi.js";
 import { FileCheckClient } from "./clients/file-check.js";
 import { SkillCheckClient } from "./clients/skill-check.js";
 import { UrlCheckClient } from "./clients/url-check.js";
+import { getClaudeConfigDir } from "./config.js";
 import { extractUrls } from "./extractors.js";
-import { getFileContent, getFileContentRaw, getFileContentSync, getHomeDir } from "./file-utils.js";
+import { getFileContent, getFileContentRaw, getFileContentSync } from "./file-utils.js";
 import { computeSkillIdsForRoot, SKIP_DIRS } from "./skill-id.js";
 import type { Logger, PluginFinding, PluginInfo, PluginScanResult } from "./types.js";
 import { nullLogger } from "./types.js";
 
-const DEFAULT_PLUGINS_REGISTRY = join(getHomeDir(), ".claude", "plugins", "installed_plugins.json");
+function defaultPluginsRegistry(): string {
+	return join(getClaudeConfigDir(), "plugins", "installed_plugins.json");
+}
 
 /**
  * Extensions whose contents are read from disk and fed to the URL-
@@ -68,7 +71,7 @@ const MAX_FILE_SIZE = 512 * 1024;
 export function isPluginInstalledSync(pluginName: string): boolean | null {
 	let raw: string;
 	try {
-		raw = getFileContentSync(DEFAULT_PLUGINS_REGISTRY);
+		raw = getFileContentSync(defaultPluginsRegistry());
 	} catch (err: unknown) {
 		if (
 			err &&
@@ -94,7 +97,7 @@ export function isPluginInstalledSync(pluginName: string): boolean | null {
 }
 
 export async function discoverPlugins(
-	registryPath = DEFAULT_PLUGINS_REGISTRY,
+	registryPath = defaultPluginsRegistry(),
 	logger: Logger = nullLogger,
 ): Promise<PluginInfo[]> {
 	let raw: string;

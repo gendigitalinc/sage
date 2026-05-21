@@ -16,6 +16,7 @@ import {
 import { join, resolve } from "node:path";
 import {
 	formatStatusLine,
+	getClaudeConfigDir,
 	isPluginInstalledSync,
 	loadConfigSync,
 	resolveBranding,
@@ -46,7 +47,7 @@ function isMarketplaceInstallation(): boolean {
 		// realpathSync both sides so symlinks (e.g. /var → /private/var on macOS)
 		// don't cause a false mismatch.
 		const pluginRoot = realpathSync(resolve(__dirname, "..", "..", ".."));
-		const claudeDir = realpathSync(resolvePath("~/.claude"));
+		const claudeDir = realpathSync(getClaudeConfigDir());
 		return pluginRoot.startsWith(claudeDir);
 	} catch {
 		return false;
@@ -66,7 +67,7 @@ function isPluginEnabled(): boolean {
 	if (!pluginName) return true;
 
 	try {
-		const settingsPath = resolvePath("~/.claude/settings.json");
+		const settingsPath = join(getClaudeConfigDir(), "settings.json");
 		const raw = readFileSync(settingsPath, "utf-8");
 		const settings = JSON.parse(raw) as Record<string, unknown>;
 		const enabled = settings.enabledPlugins as Record<string, unknown> | undefined;
@@ -83,7 +84,7 @@ function isPluginEnabled(): boolean {
 }
 
 function removeOwnStatusLine(): boolean {
-	const settingsPath = resolvePath("~/.claude/settings.json");
+	const settingsPath = join(getClaudeConfigDir(), "settings.json");
 	try {
 		const raw = readFileSync(settingsPath, "utf-8");
 		const settings = JSON.parse(raw) as Record<string, unknown>;

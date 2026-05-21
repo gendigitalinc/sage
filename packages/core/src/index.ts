@@ -51,6 +51,7 @@ export {
 export { resolveEndpoint, UrlCheckClient } from "./clients/url-check.js";
 // Config
 export {
+	getClaudeConfigDir,
 	HOOK_TIMEOUT_SECONDS,
 	loadConfig,
 	loadConfigSync,
@@ -133,6 +134,7 @@ export {
 	atomicWriteJson,
 	getFileContent,
 	getFileContentSync,
+	getHomeDir,
 	pruneOrphanedTmpFiles,
 } from "./file-utils.js";
 // Format (shared alert formatting)

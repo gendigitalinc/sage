@@ -1,7 +1,7 @@
 // TODO: Remove marketplace migration check after v0.7.x // gitleaks:allow
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { resolvePath } from "./config.js";
+import { getClaudeConfigDir } from "./config.js";
 
 /**
  * Checks whether the Claude Code marketplace config still references the old
@@ -11,7 +11,7 @@ import { resolvePath } from "./config.js";
 export async function needsMarketplaceMigration(marketplacesPath?: string): Promise<boolean> {
 	try {
 		const filePath =
-			marketplacesPath ?? join(resolvePath("~/.claude"), "plugins", "known_marketplaces.json");
+			marketplacesPath ?? join(getClaudeConfigDir(), "plugins", "known_marketplaces.json");
 		const raw = await readFile(filePath, "utf-8");
 		const data = JSON.parse(raw) as unknown;
 		if (typeof data !== "object" || data === null || Array.isArray(data)) return false;
