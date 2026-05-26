@@ -1,0 +1,550 @@
+# Agent-layer threat patterns for Sage
+#
+# Author: ATR (Agent Threat Rules) community contributors
+# Upstream: https://github.com/Agent-Threat-Rule/agent-threat-rules
+# Contributed per issue #30 + vaclavbelak's comment
+#   (https://github.com/gendigitalinc/sage/issues/30#issuecomment-4266904912)
+#
+# License: Detection Rule License (DRL) 1.1 (per CONTRIBUTING.md; see threats/LICENSE).
+#   @vaclavbelak suggested MIT in #30, but CONTRIBUTING.md requires DRL-1.1 for
+#   threats/*.yaml — relicensing to match convention and remove ambiguity.
+#
+# What this file covers (gaps vs Sage's existing 313 rules):
+#   Prompt injection           CLT-PI-001..004   (4 rules)
+#   MCP tool / response attacks CLT-MCP-001..003  (3 rules)
+#   Skill package compromise   CLT-SKL-001..008  (8 rules)
+#   Context exfiltration       CLT-CTX-001..002  (2 rules)
+#
+# Design notes:
+#   - All rules use `match_on: content` so they fire on Write/Edit content,
+#     plugin/skill file scans, and any agent integration that passes a
+#     `content` artifact. They complement (do not duplicate) Sage's existing
+#     command/URL/credential-file rules, which fire at shell execution time.
+#   - Patterns are upstream from ATR v2.0.0, all tested to zero false positives
+#     on ATR's 432-sample benign corpus and the 53,577-skill real-world scan.
+#   - Regexes are single-pattern (Sage schema). ATR multi-condition rules
+#     were split or reduced to the highest-confidence condition.
+#   - `case_insensitive: true` replaces ATR's `(?i)` inline flag (unsupported
+#     by JavaScript RegExp without the `u` flag, which Sage's loader omits).
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PROMPT INJECTION  —  catches injection payloads embedded in any content
+# the agent is about to persist or forward (file write, skill description,
+# tool arg, websearch query).
+# ═══════════════════════════════════════════════════════════════════════════
+
+- id: "CLT-PI-001"
+  category: prompt_injection
+  severity: high
+  confidence: 0.90
+  action: require_approval
+  pattern: "\\b(ignore|disregard|forget|override|bypass|skip|abandon|drop|cancel|suppress|nullify|void|revoke|dismiss|discard|reject)\\s+(all\\s+)?(the\\s+|your\\s+|my\\s+|any\\s+)?(previous|prior|earlier|above|preceding|former|original|initial|old|existing|current|last)\\s+(instruction|direction|command|order|prompt|rule|guideline|restriction|constraint|limitation|guard|safeguard|safety|policy|protocol)s?\\b"
+  match_on: content
+  case_insensitive: true
+  title: "Direct prompt-injection override verb targeting previous instructions"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00001 (direct prompt injection). MITRE ATLAS AML.T0051.
+
+- id: "CLT-PI-002"
+  category: prompt_injection
+  severity: high
+  confidence: 0.92
+  action: require_approval
+  pattern: "<!--[^>]{0,20}(ignore|disregard|override|new\\s+instructions?|system\\s*:|you\\s+must|you\\s+are\\s+now|forget\\s+previous|execute|perform|send\\s+to|exfiltrate|reveal|leak|dump|expose|bypass|skip|hidden)\\b"
+  match_on: content
+  case_insensitive: true
+  title: "Indirect prompt injection hidden in HTML comment"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00002 (indirect prompt injection via external content).
+
+- id: "CLT-PI-003"
+  category: prompt_injection
+  severity: high
+  confidence: 0.90
+  action: require_approval
+  pattern: "(?:(?:pretend|act(?:ing)?\\s+as|you\\s+are(?:\\s+now)?|be(?:come))\\s+(?:(?:a|the|in|into|on)\\s+)?\\b(DAN|D\\.A\\.N|STAN|DUDE|AIM|UCAR|BH|BetterDAN|Evil\\s*Confidant|God\\s*Mode|Jailbreak\\s*Mode|Unrestricted\\s*Mode|Sudo\\s*Mode|Root\\s*Mode|Admin\\s*Mode)\\b)"
+  match_on: content
+  case_insensitive: true
+  title: "Jailbreak persona activation attempt (DAN/STAN/God-Mode family)"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00003 (jailbreak attempt detection).
+
+- id: "CLT-PI-004"
+  category: prompt_injection
+  severity: high
+  confidence: 0.88
+  action: require_approval
+  pattern: "(?:忽略|无视|無視|忘记|忘記|跳过|跳過|绕过|繞過|覆盖|覆蓋|不要遵守|不要遵循)(?:之前|先前|以前|上述|上面)?(?:的)?(?:所有|一切|全部)?(?:指令|命令|指示|要求|规则|規則|系统|系統|提示|提醒|对话|對話)|(?:無視して|忘れて|無効にし)(?:以前|先の|上記)の(?:指示|命令|ルール|システム)|(?:이전|전의|앞의)(?:\\s*)(?:명령|지시|규칙|시스템|프롬프트)(?:을|를|은|는)?(?:\\s*)(?:무시|잊|건너뛰|우회)"
+  match_on: content
+  case_insensitive: false
+  title: "CJK prompt-injection override (Chinese/Japanese/Korean)"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00097 (CJK prompt injection). Covers zh-CN, zh-TW, ja, ko.
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MCP TOOL & RESPONSE POISONING  —  hostile payloads in tool descriptions,
+# MCP responses, or cross-tool "shadowing" via IMPORTANT tags.
+# ═══════════════════════════════════════════════════════════════════════════
+
+- id: "CLT-MCP-001"
+  category: mcp_poisoning
+  severity: high
+  confidence: 0.90
+  action: require_approval
+  pattern: "(IMPORTANT|URGENT|CRITICAL|PRIORITY|MANDATORY|REQUIRED|ESSENTIAL|ATTENTION)\\s*(NOTE\\s+)?(TO\\s+)?(THE\\s+)?(ASSISTANT|AI|AGENT|MODEL|LLM|CHATBOT|BOT|SYSTEM)\\s*[,:;]+\\s*(you\\s+)?(must|should|need\\s+to|have\\s+to|are\\s+required\\s+to)"
+  match_on: content
+  case_insensitive: true
+  title: "MCP tool-output injection via IMPORTANT-to-assistant framing"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00011 (instruction injection via tool output).
+
+- id: "CLT-MCP-002"
+  category: mcp_poisoning
+  severity: critical
+  confidence: 0.92
+  action: block
+  pattern: "<important>[\\s\\S]{0,600}?\\b(read|send|exec|fetch|invoke|extract|include|must|pass|forward|upload)\\b[\\s\\S]{0,300}?</important>"
+  match_on: content
+  case_insensitive: true
+  title: "MCP tool description IMPORTANT-tag cross-tool shadowing attack"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00161. Pattern where one tool's description tries to
+  # hijack another tool's execution via imperative verbs inside <important>.
+
+- id: "CLT-MCP-003"
+  category: mcp_poisoning
+  severity: critical
+  confidence: 0.90
+  action: block
+  pattern: "169\\.254\\.169\\.254|/latest/(meta-data|user-data|api/token|dynamic|instance-identity)|metadata\\.google\\.internal|/computeMetadata/v1|Metadata-Flavor:\\s*Google"
+  match_on: [content, url]
+  case_insensitive: true
+  title: "Cloud metadata service access (SSRF via agent tool calls)"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00013 (SSRF via agent tool calls). Covers AWS + GCP
+  # IMDS; Azure IMDS shares 169.254.169.254 so already caught.
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SKILL PACKAGE COMPROMISE  —  malicious content inside SKILL.md, plugin
+# manifests, or skill package files. This is the primary attack surface
+# documented in ATR's 96,096-skill wild scan (751 confirmed malware samples).
+# ═══════════════════════════════════════════════════════════════════════════
+
+- id: "CLT-SKL-001"
+  category: skill_compromise
+  severity: critical
+  confidence: 0.92
+  action: block
+  pattern: "you\\s+(must|should|will|shall)\\s+(ignore|disregard|override|forget|bypass|circumvent|supersede|set\\s+aside|discard|abandon)\\s+(all\\s+)?(previous|prior|system|safety|security)\\s+(instructions?|prompts?|rules?|guidelines?|policies|restrictions?)"
+  match_on: content
+  case_insensitive: true
+  title: "SKILL.md prompt injection via mandatory override"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00120.
+
+- id: "CLT-SKL-002"
+  category: skill_compromise
+  severity: critical
+  confidence: 0.88
+  action: block
+  pattern: "(eval\\s*\\$\\(\\s*echo\\s+[\"'][A-Za-z0-9+/=]{20,}[\"']\\s*\\|\\s*base64\\s+-d|echo\\s+[\"'][A-Za-z0-9+/=]{20,}[\"']\\s*\\|\\s*base64\\s+(-d|--decode)\\s*\\|\\s*(bash|sh|python|node|ruby|perl))"
+  match_on: content
+  case_insensitive: true
+  title: "Base64-encoded payload piped to interpreter inside skill content"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00121 (malicious code in skill package).
+
+- id: "CLT-SKL-003"
+  category: skill_compromise
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "allowed[_-]tools:.*Bash\\s*\\(\\s*\\*\\s*\\)(?![:\\w])"
+  match_on: content
+  case_insensitive: true
+  title: "Over-privileged skill manifest — wildcard Bash allowlist"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00123. Skill manifests granting Bash(*) bypass Sage's
+  # per-command review.
+
+- id: "CLT-SKL-004"
+  category: skill_compromise
+  severity: critical
+  confidence: 0.92
+  action: block
+  pattern: "<!--[^-]*?(agent\\s+should|send\\s+all|output\\s+all|exfiltrate|curl\\s|wget\\s|post\\s+.{0,30}(key|credential|token|password|secret)|api[_-]?key.{0,30}https?://)"
+  match_on: content
+  case_insensitive: true
+  title: "Hidden payload in HTML comment within skill content"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00128. Distinct from CLT-PI-002: narrower exfil focus.
+
+- id: "CLT-SKL-005"
+  category: skill_compromise
+  severity: critical
+  confidence: 0.95
+  action: block
+  pattern: "(?:\\uDB40[\\uDC00-\\uDC7F]){3,}"
+  match_on: content
+  case_insensitive: false
+  title: "Unicode Tag character smuggling (U+E0000..U+E007F) in skill content"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00129. Tag characters are invisible to humans but
+  # visible to LLMs; 3+ in sequence is an injection signature.
+
+- id: "CLT-SKL-006"
+  category: skill_compromise
+  severity: critical
+  confidence: 0.90
+  action: block
+  pattern: "(tar|zip|7z)\\s+[^\\n]*~/?\\.ssh|(find|ls|cat|strings)\\s+[^\\n]*(wallet\\.dat|seed\\.txt|mnemonic|keystore)[^\\n]*(\\||>|>>|curl|wget|fetch|POST)|sqlite3\\s+[^\\n]*(Cookies|Login\\s*Data|cookies\\.sqlite|places\\.sqlite)"
+  match_on: content
+  case_insensitive: true
+  title: "Compound skill-content exfiltration (wallet/browser/SSH archival)"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00149. Catches skills that bundle exfiltration of
+  # wallets, browser DBs, or SSH keys — attack signal distinct from a plain
+  # SSH-key read (which Sage already catches at command time).
+
+- id: "CLT-SKL-007"
+  category: skill_compromise
+  severity: critical
+  confidence: 0.90
+  action: block
+  pattern: "(getHours|getDay|getMonth|new\\s+Date)\\s*\\(\\s*\\)\\s*.{0,80}(\\.env|credentials|id_rsa|\\.npmrc|\\.ssh|\\.aws|\\.docker|\\.kube)"
+  match_on: content
+  case_insensitive: true
+  title: "Time-gated credential read inside skill (rug-pull timebomb)"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00157. Skill that only reads creds at a specific time
+  # of day / day of week — classic supply-chain rug-pull pattern.
+
+- id: "CLT-SKL-008"
+  category: skill_compromise
+  severity: high
+  confidence: 0.90
+  action: require_approval
+  pattern: "(?:(?:always|must|shall|will|should)\\s+){1,3}(?:approve|accept|allow|grant|permit)\\b[^.\\n]{0,80}(?:without|regardless|even\\s+if|despite)\\s+(?:confirmation|permission|approval|consent|asking|checking|verification|user)"
+  match_on: content
+  case_insensitive: true
+  title: "Hidden override instruction in skill — auto-approve all"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00163.
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CONTEXT EXFILTRATION  —  attempts to reveal the system prompt or agent
+# memory through content the agent is about to persist/forward.
+# ═══════════════════════════════════════════════════════════════════════════
+
+- id: "CLT-CTX-001"
+  category: context_exfiltration
+  severity: high
+  confidence: 0.85
+  action: log
+  pattern: "(?:here\\s+(?:is|are)|below\\s+(?:is|are)|let\\s+me\\s+share)\\s+(?:my|the)\\s+(?:system\\s+)?(?:prompt|instructions?|rules?|config)"
+  match_on: content
+  case_insensitive: true
+  title: "System prompt / internal instruction leakage in agent output"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00020. Action=log rather than block — this is a signal,
+  # not always malicious (user may legitimately request help with system
+  # prompts). Pairs well with require_approval from paired prompt-injection.
+
+- id: "CLT-CTX-002"
+  category: context_exfiltration
+  severity: high
+  confidence: 0.88
+  action: require_approval
+  pattern: "(update|modify|change|replace|overwrite|edit)\\s+(your|the\\s+agent'?s?)\\s+(instructions?|rules?|guidelines?|directives?|system\\s+prompt|core\\s+(values?|behaviou?rs?))"
+  match_on: content
+  case_insensitive: true
+  title: "Agent memory / system-prompt tampering attempt"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00075.
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EXPANDED COVERAGE (added 2026-04-19)  —  multi-agent attacks, tool-call
+# path traversal, fork impersonation, supply-chain typosquatting, and
+# credential-leak-in-content. Ported from an earlier iteration of this
+# ruleset after the initial scope audit undercounted a few classes.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── More prompt injection ──────────────────────────────────────────────────
+
+- id: "CLT-PI-005"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  action: block
+  pattern: "\\b(new|updated|revised|replacement|corrected|actual|real|true|proper|authentic|overriding|amended|modified|changed|current)\\s+(system\\s+)?(prompt|message|instructions?|directives?|guidelines?|configuration|persona|behavior|role\\s+definition)\\s*[:=\\-]"
+  match_on: content
+  case_insensitive: true
+  title: "System-prompt override framing — 'new/updated system prompt:' pattern"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00004 family. Complements CLT-SKL-001 (mandatory-verb
+  # override) by catching the declarative variant that asserts an authoritative
+  # replacement prompt follows the colon.
+
+- id: "CLT-PI-006"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  action: require_approval
+  pattern: "(?:i\\s+am|this\\s+is|speaking\\s+as|responding\\s+as|acting\\s+as)\\s+(?:the\\s+)?(?:admin|supervisor|orchestrator|manager|controller|system|root)\\s+agent"
+  match_on: content
+  case_insensitive: true
+  title: "Cross-agent impersonation claim (admin / supervisor / orchestrator)"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00030 (cross-agent attack). Multi-agent attack surface:
+  # an untrusted agent falsely claims administrative authority to a sibling.
+
+- id: "CLT-PI-007"
+  category: prompt_injection
+  severity: high
+  confidence: 0.82
+  action: require_approval
+  pattern: "(?:ignore|disregard|forget)\\s+(?:all\\s+)?(?:previous|prior|above|earlier)\\s+(?:instructions|context|rules|guidelines).{0,80}(?:assistant|agent|bot|model|llm)"
+  match_on: content
+  case_insensitive: true
+  title: "Agent-to-agent injection — override verb adjacent to agent keyword"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00076 (inter-agent message spoofing). Tightened over
+  # the upstream pattern by requiring an agent-identifier within 80 chars,
+  # so it fires only on agent-to-agent channels (CLT-PI-001 covers the
+  # generic override case for user input).
+
+# ── Tool-call / MCP attacks ────────────────────────────────────────────────
+
+- id: "CLT-MCP-004"
+  category: mcp_poisoning
+  severity: high
+  confidence: 0.90
+  action: block
+  pattern: "\\.\\.[\\/\\\\](?:\\.\\.[\\/\\\\])*(?:etc|proc|root|sys|boot|dev|passwd|shadow|hosts|shadow\\.bak|master\\.key)\\b|~[\\/\\\\]\\.\\.[\\/\\\\]"
+  match_on: content
+  case_insensitive: false
+  title: "Path traversal targeting system directory (/etc, /proc, /root, /sys, …)"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00012 (unauthorized tool call). Narrowed: the traversal
+  # must terminate in a sensitive system directory. Skills legitimately use
+  # `../../` in code examples and relative paths, so the bare multi-hop
+  # traversal pattern FPs at ~3% on the benign corpus; requiring a sensitive
+  # target keeps the signal while dropping FPs to 0.
+
+- id: "CLT-MCP-005"
+  category: mcp_poisoning
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "(?:use|install|adopt|deploy|enable|set ?up|add|activate|configure)\\s+(?:the\\s+)?(?:enhanced|improved|upgraded|extended|advanced|better|super|pro|plus)[_-]?\\w+\\s*(?:package|module|library|tool|plugin|skill)?\\s*[.,;:]?\\s*(?:it.s|which is|this is|a|the)?\\s*(?:a\\s+)?(?:community|unofficial|third.party|independent)\\s*(?:-\\s*)?(?:maintained\\s+)?(?:fork|variant|alternative|adaptation|version|build|branch|port)\\s+(?:of|from|based on)"
+  match_on: content
+  case_insensitive: true
+  title: "Community-fork impersonation framing in install instructions"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00147 (community fork impersonation). Social-engineering
+  # framing where malicious skills present themselves as an "enhanced community
+  # fork" of a trusted package.
+
+# ── More skill compromise ──────────────────────────────────────────────────
+
+- id: "CLT-SKL-009"
+  category: skill_compromise
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "(?:also|additionally|while\\s+you.re\\s+at\\s+it|before\\s+(?:returning|responding))\\s+(?:read|access|check|scan|collect|gather|harvest)\\s+(?:all\\s+)?(?:other|additional|nearby|available|accessible)\\s+(?:files?|directories|folders?|configs?|secrets?|keys?|tokens?|env)"
+  match_on: content
+  case_insensitive: true
+  title: "Skill scope hijacking — 'also read other files' rider instruction"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00074 (cross-agent privilege escalation). Catches
+  # skills that tack on extra file-reading instructions as side effects.
+
+# ── Supply chain ───────────────────────────────────────────────────────────
+
+- id: "CLT-SUP-001"
+  category: supply_chain
+  severity: high
+  confidence: 0.90
+  action: block
+  pattern: "(?:filesytem|filsystem|file_sytem|flie_system|filessystem|filesystm|filsystm|filesysem)[-_](?:read|write|list|delete|search)"
+  match_on: content
+  case_insensitive: true
+  title: "Typosquatted filesystem tool name (targets MCP filesystem server)"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00060 (MCP skill impersonation). Specifically targets
+  # the @modelcontextprotocol/server-filesystem squatting attack family.
+
+- id: "CLT-SUP-002"
+  category: supply_chain
+  severity: high
+  confidence: 0.88
+  action: require_approval
+  pattern: "(npm\\s+i(nstall)?|pip\\s+install|cargo\\s+add|go\\s+get)\\s+\\S+.{0,40}(community\\s+fork|enhanced\\s+(version|fork)|patched\\s+(version|fork)|improved\\s+fork|unofficial\\s+fork)"
+  match_on: content
+  case_insensitive: true
+  title: "Install instruction pointing to impersonated 'community fork' package"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00151 (fork impersonation via install instruction).
+  # Pairs with CLT-MCP-005 — that rule catches the prose framing, this rule
+  # catches the concrete install command carrying the same social-engineering.
+
+# ── More context exfiltration ──────────────────────────────────────────────
+
+- id: "CLT-CTX-003"
+  category: context_exfiltration
+  severity: critical
+  confidence: 0.98
+  action: block
+  pattern: "-----BEGIN\\s+(RSA\\s+)?PRIVATE\\s+KEY-----"
+  match_on: content
+  case_insensitive: true
+  title: "PEM private key block appearing in agent content"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00021 family (credential exposure). Narrow, high-
+  # confidence signal — PEM private keys should never appear in agent
+  # Write/Edit content or in tool responses.
+
+- id: "CLT-CTX-004"
+  category: context_exfiltration
+  severity: high
+  confidence: 0.85
+  action: require_approval
+  pattern: "(encrypted|encoded|obfuscated)\\s+(key|token|secret|credential|password)\\s*[:=]\\s*\\S*(sk-|ghp_|gho_|glpat-|xox[bpras]-|AKIA|real-key)"
+  match_on: content
+  case_insensitive: true
+  title: "Obfuscation-framed credential leak (hides real key behind 'encrypted:' label)"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00114 (token interception). Catches the deception
+  # pattern where an agent is instructed to exfiltrate a real credential
+  # while labeling it as encrypted/encoded/obfuscated.
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Added 2026-05-12 — privilege_escalation gap rules from ATR upstream.
+# Generated via agent-threat-rules/converters/sage; see docs/INTEROP.md and
+# threats/.atr-bridge-config.yaml for the bridge integration mechanism.
+# ═══════════════════════════════════════════════════════════════════════════
+
+- id: "CLT-PRV-001a"
+  category: privilege_escalation
+  severity: critical
+  confidence: 0.9
+  action: block
+  pattern: "\\b(?:destination|dest|target|output|out_path|out_file|file|path|to|filename|filepath|file_path)[\"\\x27]?\\s*[:=]\\s*[\"\\x27]?[^\"\\x27,)]{0,40}(?:AppData[\\\\/]+Roaming[\\\\/]+Microsoft[\\\\/]+Windows[\\\\/]+Start Menu[\\\\/]+Programs[\\\\/]+Startup|[\\\\/]+Start Menu[\\\\/]+Programs[\\\\/]+Startup[\\\\/]+|[\\\\/]+\\.config[\\\\/]+autostart[\\\\/]+|[\\\\/]+\\.config[\\\\/]+systemd[\\\\/]+user[\\\\/]+|/etc/cron\\.(?:hourly|daily|weekly|monthly|d)/|/etc/init\\.d/|/etc/systemd/system/|/Library/LaunchAgents/|/Library/LaunchDaemons/|~/Library/LaunchAgents/)"
+  match_on: content
+  case_insensitive: true
+  title: "Microsoft Semantic Kernel SessionsPythonPlugin Arbitrary File Write + Startup Persistence (CVE-20..."
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00441 (MIT) — https://github.com/Agent-Threat-Rule/agent-threat-rules/blob/main/rules/privilege-escalation/ATR-2026-00441.yaml
+
+  # Detects: Tool descriptor referencing Semantic Kernel SessionsPythonPlugin or its fully-qualified variants — narrowed to SK-specific identifiers.
+- id: "CLT-PRV-001b"
+  category: privilege_escalation
+  severity: critical
+  confidence: 0.9
+  action: block
+  pattern: "\\b(?:SessionsPythonPlugin|Microsoft\\.SemanticKernel\\.Plugins\\.[A-Za-z]*Sessions|kernel_function_download_file|sessions_python)\\b"
+  match_on: content
+  case_insensitive: true
+  title: "Microsoft Semantic Kernel SessionsPythonPlugin Arbitrary File Write + Startup Persistence (CVE-20..."
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00441 (MIT) — https://github.com/Agent-Threat-Rule/agent-threat-rules/blob/main/rules/privilege-escalation/ATR-2026-00441.yaml
+
+  # Detects: Tool descriptor that explicitly advertises file-write to arbitrary / user-supplied / unvalidated paths — over-privileged descriptor pattern that enables CVE-2026-25592.
+- id: "CLT-PRV-001c"
+  category: privilege_escalation
+  severity: critical
+  confidence: 0.9
+  action: block
+  pattern: "(?:download|write|save)[^.]{0,120}\\b(?:to\\s+)?(?:arbitrary\\s+(?:path|location)|any\\s+(?:directory|location|path)|user[-_]?(?:supplied|specified|provided)\\s+path|unvalidated\\s+path)\\b"
+  match_on: content
+  case_insensitive: true
+  title: "Microsoft Semantic Kernel SessionsPythonPlugin Arbitrary File Write + Startup Persistence (CVE-20..."
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00441 (MIT) — https://github.com/Agent-Threat-Rule/agent-threat-rules/blob/main/rules/privilege-escalation/ATR-2026-00441.yaml
+
+  # Detects: Direct file-write function call whose destination argument is an autostart path — explicit exploit signature with two anchors (call site + path).
+- id: "CLT-PRV-001d"
+  category: privilege_escalation
+  severity: critical
+  confidence: 0.9
+  action: block
+  pattern: "\\b(?:DownloadFileAsync|download_file|fs\\.writeFile|writeFile(?:Sync)?)\\s*\\(\\s*[\"\\x27]?[^)]{0,200}(?:[\\\\/]+Start Menu[\\\\/]+Programs[\\\\/]+Startup[\\\\/]+|AppData[\\\\/]+Roaming[\\\\/]+Microsoft[\\\\/]+Windows|[\\\\/]+\\.config[\\\\/]+autostart[\\\\/]+|/etc/cron\\.(?:hourly|daily|weekly|monthly|d)/|/Library/LaunchAgents/|/etc/systemd/system/)"
+  match_on: content
+  case_insensitive: true
+  title: "Microsoft Semantic Kernel SessionsPythonPlugin Arbitrary File Write + Startup Persistence (CVE-20..."
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00441 (MIT) — https://github.com/Agent-Threat-Rule/agent-threat-rules/blob/main/rules/privilege-escalation/ATR-2026-00441.yaml
+
+  # Detects: Windows registry Run-key persistence (`reg add HKCU\..\Run`, full Run-key path, or `regedit /s`) — alternative persistence vector. Word-boundary anchored to avoid substring matches in normal English (register, regex, aggregated).
+- id: "CLT-PRV-001e"
+  category: privilege_escalation
+  severity: critical
+  confidence: 0.9
+  action: block
+  pattern: "(?:\\breg\\s+add\\s+(?:HKCU|HKLM|HKEY_)|HKCU\\\\\\\\Software\\\\\\\\Microsoft\\\\\\\\Windows\\\\\\\\CurrentVersion\\\\\\\\Run|HKLM\\\\\\\\Software\\\\\\\\Microsoft\\\\\\\\Windows\\\\\\\\CurrentVersion\\\\\\\\Run|\\bregedit(?:\\.exe)?\\s+/s\\s+)"
+  match_on: content
+  case_insensitive: true
+  title: "Microsoft Semantic Kernel SessionsPythonPlugin Arbitrary File Write + Startup Persistence (CVE-20..."
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00441 (MIT) — https://github.com/Agent-Threat-Rule/agent-threat-rules/blob/main/rules/privilege-escalation/ATR-2026-00441.yaml
+
+  # Detects: Detects tools or agent instructions that invoke eval(), Function(), vm.runInNewContext(), or similar dynamic code execution primitives.
+- id: "CLT-PRV-002"
+  category: privilege_escalation
+  severity: critical
+  confidence: 0.65
+  action: require_approval
+  pattern: "(?:eval\\s*\\()|(?:new\\s+Function\\s*\\()|(?:vm\\.(runIn|createContext|compileFunction))|(?:require\\s*\\(\\s*['\"]child_process['\"])|(?:import\\s*\\(\\s*['\"]child_process)|(?:(?:process\\.binding|Reflect\\.construct\\s*\\(\\s*Function))"
+  match_on: content
+  case_insensitive: true
+  title: "Remote Code Execution via eval() and Dynamic Code Injection"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00110 (MIT) — https://github.com/Agent-Threat-Rule/agent-threat-rules/blob/main/rules/privilege-escalation/ATR-2026-00110.yaml
+
+  # Detects: Detects shell metacharacter injection patterns in tool arguments or agent-generated commands.
+- id: "CLT-PRV-003"
+  category: privilege_escalation
+  severity: critical
+  confidence: 0.65
+  action: require_approval
+  pattern: "(?:;\\s*(?:rm|cat|curl|wget|nc|ncat|bash|sh|python|perl|ruby|php))|(?:\\$\\([^)]+\\))|(?:`(?:rm|cat|curl|wget|nc|ncat|bash|sh|python|perl|ruby|php|whoami|id|uname|env|printenv|set|export|eval|exec|chmod|chown|kill|pkill|dd|mkfs|mount|umount|sudo|su|passwd)[^`]*`)|(?:(?:&&|\\|\\|)\\s*(?:curl|wget|nc|ncat|bash|sh|python|perl))|(?:\\|\\s*(?:nc|ncat|bash|sh|curl|wget|tee))|(?:(?:\\\\x00|%00|%0a|%0d))"
+  match_on: content
+  title: "Shell Metacharacter Injection in Tool Arguments"
+  expires_at: null
+  revoked: false
+  # Upstream: ATR-2026-00111 (MIT) — https://github.com/Agent-Threat-Rule/agent-threat-rules/blob/main/rules/privilege-escalation/ATR-2026-00111.yaml

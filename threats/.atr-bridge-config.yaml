@@ -1,0 +1,60 @@
+# Configuration for scripts/sync-with-atr.ts
+#
+# This file controls the ATR (Agent Threat Rules) upstream sync. The sync
+# script is OPT-IN: set `enabled: true` to allow regeneration of
+# threats/agent-layer.atr-generated.yaml. The accompanying GitHub Action
+# is also disabled by default.
+#
+# Sage maintainers retain full editorial control. The sync NEVER modifies
+# threats/agent-layer.yaml directly — it writes a separate generated file
+# for review.
+
+enabled: false
+
+# Pin a specific ATR version. The script reads this from the installed
+# agent-threat-rules npm package's package.json. If omitted, whatever version
+# is installed is used (which can drift). Recommended: pin via dependencies.
+# atr_version: 2.1.3
+
+# ATR rule IDs to pull from upstream. Initial seed from PR #33 + the present
+# privilege_escalation bridge proposal. Add or remove ids here to change
+# the synced set.
+include_ids:
+  # Existing 27 rules from PR #33 — keep them in sync with ATR upstream:
+  - ATR-2026-00001  # CLT-PI-001..  direct prompt injection
+  - ATR-2026-00002  # CLT-PI-002    indirect injection via HTML comment
+  - ATR-2026-00003  # CLT-PI-003    jailbreak persona activation
+  - ATR-2026-00097  # CLT-PI-004    CJK prompt injection
+  # Privilege-escalation gap rules (this bridge PR):
+  - ATR-2026-00441  # CLT-PRV-001a..e  Microsoft Semantic Kernel CVE-2026-25592
+  - ATR-2026-00110  # CLT-PRV-002      eval() / new Function injection
+  - ATR-2026-00111  # CLT-PRV-003      shell metacharacter injection
+
+# ATR ids to EXCLUDE from sync (e.g. when Sage decides not to take a rule).
+# Excluded rules are silently skipped. Comment is required for posterity.
+exclude_ids: []
+  # - ATR-2026-XXXXX  # reason for exclusion
+
+# Rules where Sage maintains a manual edit that should NOT be overwritten.
+# When a manual_override id is in the list, the sync script skips it
+# entirely, so the maintainer-edited version in agent-layer.yaml stays in
+# place even if the ATR upstream rule changes.
+manual_overrides: []
+  # - id: ATR-2026-XXXXX
+  #   reason: "Sage-side narrowing for benign-corpus FP reduction"
+
+# Sage-side id allocator starting offsets. Pass these so that auto-
+# generated rules start AFTER existing Sage rules within each category.
+# Defaults to 0 for each category. Update when more rules land.
+starting_id_offsets:
+  prompt_injection: 7      # CLT-PI-001..007 exist; new rules start at CLT-PI-008
+  mcp_poisoning: 5         # CLT-MCP-001..005 exist
+  skill_compromise: 9      # CLT-SKL-001..009 exist
+  context_exfiltration: 4  # CLT-CTX-001..004 exist
+  supply_chain: 2          # CLT-SUP-001..002 exist
+  privilege_escalation: 0  # no existing CLT-PRV rules yet
+  excessive_autonomy: 0
+  agent_manipulation: 0
+  data_poisoning: 0
+  model_abuse: 0
+  model_security: 0

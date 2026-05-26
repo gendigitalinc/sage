@@ -16,6 +16,7 @@ Rules ship in the `threats/` directory at the repository root:
 | `obfuscation.yaml` | Encoding and obfuscation techniques |
 | `supply_chain.yaml` | Supply chain risk patterns |
 | `self-defense.yaml` | Attempts to disable or bypass Sage |
+| `agent-layer.yaml` | Agent-protocol threats (prompt injection, MCP tool poisoning, skill-package compromise, context exfiltration) |
 | `mitre.yaml` | MITRE ATT&CK technique mappings |
 | `win-*.yaml` | Windows-specific variants of the above |
 | `mac-*.yaml` | macOS-specific variants (osascript, Keychain, LOLBins, defense evasion) |
