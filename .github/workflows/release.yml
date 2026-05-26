@@ -70,10 +70,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - name: Publish packages
-        run: pnpm -r publish --access public --no-git-checks --provenance || {
-          echo "::warning::npm publish failed — check job logs for details."
-          exit 1
-        }
+        run: |
+          pnpm -r publish --access public --no-git-checks --provenance || {
+            echo "::warning::npm publish failed — check job logs for details."
+            exit 1
+          }
 
   publish-vscode:
     name: Publish to VS Code Marketplace
