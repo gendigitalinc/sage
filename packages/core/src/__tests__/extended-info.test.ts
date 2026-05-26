@@ -208,7 +208,7 @@ describe("loadExtendedInfo - per-leaf sanitization", () => {
 		expect(result).toEqual({ identity: { guid: "g1", present: true } });
 	});
 
-	it("drops a leaf whose value is an empty array", async () => {
+	it("retains a leaf whose value is an empty array", async () => {
 		const dir = await makeTmpDir();
 		await writeExtendedInfo(
 			dir,
@@ -217,7 +217,42 @@ describe("loadExtendedInfo - per-leaf sanitization", () => {
 			}),
 		);
 
-		expect(await loadExtendedInfo(dir)).toEqual({ identity: { guid: "g1" } });
+		expect(await loadExtendedInfo(dir)).toEqual({ identity: { guid: "g1", tags: [] } });
+	});
+
+	it("retains scalar array leaves", async () => {
+		const dir = await makeTmpDir();
+		await writeExtendedInfo(
+			dir,
+			JSON.stringify({
+				identity: { guid: "g1", markers: ["alpha", 42, true] },
+			}),
+		);
+
+		expect(await loadExtendedInfo(dir)).toEqual({
+			identity: { guid: "g1", markers: ["alpha", 42, true] },
+		});
+	});
+
+	it("drops non-scalar items from array leaves", async () => {
+		const dir = await makeTmpDir();
+		await writeExtendedInfo(
+			dir,
+			JSON.stringify({
+				identity: { markers: ["alpha", { deep: true }, "beta", null] },
+			}),
+		);
+
+		const logger = makeLogger();
+		expect(await loadExtendedInfo(dir, logger)).toEqual({
+			identity: { markers: ["alpha", "beta"] },
+		});
+		expect(logger.calls).toContain(
+			"extended-info: dropped non-scalar array item 'identity.markers[1]' (type object)",
+		);
+		expect(logger.calls).toContain(
+			"extended-info: dropped non-scalar array item 'identity.markers[3]' (type object)",
+		);
 	});
 
 	it("drops a leaf whose value is a nested object (no deep nesting)", async () => {
@@ -362,6 +397,43 @@ describe("mergeExtendedInfo", () => {
 			extra1: "ext-extra1",
 			extra2: "ext-extra2",
 			other: "sage-set",
+		});
+	});
+
+	it("copies array leaves when the envelope has no value for that leaf", () => {
+		const envelope = { identity: { uuid: "sage-uuid" } };
+		const extendedInfo: ExtendedInfo = { identity: { markers: ["ext-marker", "ext-marker"] } };
+
+		const result = mergeExtendedInfo(envelope, extendedInfo);
+		expect(result.identity).toEqual({
+			uuid: "sage-uuid",
+			markers: ["ext-marker"],
+		});
+	});
+
+	it("merges array leaves when the envelope also has an array", () => {
+		const envelope = {
+			identity: { uuid: "sage-uuid", markers: ["sage-marker", "shared-marker"] },
+		};
+		const extendedInfo: ExtendedInfo = {
+			identity: { markers: ["shared-marker", "ext-marker", "ext-marker"] },
+		};
+
+		const result = mergeExtendedInfo(envelope, extendedInfo);
+		expect(result.identity).toEqual({
+			uuid: "sage-uuid",
+			markers: ["sage-marker", "shared-marker", "ext-marker"],
+		});
+	});
+
+	it("keeps the envelope scalar when extended-info provides an array for the same leaf", () => {
+		const envelope = { identity: { uuid: "sage-uuid", markers: "sage-scalar" } };
+		const extendedInfo: ExtendedInfo = { identity: { markers: ["ext-marker"] } };
+
+		const result = mergeExtendedInfo(envelope, extendedInfo);
+		expect(result.identity).toEqual({
+			uuid: "sage-uuid",
+			markers: "sage-scalar",
 		});
 	});
 

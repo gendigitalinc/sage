@@ -110,7 +110,7 @@ function asString(v: unknown): string | undefined {
  * `path` (Read-style). Mirrors the resolution order used historically by
  * `detection-telemetry.ts`.
  */
-function resolveFilePath(toolInput: Record<string, unknown>): string | undefined {
+export function resolveFilePath(toolInput: Record<string, unknown>): string | undefined {
 	return asString(toolInput.file_path) ?? asString(toolInput.filePath) ?? asString(toolInput.path);
 }
 

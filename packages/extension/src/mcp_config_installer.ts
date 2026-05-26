@@ -20,14 +20,20 @@ function getCursorMcpApi(): CursorMcpApi | undefined {
 	return maybeMcp as CursorMcpApi;
 }
 
-function resolveNodeCommand(): { command: string; env: Record<string, string> } {
+function resolveNodeCommand(runtime: "cursor" | "vscode"): {
+	command: string;
+	env: Record<string, string>;
+} {
 	const command = process.env.VSCODE_NODE_EXEC_PATH?.trim() || process.execPath;
 	// SAGE_APP_ROOT is consumed by the MCP server child process to resolve the
 	// agent runtime version at runtime (via `readProductJsonVersion`), avoiding
 	// a stale value baked at install time. The MCP server is launched directly
 	// by the IDE — not through the hook shim — so it receives `SAGE_APP_ROOT`
 	// here rather than via `createHookShim`.
-	const env: Record<string, string> = { ELECTRON_RUN_AS_NODE: "1" };
+	const env: Record<string, string> = {
+		ELECTRON_RUN_AS_NODE: "1",
+		SAGE_AGENT_RUNTIME: runtime,
+	};
 	if (vscode.env.appRoot) {
 		env.SAGE_APP_ROOT = vscode.env.appRoot;
 	}
@@ -50,9 +56,12 @@ async function resolveMcpServerScriptPath(context: vscode.ExtensionContext): Pro
 	throw new Error("Unable to locate MCP server bundle. Build the extension or reinstall the VSIX.");
 }
 
-async function getMcpServerArgs(context: vscode.ExtensionContext): Promise<McpServerArgs> {
+async function getMcpServerArgs(
+	context: vscode.ExtensionContext,
+	runtime: "cursor" | "vscode",
+): Promise<McpServerArgs> {
 	const scriptPath = await resolveMcpServerScriptPath(context);
-	const { command, env } = resolveNodeCommand();
+	const { command, env } = resolveNodeCommand(runtime);
 	return {
 		command,
 		args: [scriptPath],
@@ -70,7 +79,7 @@ export async function installCursorMcpServer(context: vscode.ExtensionContext): 
 
 	cursorMcp.registerServer({
 		name: "sage",
-		server: await getMcpServerArgs(context),
+		server: await getMcpServerArgs(context, "cursor"),
 	});
 }
 
@@ -87,7 +96,7 @@ export function registerVsCodeMcpServerProvider(context: vscode.ExtensionContext
 	context.subscriptions.push(
 		vscode.lm.registerMcpServerDefinitionProvider("sage.mcp-servers", {
 			provideMcpServerDefinitions: async () => {
-				const server = await getMcpServerArgs(context);
+				const server = await getMcpServerArgs(context, "vscode");
 				return [
 					new vscode.McpStdioServerDefinition("sage", server.command, server.args, server.env),
 				];

@@ -18,7 +18,12 @@ import {
 	isScannableContent,
 	SCANNABLE_EXTENSIONS,
 } from "./content-policy.js";
-import { buildContentSnapshot, safeTruncate, scrubHomePath } from "./content-snapshot.js";
+import {
+	buildContentSnapshot,
+	resolveFilePath,
+	safeTruncate,
+	scrubHomePath,
+} from "./content-snapshot.js";
 import { sendCommunityIqDetection } from "./detection-telemetry.js";
 import { DecisionEngine } from "./engine.js";
 import { findAllowException, findDenyException, loadExceptions } from "./exceptions.js";
@@ -31,7 +36,7 @@ import {
 } from "./package-extractor.js";
 import { updateSessionStatus } from "./statusline.js";
 import { loadThreats } from "./threat-loader.js";
-import { type CanonicalToolType, canonicalizeToolName } from "./tool-names.js";
+import type { CanonicalToolType } from "./tool-names.js";
 import { loadTrustedDomains } from "./trusted-domains.js";
 import type {
 	AgentRuntime,
@@ -68,6 +73,18 @@ export interface ToolEvaluationRequest {
 	toolName: CanonicalToolType;
 	toolInput: Record<string, unknown>;
 	artifacts: Artifact[];
+	toolUseId?: string;
+}
+
+export interface ToolOutputEvaluationRequest {
+	sessionId: string;
+	conversationId?: string;
+	agentRuntime?: AgentRuntime;
+	agentRuntimeVersion?: string;
+	hookType?: HookType;
+	toolName: CanonicalToolType;
+	toolInput: Record<string, unknown>;
+	hookInput: Record<string, unknown>;
 	toolUseId?: string;
 }
 
@@ -151,15 +168,47 @@ export function allowVerdict(source = "none"): Verdict {
 	};
 }
 
+function shouldSkipPromptInjectionForLocalMarkdown(request: ToolEvaluationRequest): boolean {
+	if (request.toolName !== "Write" && request.toolName !== "Edit") return false;
+	const filePath = resolveFilePath(request.toolInput) ?? "";
+	const trimmed = filePath.trim();
+	return /\.(?:md|mdx|markdown|mdown|mkdn)$/i.test(trimmed);
+}
+
 export async function evaluateToolCall(
 	request: ToolEvaluationRequest,
 	context: ToolEvaluationContext,
 ): Promise<Verdict> {
 	const logger = context.logger ?? nullLogger;
 	const config = await loadConfig(context.configPath, logger).catch(() => ConfigSchema.parse({}));
+	const eventId = randomUUID();
+	logger.debug("Tool call evaluation started", {
+		eventId,
+		toolUseId: request.toolUseId,
+		toolName: request.toolName,
+		hookType: request.hookType,
+		agentRuntime: request.agentRuntime,
+		artifactsCount: request.artifacts.length,
+	});
+	const logEvaluationCompleted = (verdict: Verdict): void => {
+		logger.debug("Tool call evaluation completed", {
+			eventId,
+			toolUseId: request.toolUseId,
+			toolName: request.toolName,
+			hookType: request.hookType,
+			agentRuntime: request.agentRuntime,
+			artifactsCount: request.artifacts.length,
+			decision: verdict.decision,
+			source: verdict.source,
+			category: verdict.category,
+			severity: verdict.severity,
+		});
+	};
 
 	if (request.artifacts.length === 0 && !config.pi_check.enabled) {
-		return allowVerdict("no_artifacts");
+		const verdict = allowVerdict("no_artifacts");
+		logEvaluationCompleted(verdict);
+		return verdict;
 	}
 
 	// 1. Deny exceptions first (user-defined blacklist)
@@ -188,10 +237,13 @@ export async function evaluateToolCall(
 					conversationId: request.conversationId,
 					agentRuntime: request.agentRuntime,
 					hookType: request.hookType,
+					eventId,
+					toolUseId: request.toolUseId,
 				});
 			} catch {
 				// Fail open.
 			}
+			logEvaluationCompleted(verdict);
 			return verdict;
 		}
 
@@ -209,7 +261,10 @@ export async function evaluateToolCall(
 					conversationId: request.conversationId,
 					agentRuntime: request.agentRuntime,
 					hookType: request.hookType,
+					eventId,
+					toolUseId: request.toolUseId,
 				});
+				logEvaluationCompleted(allowV);
 				return allowV;
 			}
 		} catch {
@@ -230,13 +285,17 @@ export async function evaluateToolCall(
 					conversationId: request.conversationId,
 					agentRuntime: request.agentRuntime,
 					hookType: request.hookType,
+					eventId,
+					toolUseId: request.toolUseId,
 				});
 			} catch {
 				// Fail open.
 			}
+			logEvaluationCompleted(allowV);
 			return allowV;
 		}
-	} catch {
+	} catch (error) {
+		logger.debug("Exception/allowlist checks failed open", { error: String(error) });
 		// Fail open if exceptions loading fails.
 	}
 
@@ -244,7 +303,8 @@ export async function evaluateToolCall(
 	try {
 		cache = new VerdictCache(config.cache, logger, VERSION);
 		await cache.load();
-	} catch {
+	} catch (error) {
+		logger.debug("Verdict cache initialization failed open", { error: String(error) });
 		cache = null;
 	}
 
@@ -259,6 +319,9 @@ export async function evaluateToolCall(
 		if (config.disabled_threats.length > 0) {
 			const disabledSet = new Set(config.disabled_threats);
 			threats = threats.filter((t) => !disabledSet.has(t.id));
+		}
+		if (shouldSkipPromptInjectionForLocalMarkdown(request)) {
+			threats = threats.filter((t) => t.category !== "prompt_injection");
 		}
 		const trustedDomains = await loadTrustedDomains(context.allowlistsDir, logger);
 		const heuristics = new HeuristicsEngine(threats, trustedDomains);
@@ -503,7 +566,6 @@ export async function evaluateToolCall(
 		}
 	}
 
-	const eventId = randomUUID();
 	const resolvedSignals = Object.keys(auditSignals).length > 0 ? auditSignals : undefined;
 
 	// Build the structured content snapshot once. Both the audit log and the
@@ -534,7 +596,8 @@ export async function evaluateToolCall(
 			eventId,
 			toolUseId: request.toolUseId,
 		});
-	} catch {
+	} catch (error) {
+		logger.debug("Audit verdict logging failed open", { error: String(error) });
 		// Fail open.
 	}
 
@@ -551,7 +614,8 @@ export async function evaluateToolCall(
 				communityIqEnabled: config.community_iq,
 				logger,
 			});
-		} catch {
+		} catch (error) {
+			logger.debug("Detection telemetry failed open", { error: String(error) });
 			// Fail open — never block verdict delivery.
 		}
 	}
@@ -559,7 +623,8 @@ export async function evaluateToolCall(
 	if (verdict.decision !== "allow") {
 		try {
 			await updateSessionStatus(request.sessionId, verdict);
-		} catch {
+		} catch (error) {
+			logger.debug("Session status update failed open", { error: String(error) });
 			// Fail open — never block verdict delivery.
 		}
 	}
@@ -570,6 +635,8 @@ export async function evaluateToolCall(
 			r.risk < config.pi_check.high_risk_threshold,
 	);
 	if (piWarnings.length > 0 && config.sensitivity !== "relaxed") verdict.piWarnings = piWarnings;
+
+	logEvaluationCompleted(verdict);
 
 	return verdict;
 }
@@ -793,15 +860,32 @@ export interface ToolOutputWarning {
  * Returns warning messages to inject as additionalContext (PostToolUse cannot block).
  */
 export async function evaluateToolOutput(
-	toolName: string,
-	hookInput: Record<string, unknown>,
+	request: ToolOutputEvaluationRequest,
 	context: ToolEvaluationContext,
 ): Promise<ToolOutputWarning[]> {
 	const logger = context.logger ?? nullLogger;
 	const warnings: ToolOutputWarning[] = [];
+	const eventId = randomUUID();
+	logger.debug("Tool output evaluation started", {
+		eventId,
+		toolName: request.toolName,
+		agentRuntime: request.agentRuntime,
+		sessionId: request.sessionId,
+	});
 
-	const extracted = extractOutputForPiCheck(toolName, hookInput);
-	if (!extracted) return warnings;
+	const extracted = extractOutputForPiCheck(request.toolName, request.hookInput);
+	if (!extracted) {
+		logger.debug("Tool output evaluation completed", {
+			eventId,
+			toolName: request.toolName,
+			agentRuntime: request.agentRuntime,
+			sessionId: request.sessionId,
+			result: "skipped",
+			skippedReason: "no_supported_output",
+			warningsCount: 0,
+		});
+		return warnings;
+	}
 
 	const config = await loadConfig(context.configPath, logger).catch(() => ConfigSchema.parse({}));
 
@@ -824,7 +908,7 @@ export async function evaluateToolOutput(
 
 			const engine = new HeuristicsEngine(threats, trustedDomains);
 			const artifacts: Artifact[] = [
-				{ type: "content", value: extracted.content, context: toolName },
+				{ type: "content", value: extracted.content, context: request.toolName },
 			];
 			const matches = engine.match(artifacts);
 			const top = matches[0];
@@ -834,17 +918,17 @@ export async function evaluateToolOutput(
 					typeof top.threat.version === "number" ? top.threat.version : undefined;
 				warnings.push({
 					source: "heuristic",
-					message: formatOutputWarning(toolName, `${top.threat.title} (${top.threat.id})`),
+					message: formatOutputWarning(request.toolName, `${top.threat.title} (${top.threat.id})`),
 				});
 			}
 		}
-	} catch {
+	} catch (error) {
+		logger.debug("Tool output heuristic scanning failed open", { error: String(error) });
 		// Fail open
 	}
 
 	// Log and send telemetry for PostToolUse detections
 	if (warnings.length > 0) {
-		const eventId = randomUUID();
 		const auditSignals: AuditSignals = {};
 		if (heuristicMatchId) {
 			auditSignals.heuristics = [
@@ -853,12 +937,8 @@ export async function evaluateToolOutput(
 		}
 		const resolvedSignals = Object.keys(auditSignals).length > 0 ? auditSignals : undefined;
 
-		// `toolName` here is the raw connector-supplied name; the audit and
-		// telemetry schemas expect a `CanonicalToolType`. PostToolUse output
-		// scanning only fires for Read / Bash / WebFetch (all canonical), so
-		// an empty platform map is enough — non-canonical inputs degrade to
-		// "Unknown" rather than throwing.
-		const canonicalToolName = canonicalizeToolName({}, toolName);
+		const builtContent = buildContentSnapshot(request.toolName, request.toolInput);
+		const resolvedContent = Object.keys(builtContent).length > 0 ? builtContent : undefined;
 
 		try {
 			const verdict: Verdict = {
@@ -872,33 +952,51 @@ export async function evaluateToolOutput(
 				reasons: ["Prompt injection detected in tool output"],
 			};
 			await logVerdict(config.logging, {
-				sessionId: context.sessionId ?? "unknown",
-				toolName: canonicalToolName,
-				toolInput: {},
+				sessionId: request.sessionId,
+				toolName: request.toolName,
+				toolInput: request.toolInput,
 				verdict,
-				agentRuntime: context.agentRuntime,
-				hookType: "PostToolUse",
+				conversationId: request.conversationId,
+				agentRuntime: request.agentRuntime,
+				hookType: request.hookType ?? "PostToolUse",
 				signals: resolvedSignals,
+				content: resolvedContent,
 				eventId,
+				toolUseId: request.toolUseId,
 			});
-		} catch {
+		} catch (error) {
+			logger.debug("PostToolUse audit logging failed open", { error: String(error) });
 			// Fail open
 		}
 
 		try {
 			await sendCommunityIqDetection({
 				eventId,
-				agentRuntime: context.agentRuntime,
-				hookType: "PostToolUse",
-				toolName: canonicalToolName,
+				agentRuntime: request.agentRuntime,
+				agentRuntimeVersion: request.agentRuntimeVersion,
+				hookType: request.hookType ?? "PostToolUse",
+				toolName: request.toolName,
+				content: resolvedContent,
 				signals: resolvedSignals,
 				communityIqEnabled: config.community_iq,
 				logger,
 			});
-		} catch {
+		} catch (error) {
+			logger.debug("PostToolUse detection telemetry failed open", { error: String(error) });
 			// Fail open
 		}
 	}
+
+	logger.debug("Tool output evaluation completed", {
+		eventId,
+		toolName: request.toolName,
+		context: extracted.context,
+		agentRuntime: request.agentRuntime,
+		sessionId: request.sessionId,
+		result: "evaluated",
+		warningsCount: warnings.length,
+		contextInjected: warnings.length > 0,
+	});
 
 	return warnings;
 }

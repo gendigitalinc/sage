@@ -120,6 +120,12 @@ export async function addPendingApproval(
 		store = pruneStalePending(store);
 		store[toolUseId] = { ...approval, createdAt: new Date().toISOString() };
 		await saveOrDelete(pendingPath(sessionId), store);
+		logger.debug("Pending approval recorded", {
+			sessionId,
+			toolUseId,
+			threatId: approval.threatId,
+			artifactsCount: approval.artifacts.length,
+		});
 	} catch (e) {
 		logger.warn("Failed to write pending approval", { error: String(e) });
 	}
@@ -157,6 +163,12 @@ export async function consumePendingApproval(
 		}
 		await saveOrDelete(consumedPath(sessionId), consumed);
 
+		logger.debug("Pending approval consumed", {
+			sessionId,
+			toolUseId,
+			threatId: entry.threatId,
+			artifactsCount: entry.artifacts.length,
+		});
 		return entry;
 	} catch (e) {
 		logger.warn("Failed to consume pending approval", { error: String(e) });

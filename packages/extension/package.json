@@ -2,7 +2,7 @@
   "name": "sage-cursor",
   "displayName": "Gen Sage",
   "description": "Safety for Agents — protects AI agent tool calls against dangerous commands, malicious URLs, and harmful file writes.",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "publisher": "Gen",
   "icon": "icon.png",
@@ -41,6 +41,8 @@
     "dist/sage-hook.cjs.map",
     "dist/model-download-worker.cjs",
     "dist/model-download-worker.cjs.map",
+    "dist/uninstall.cjs",
+    "dist/uninstall.cjs.map",
     "resources/**",
     "icon.png",
     "package.json",
@@ -184,7 +186,8 @@
     "test": "vitest run",
     "package:cursor:vsix": "npm run build && pnpm dlx @vscode/vsce package -o ../../sage-cursor.vsix --no-dependencies --allow-package-secrets github --allow-package-secrets slack",
     "package:vscode:vsix": "npm run build && node scripts/package-vscode-vsix.mjs",
-    "package:vsix": "npm run package:cursor:vsix && npm run package:vscode:vsix"
+    "package:vsix": "npm run package:cursor:vsix && npm run package:vscode:vsix",
+    "vscode:uninstall": "node dist/uninstall.cjs cursor"
   },
   "devDependencies": {
     "@gendigital/sage-core": "workspace:*",

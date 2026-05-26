@@ -12,11 +12,12 @@
  * be introduced without a Sage release, and Sage releases never leak the
  * universe of possible field names into source control.
  *
- * Shape (statically: `Record<string, Record<string, string | number | boolean>>`):
+ * Shape (statically: `Record<string, Record<string, ExtendedInfoLeaf>>`):
  * - Top level: object with up to {@link EXTENDED_INFO_MAX_GROUPS} groups.
  * - Each group: object with up to {@link EXTENDED_INFO_MAX_KEYS_PER_GROUP} leaves.
- * - Each leaf: `string` / `number` / `boolean`. Strings are truncated at
- *   {@link EXTENDED_INFO_MAX_LEAF_CHARS} via {@link safeTruncate}.
+ * - Each leaf: `string` / `number` / `boolean`, or an array of those scalar
+ *   values. Strings are truncated at {@link EXTENDED_INFO_MAX_LEAF_CHARS} via
+ *   {@link safeTruncate}.
  *
  * File-level rejection (returns `null`, no enrichment applied):
  * - Missing / unreadable file.
@@ -29,7 +30,7 @@
  * - Group whose value is not a non-null, non-array object → drop the group.
  * - Group with > {@link EXTENDED_INFO_MAX_KEYS_PER_GROUP} keys → drop overflow
  *   in iteration order.
- * - Leaf whose value is not a primitive scalar → drop the leaf.
+ * - Leaf whose value is not a primitive scalar or scalar array → drop the leaf.
  * - String leaves are always truncated rather than rejected.
  *
  * Each drop emits one `logger.debug` line so a misbehaving writer is
@@ -37,9 +38,10 @@
  *
  * Merge semantics
  * ---------------
- * `mergeExtendedInfo` is "fill-nulls-only": Sage's own envelope values always
- * win, and extended-info only patches in values where Sage left the field
- * absent / `null` / `undefined`. The merge is exactly two levels deep — the
+ * `mergeExtendedInfo` is conservative: Sage's own scalar envelope values
+ * always win. Extended-info patches in values where Sage left the field absent
+ * / `null` / `undefined`; if both sides provide an array, the arrays are
+ * concatenated and deduplicated. The merge is exactly two levels deep — the
  * same depth the validator guarantees — so the implementation stays auditable.
  */
 
@@ -51,7 +53,8 @@ import { getFileContent } from "./file-utils.js";
 import type { Logger } from "./types.js";
 import { nullLogger } from "./types.js";
 
-export type ExtendedInfoLeaf = string | number | boolean;
+export type ExtendedInfoScalar = string | number | boolean;
+export type ExtendedInfoLeaf = ExtendedInfoScalar | ExtendedInfoScalar[];
 export type ExtendedInfoGroup = Record<string, ExtendedInfoLeaf>;
 export type ExtendedInfo = Record<string, ExtendedInfoGroup>;
 
@@ -91,6 +94,32 @@ function isPlainObjectValue(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function sanitizeScalarLeaf(leafValue: ExtendedInfoScalar): ExtendedInfoScalar {
+	if (typeof leafValue === "string") {
+		return safeTruncate(leafValue, EXTENDED_INFO_MAX_LEAF_CHARS);
+	}
+	return leafValue;
+}
+
+function sanitizeArrayLeaf(
+	groupKey: string,
+	leafKey: string,
+	items: unknown[],
+	logger: Logger,
+): ExtendedInfoScalar[] {
+	const out: ExtendedInfoScalar[] = [];
+	for (const [index, item] of items.entries()) {
+		if (typeof item !== "string" && typeof item !== "number" && typeof item !== "boolean") {
+			logger.debug(
+				`extended-info: dropped non-scalar array item '${groupKey}.${leafKey}[${index}]' (type ${typeof item})`,
+			);
+			continue;
+		}
+		out.push(sanitizeScalarLeaf(item));
+	}
+	return out;
+}
+
 function sanitizeLeaves(
 	groupKey: string,
 	rawGroup: Record<string, unknown>,
@@ -108,11 +137,15 @@ function sanitizeLeaves(
 	const out: ExtendedInfoGroup = {};
 	for (const [leafKey, leafValue] of retained) {
 		if (typeof leafValue === "string") {
-			out[leafKey] = safeTruncate(leafValue, EXTENDED_INFO_MAX_LEAF_CHARS);
+			out[leafKey] = sanitizeScalarLeaf(leafValue);
 			continue;
 		}
 		if (typeof leafValue === "number" || typeof leafValue === "boolean") {
-			out[leafKey] = leafValue;
+			out[leafKey] = sanitizeScalarLeaf(leafValue);
+			continue;
+		}
+		if (Array.isArray(leafValue)) {
+			out[leafKey] = sanitizeArrayLeaf(groupKey, leafKey, leafValue, logger);
 			continue;
 		}
 		logger.debug(
@@ -218,15 +251,40 @@ async function loadExtendedInfoUncached(
 	return sanitizeDocument(parsed, logger);
 }
 
+function cloneExtendedInfoLeaf(leafValue: ExtendedInfoLeaf): ExtendedInfoLeaf {
+	return Array.isArray(leafValue) ? dedupeArrayItems(leafValue) : leafValue;
+}
+
+function cloneExtendedInfoGroup(groupValue: ExtendedInfoGroup): ExtendedInfoGroup {
+	return Object.fromEntries(
+		Object.entries(groupValue).map(([leafKey, leafValue]) => [
+			leafKey,
+			cloneExtendedInfoLeaf(leafValue),
+		]),
+	);
+}
+
+function dedupeArrayItems<T>(items: readonly T[]): T[] {
+	const seen = new Set<T>();
+	const out: T[] = [];
+	for (const item of items) {
+		if (seen.has(item)) continue;
+		seen.add(item);
+		out.push(item);
+	}
+	return out;
+}
+
 /**
  * Merge sanitized extended-info into a Sage telemetry envelope.
  *
  * "Fill-nulls-only": Sage's own values always win. A group from extended-info
  * is patched in only where the envelope's corresponding group is missing or a
- * leaf inside it is `null`/`undefined`. If the envelope has set the group to
- * a primitive scalar (Sage already populated it as a non-object), the whole
- * group from extended-info is skipped — overwriting Sage's choice would
- * silently corrupt the schema.
+ * leaf inside it is `null`/`undefined`. Array leaves are the one additive case:
+ * if both sides provide an array, the extended-info items are appended to the
+ * envelope's items and duplicates are removed. If the envelope has set the
+ * group or leaf to a primitive scalar, that scalar wins — overwriting Sage's
+ * choice would silently corrupt the schema.
  *
  * Returns a new top-level object; the caller's `envelope` reference is not
  * mutated. Group-level objects may be shared with the input envelope after
@@ -247,7 +305,7 @@ export function mergeExtendedInfo(
 		const existing = out[groupKey];
 
 		if (existing === undefined || existing === null) {
-			out[groupKey] = { ...groupValue };
+			out[groupKey] = cloneExtendedInfoGroup(groupValue);
 			continue;
 		}
 
@@ -262,7 +320,11 @@ export function mergeExtendedInfo(
 		for (const [leafKey, leafValue] of Object.entries(groupValue)) {
 			const current = merged[leafKey];
 			if (current === undefined || current === null) {
-				merged[leafKey] = leafValue;
+				merged[leafKey] = cloneExtendedInfoLeaf(leafValue);
+				continue;
+			}
+			if (Array.isArray(current) && Array.isArray(leafValue)) {
+				merged[leafKey] = dedupeArrayItems([...current, ...leafValue]);
 			}
 		}
 		out[groupKey] = merged;

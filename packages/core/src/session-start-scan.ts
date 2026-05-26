@@ -78,6 +78,16 @@ export async function runSessionStartScan(
 
 	const plugins = context.plugins;
 	if (plugins.length === 0) {
+		logger.debug("Session plugin scan completed", {
+			totalPlugins: 0,
+			resultsWithFindings: 0,
+			findingsCount: 0,
+			cacheHits: 0,
+			cacheMisses: 0,
+			scanned: 0,
+			allowedByException: 0,
+			deniedByException: 0,
+		});
 		return [];
 	}
 
@@ -128,11 +138,23 @@ async function scanAllPlugins(
 	const cache = await loadScanCache(configHash, context.scanCachePath, logger);
 	const resultsWithFindings: PluginScanResult[] = [];
 	let cacheModified = false;
+	const stats = {
+		totalPlugins: plugins.length,
+		cacheHitsClean: 0,
+		cacheHitsWithFindings: 0,
+		cacheMisses: 0,
+		scanned: 0,
+		allowedByException: 0,
+		deniedByException: 0,
+		findingsCount: 0,
+	};
 
 	for (const plugin of plugins) {
 		// 1. Exception checks — always run first, before cache
 		const denyMatch = findPluginDenyException(exceptions, plugin.key);
 		if (denyMatch) {
+			stats.deniedByException += 1;
+			stats.findingsCount += 1;
 			resultsWithFindings.push({
 				plugin,
 				findings: [
@@ -152,16 +174,20 @@ async function scanAllPlugins(
 
 		const allowMatch = findPluginAllowException(exceptions, plugin.key);
 		if (allowMatch) {
+			stats.allowedByException += 1;
 			continue;
 		}
 
 		// 2. Cache check (only reached when no exception matched)
 		const cached = getCached(cache, plugin.key, plugin.version, plugin.lastUpdated);
 		if (cached && cached.findings.length === 0) {
+			stats.cacheHitsClean += 1;
 			continue;
 		}
 
 		if (cached && cached.findings.length > 0) {
+			stats.cacheHitsWithFindings += 1;
+			stats.findingsCount += cached.findings.length;
 			resultsWithFindings.push({
 				plugin,
 				findings: cached.findings.map(fromCachedFinding),
@@ -170,6 +196,8 @@ async function scanAllPlugins(
 		}
 
 		// 3. Scan (only reached on cache miss with no exception)
+		stats.cacheMisses += 1;
+		stats.scanned += 1;
 		const result = await scanPlugin(plugin, {
 			checkUrls: context.checkUrls ?? true,
 			checkFileHashes: context.checkFileHashes ?? true,
@@ -187,6 +215,7 @@ async function scanAllPlugins(
 		cacheModified = true;
 
 		if (result.findings.length > 0) {
+			stats.findingsCount += result.findings.length;
 			resultsWithFindings.push(result);
 		}
 	}
@@ -207,6 +236,12 @@ async function scanAllPlugins(
 	} catch {
 		// Logging must never crash the hook.
 	}
+
+	logger.debug("Session plugin scan completed", {
+		...stats,
+		cacheHits: stats.cacheHitsClean + stats.cacheHitsWithFindings,
+		resultsWithFindings: resultsWithFindings.length,
+	});
 
 	return resultsWithFindings;
 }

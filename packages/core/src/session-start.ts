@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { loadConfig, resolvePath } from "./config.js";
 import { pruneOrphanedTmpFiles } from "./file-utils.js";
 import { getInstallationId } from "./installation-id.js";
-import { anyRequiredModelMissing, MODEL_SCHEMA_VERSION } from "./model-storage.js";
+import { MODEL_SCHEMA_VERSION, missingRequiredModels } from "./model-storage.js";
 import { runSessionStartScan } from "./session-start-scan.js";
 import type { AgentRuntime, Logger, PluginInfo, PluginScanResult } from "./types.js";
 import { nullLogger } from "./types.js";
@@ -107,12 +107,30 @@ interface MaybeSpawnArgs {
 }
 
 async function maybeSpawnModelDownloadWorker(args: MaybeSpawnArgs): Promise<void> {
-	if (!args.workerPath) return;
-	if (!existsSync(args.workerPath)) {
-		args.logger.debug(`model download worker script not found at ${args.workerPath}`);
+	if (!args.workerPath) {
+		args.logger.debug("Model download worker skipped", {
+			result: "skipped",
+			skippedReason: "missing_worker_path",
+		});
 		return;
 	}
-	if (!anyRequiredModelMissing(MODEL_SCHEMA_VERSION, args.sageDirPath)) return;
+	if (!existsSync(args.workerPath)) {
+		args.logger.debug("Model download worker skipped", {
+			result: "skipped",
+			skippedReason: "worker_script_not_found",
+			workerPath: args.workerPath,
+		});
+		return;
+	}
+	const missingModels = missingRequiredModels(MODEL_SCHEMA_VERSION, args.sageDirPath);
+	if (missingModels.length === 0) {
+		args.logger.debug("Model download worker skipped", {
+			result: "skipped",
+			skippedReason: "no_missing_models",
+			schema: MODEL_SCHEMA_VERSION,
+		});
+		return;
+	}
 
 	let piEnabled = false;
 	try {
@@ -121,15 +139,28 @@ async function maybeSpawnModelDownloadWorker(args: MaybeSpawnArgs): Promise<void
 	} catch {
 		piEnabled = false;
 	}
-	if (!piEnabled) return;
+	if (!piEnabled) {
+		args.logger.debug("Model download worker skipped", {
+			result: "skipped",
+			skippedReason: "pi_check_disabled",
+			schema: MODEL_SCHEMA_VERSION,
+			missingModels,
+		});
+		return;
+	}
 
-	spawnModelDownloadWorker({
+	const spawned = spawnModelDownloadWorker({
 		sageDirPath: args.sageDirPath,
 		workerPath: args.workerPath,
 		agentRuntime: args.agentRuntime,
 		agentRuntimeVersion: args.agentRuntimeVersion,
 		versionApp: args.versionApp,
 		logger: args.logger,
+	});
+	args.logger.debug("Model download worker spawn completed", {
+		result: spawned ? "spawned" : "failed",
+		schema: MODEL_SCHEMA_VERSION,
+		missingModels,
 	});
 }
 
@@ -149,7 +180,7 @@ export interface SpawnModelDownloadWorkerArgs {
  * required because connector hooks (CC, Cursor, VS Code) are short-lived
  * subprocesses that would otherwise kill an in-process download.
  */
-export function spawnModelDownloadWorker(args: SpawnModelDownloadWorkerArgs): void {
+export function spawnModelDownloadWorker(args: SpawnModelDownloadWorkerArgs): boolean {
 	const logger = args.logger ?? nullLogger;
 	try {
 		const child = spawn(process.execPath, [args.workerPath], {
@@ -165,7 +196,9 @@ export function spawnModelDownloadWorker(args: SpawnModelDownloadWorkerArgs): vo
 			},
 		});
 		child.unref();
+		return true;
 	} catch (err) {
-		logger.debug(`failed to spawn model download worker: ${err}`);
+		logger.warn("Failed to spawn model download worker", { error: String(err) });
+		return false;
 	}
 }

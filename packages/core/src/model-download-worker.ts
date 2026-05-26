@@ -4,18 +4,17 @@
  *
  * Reusable orchestration lives in `model-download.ts`; this file only handles
  * worker-specific env parsing and auto-run when invoked as a standalone
- * script. The worker is intentionally silent — diagnostics will be wired
- * into Sage's central logger later; until then any failure is invisible to
- * the user (always fail-open: ML detection just stays off for the session
- * and the next session retries the whole flow).
+ * script. The worker is always fail-open: ML detection just stays off for
+ * the session and the next session retries the whole flow.
  */
 
 import { mkdir } from "node:fs/promises";
-import { resolvePath } from "./config.js";
+import { loadConfig, resolvePath } from "./config.js";
 import { getInstallationId } from "./installation-id.js";
 import { ensureModelsAvailable } from "./model-download.js";
 import { getModelStorageRoot, MODEL_SCHEMA_VERSION } from "./model-storage.js";
-import { nullLogger } from "./types.js";
+import { createOperationalLogger } from "./operational-log.js";
+import { type AgentRuntime, type Logger, nullLogger } from "./types.js";
 
 async function readWorkerArgs(): Promise<{
 	sageDir: string;
@@ -33,26 +32,68 @@ async function readWorkerArgs(): Promise<{
 	return { sageDir, agentRuntime, agentRuntimeVersion, versionApp, schema };
 }
 
+async function createWorkerLogger(agentRuntime: string): Promise<Logger> {
+	try {
+		const config = await loadConfig();
+		return createOperationalLogger(
+			config.operational_logging,
+			agentRuntime as AgentRuntime,
+		).forComponent("model-download-worker");
+	} catch {
+		return nullLogger;
+	}
+}
+
 async function workerMain(): Promise<void> {
 	const args = await readWorkerArgs();
 	if (!args) return;
+	const logger = await createWorkerLogger(args.agentRuntime);
+	try {
+		logger.debug("Model download worker started", {
+			schema: args.schema,
+			agentRuntime: args.agentRuntime,
+			agentRuntimeVersion: args.agentRuntimeVersion,
+			versionApp: args.versionApp,
+		});
 
-	// Make sure the storage root exists so the downloader doesn't have to
-	// create it later.
-	await mkdir(getModelStorageRoot(args.sageDir), { recursive: true }).catch(() => {});
+		// Make sure the storage root exists so the downloader doesn't have to
+		// create it later.
+		await mkdir(getModelStorageRoot(args.sageDir), { recursive: true }).catch(() => {});
 
-	const iid = await getInstallationId(args.sageDir).catch(() => undefined);
-	if (!iid) return;
+		const iid = await getInstallationId(args.sageDir).catch(() => undefined);
+		if (!iid) {
+			logger.debug("Model download worker completed", {
+				result: "skipped",
+				skippedReason: "missing_installation_id",
+			});
+			await logger.flush?.();
+			return;
+		}
 
-	await ensureModelsAvailable({
-		sageDir: args.sageDir,
-		iid,
-		agentRuntime: args.agentRuntime,
-		agentRuntimeVersion: args.agentRuntimeVersion,
-		versionApp: args.versionApp,
-		schema: args.schema,
-		logger: nullLogger,
-	});
+		const installedModels = await ensureModelsAvailable({
+			sageDir: args.sageDir,
+			iid,
+			agentRuntime: args.agentRuntime,
+			agentRuntimeVersion: args.agentRuntimeVersion,
+			versionApp: args.versionApp,
+			schema: args.schema,
+			logger,
+		});
+		logger.debug("Model download worker completed", {
+			result: "completed",
+			installedModels,
+		});
+		await logger.flush?.();
+	} catch (error) {
+		logger.error("Model download worker failed open", {
+			error: String(error),
+			schema: args.schema,
+			agentRuntime: args.agentRuntime,
+			agentRuntimeVersion: args.agentRuntimeVersion,
+			versionApp: args.versionApp,
+		});
+		await logger.flush?.();
+	}
 }
 
 // Auto-run when invoked as a standalone script. The detection is strict:

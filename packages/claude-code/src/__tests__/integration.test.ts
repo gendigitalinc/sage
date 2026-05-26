@@ -7,7 +7,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -19,6 +19,18 @@ const SESSION_START = resolve(DIST_DIR, "session-start.cjs");
 
 /** Temp HOME so hooks don't read the user's ~/.sage/config.json */
 const TEST_HOME = mkdtempSync(join(tmpdir(), "sage-test-"));
+const TEST_SAGE_DIR = join(TEST_HOME, ".sage");
+
+function writeSageFile(name: string, content: string): string {
+	mkdirSync(TEST_SAGE_DIR, { recursive: true });
+	const path = join(TEST_SAGE_DIR, name);
+	writeFileSync(path, content, "utf-8");
+	return path;
+}
+
+function removeSageFile(name: string): void {
+	rmSync(join(TEST_SAGE_DIR, name), { force: true });
+}
 
 function runHook(
 	script: string,
@@ -375,5 +387,36 @@ describe("SessionStart hook integration", () => {
 		expect(code).toBe(0);
 		const response = parseResponse(stdout);
 		expect(typeof response).toBe("object");
+	}, 30_000);
+
+	it("surfaces invalid config warning during session start", async () => {
+		writeSageFile("config.json", "not json");
+		try {
+			const { stdout, code } = await runHook(SESSION_START, {});
+			expect(code).toBe(0);
+			const response = parseResponse(stdout);
+			expect(response.systemMessage).toContain("configuration warning");
+			expect(response.systemMessage).toContain("config.json");
+			expect(response.systemMessage).toContain("not valid JSON");
+		} finally {
+			removeSageFile("config.json");
+		}
+	}, 30_000);
+
+	it("surfaces invalid exceptions warning during session start", async () => {
+		writeSageFile(
+			"exceptions.json",
+			JSON.stringify([{ decision: "allow", match: "regex", pattern: "^jira\\s+" }]),
+		);
+		try {
+			const { stdout, code } = await runHook(SESSION_START, {});
+			expect(code).toBe(0);
+			const response = parseResponse(stdout);
+			expect(response.systemMessage).toContain("configuration warning");
+			expect(response.systemMessage).toContain("exceptions.json");
+			expect(response.systemMessage).toContain("wrong shape");
+		} finally {
+			removeSageFile("exceptions.json");
+		}
 	}, 30_000);
 });

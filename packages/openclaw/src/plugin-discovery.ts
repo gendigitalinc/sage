@@ -16,7 +16,7 @@ export async function discoverOpenClawPlugins(
 	extensionsDir = DEFAULT_EXTENSIONS_DIR,
 	branding: Branding = defaultBranding,
 ): Promise<PluginInfo[]> {
-	logger.info(`${branding.name} plugin discovery: scanning extensions directory`, {
+	logger.debug(`${branding.name} plugin discovery: scanning extensions directory`, {
 		path: extensionsDir,
 	});
 
@@ -69,6 +69,6 @@ export async function discoverOpenClawPlugins(
 		});
 	}
 
-	logger.info(`${branding.name} plugin discovery: found ${plugins.length} extension(s)`);
+	logger.debug(`${branding.name} plugin discovery: found ${plugins.length} extension(s)`);
 	return plugins;
 }

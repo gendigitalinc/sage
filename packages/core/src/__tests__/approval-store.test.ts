@@ -21,11 +21,11 @@ describe("ApprovalStore", () => {
 		expect(store.approve("nonexistent")).toBeNull();
 	});
 
-	it("actionId produces stable full SHA256 hashes", () => {
+	it("actionId produces stable truncated SHA256 hashes", () => {
 		const one = ApprovalStore.actionId("bash", { command: "ls -la" }, "s1");
 		const two = ApprovalStore.actionId("bash", { command: "ls -la" }, "s1");
 		expect(one).toBe(two);
-		expect(one).toHaveLength(64); // full SHA256 hex
+		expect(one).toHaveLength(32);
 	});
 
 	it("actionId differs for different inputs", () => {

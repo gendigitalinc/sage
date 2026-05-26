@@ -349,6 +349,19 @@ export function registerFalsePositiveTools(
 			inputSchema: ListInputSchema,
 		},
 		async ({ conversation_id, limit }) => {
+			const complete = (result: string, data: Record<string, unknown> = {}): void => {
+				logger.debug("MCP tool completed", {
+					toolName: "sage_list_audit_entries",
+					result,
+					conversationId: conversation_id,
+					...data,
+				});
+			};
+			logger.debug("MCP tool started", {
+				toolName: "sage_list_audit_entries",
+				conversationId: conversation_id,
+				limit,
+			});
 			try {
 				const config = await loadConfig(undefined, logger);
 				const scanLimit = limit ?? 500;
@@ -365,6 +378,7 @@ export function registerFalsePositiveTools(
 					);
 
 				if (!inferredConversationId) {
+					complete("skipped", { skippedReason: "no_runtime_entries", entriesReturned: 0 });
 					return textResult("No runtime_verdict entries found in the audit log.", true);
 				}
 
@@ -384,10 +398,19 @@ export function registerFalsePositiveTools(
 					content: readContent(e),
 				}));
 
+				complete("completed", {
+					conversationId: inferredConversationId,
+					entriesReturned: out.length,
+				});
 				return textResult(
 					JSON.stringify({ conversation_id: inferredConversationId, entries: out }, null, 2),
 				);
 			} catch (e) {
+				logger.warn("MCP tool failed", {
+					toolName: "sage_list_audit_entries",
+					error: String(e),
+				});
+				complete("failed", { error: String(e) });
 				return textResult(`Failed to read audit log: ${e}`, true);
 			}
 		},
@@ -413,6 +436,22 @@ export function registerFalsePositiveTools(
 			entry_ids,
 			dry_run,
 		}) => {
+			const complete = (result: string, data: Record<string, unknown> = {}): void => {
+				logger.debug("MCP tool completed", {
+					toolName: "sage_report_false_positive",
+					result,
+					conversationId: conversation_id,
+					entryIdsCount: entry_ids?.length ?? 0,
+					dryRun: dry_run === true,
+					...data,
+				});
+			};
+			logger.debug("MCP tool started", {
+				toolName: "sage_report_false_positive",
+				conversationId: conversation_id,
+				entryIdsCount: entry_ids?.length ?? 0,
+				dryRun: dry_run === true,
+			});
 			try {
 				const config = await loadConfig(undefined, logger);
 				const endpoint = resolveEndpoint("/v2/fp-report");
@@ -431,6 +470,7 @@ export function registerFalsePositiveTools(
 					);
 
 				if (!inferredConversationId) {
+					complete("skipped", { skippedReason: "no_runtime_entries", reportsCount: 0 });
 					return textResult("No runtime_verdict entries found in the audit log.", true);
 				}
 
@@ -442,6 +482,11 @@ export function registerFalsePositiveTools(
 						return id ? wanted.has(id) : false;
 					});
 					if (filtered.length > MAX_EXPLICIT_ENTRIES) {
+						complete("failed_validation", {
+							conversationId: inferredConversationId,
+							reportsCount: filtered.length,
+							maxEntries: MAX_EXPLICIT_ENTRIES,
+						});
 						return textResult(
 							`Too many entry_ids (${filtered.length}). Provide at most ${MAX_EXPLICIT_ENTRIES} specific entry_ids per report call.`,
 							true,
@@ -459,11 +504,21 @@ export function registerFalsePositiveTools(
 
 				if (filtered.length === 0) {
 					if (entry_ids && entry_ids.length > 0) {
+						complete("skipped", {
+							conversationId: inferredConversationId,
+							skippedReason: "no_matching_entry_ids",
+							reportsCount: 0,
+						});
 						return textResult(
 							"No matching audit entries found for the provided entry_ids in this conversation. Run sage_list_audit_entries first.",
 							true,
 						);
 					}
+					complete("skipped", {
+						conversationId: inferredConversationId,
+						skippedReason: "no_reportable_entries",
+						reportsCount: 0,
+					});
 					return textResult(
 						"No runtime_verdict deny/ask entries found for this conversation to report.",
 						true,
@@ -472,6 +527,13 @@ export function registerFalsePositiveTools(
 
 				const iid = await getInstallationId().catch(() => undefined);
 				if (!iid) {
+					logger.warn("MCP tool could not retrieve installation id", {
+						toolName: "sage_report_false_positive",
+					});
+					complete("failed", {
+						conversationId: inferredConversationId,
+						error: "missing_installation_id",
+					});
 					return textResult(
 						`Failed to retrieve installation id; FP reporting requires a working ${branding.name} install.`,
 						true,
@@ -543,6 +605,10 @@ export function registerFalsePositiveTools(
 					.filter((r) => r.payload);
 
 				if (dry_run) {
+					complete("completed", {
+						conversationId: inferredConversationId,
+						reportsCount: reports.length,
+					});
 					return textResult(JSON.stringify({ endpoint, reports }, null, 2));
 				}
 
@@ -580,16 +646,34 @@ export function registerFalsePositiveTools(
 						failed: failed.length,
 						failures: failed.slice(0, 5),
 					};
+					logger.warn("MCP false-positive report submission partially failed", {
+						reported: results.length,
+						failed: failed.length,
+					});
+					complete("partial_failure", {
+						conversationId: inferredConversationId,
+						reported: results.length,
+						failed: failed.length,
+					});
 					return textResult(
 						`Some reports failed to submit. Summary:\n${JSON.stringify(summary, null, 2)}`,
 						true,
 					);
 				}
 
+				complete("completed", {
+					conversationId: inferredConversationId,
+					reported: filtered.length,
+				});
 				return textResult(
 					`Reported ${filtered.length} audit entr${filtered.length === 1 ? "y" : "ies"} for conversation_id=${inferredConversationId}.`,
 				);
 			} catch (e) {
+				logger.warn("MCP tool failed", {
+					toolName: "sage_report_false_positive",
+					error: String(e),
+				});
+				complete("failed", { error: String(e) });
 				return textResult(`Failed to report false positive: ${e}`, true);
 			}
 		},

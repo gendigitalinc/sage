@@ -7,7 +7,10 @@ Sage scans other installed plugins for threats at every session start. Each plug
 | Platform | Plugin Source |
 |----------|-------------|
 | Claude Code | `~/.claude/plugins/installed_plugins.json` |
+| Cursor | `~/.cursor/extensions/` directory |
+| VS Code | `~/.vscode/extensions/` directory |
 | OpenClaw | `~/.openclaw/extensions/` directory |
+| OpenCode | npm packages from `opencode.json` (global + project) and local plugins in `~/.config/opencode/plugins/` and `.opencode/plugins/` |
 
 ## How It Works
 
@@ -39,3 +42,10 @@ Sage scans other installed plugins for threats at every session start. Each plug
 ```
 
 > **Note:** Claude Code does not currently provide a hook for plugin installation events. The session-start approach ensures all plugins are scanned before each session begins.
+
+## OpenCode-specific behavior
+
+- **Trigger:** scan runs on the first `session.updated` event per session and is deduplicated by session ID
+- **Cache:** results are stored at `~/.sage/plugin_scan_cache.json` and reused until a plugin's content changes
+- **Self-protection:** Sage skips its own package (`@gendigital/sage-opencode`) when enumerating plugins
+- **Findings surfacing:** any findings are injected as a `<system-reminder>` into the first user message of the session so the agent surfaces them to the user; nothing is appended to system prompts or assistant turns

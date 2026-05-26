@@ -26,7 +26,7 @@ export class ApprovalStore {
 
 	static actionId(toolName: string, params: Record<string, unknown>, sessionId: string): string {
 		const payload = JSON.stringify({ toolName, params, sessionId });
-		return createHash("sha256").update(payload).digest("hex");
+		return createHash("sha256").update(payload).digest("hex").slice(0, 32);
 	}
 
 	static artifactId(type: string, value: string): string {
@@ -35,6 +35,10 @@ export class ApprovalStore {
 
 	setPending(actionId: string, entry: PendingEntry): void {
 		this.pending.set(actionId, { ...entry, artifacts: [...entry.artifacts] });
+	}
+
+	getPending(actionId: string): PendingEntry | null {
+		return this.pending.get(actionId) ?? null;
 	}
 
 	deletePending(actionId: string): void {

@@ -8,7 +8,7 @@ export async function discoverExtensionPlugins(
 	extensionsDir: string,
 	branding: Branding = defaultBranding,
 ): Promise<PluginInfo[]> {
-	logger.info(`${branding.name} plugin discovery: scanning extensions directory`, {
+	logger.debug(`${branding.name} plugin discovery: scanning extensions directory`, {
 		path: extensionsDir,
 	});
 
@@ -59,6 +59,6 @@ export async function discoverExtensionPlugins(
 		});
 	}
 
-	logger.info(`${branding.name} plugin discovery: found ${plugins.length} extension(s)`);
+	logger.debug(`${branding.name} plugin discovery: found ${plugins.length} extension(s)`);
 	return plugins;
 }

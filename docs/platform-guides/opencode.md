@@ -2,20 +2,13 @@
 
 ## Installation
 
-Install from a local source checkout and point OpenCode at the plugin path:
-
-```bash
-git clone https://github.com/gendigitalinc/sage
-cd sage
-pnpm install
-pnpm --filter @gendigital/sage-opencode run build
-```
+Add the plugin to your OpenCode config:
 
 Global config (`~/.config/opencode/opencode.json`):
 
 ```json
 {
-  "plugin": ["/absolute/path/to/sage/packages/opencode"]
+  "plugin": ["@gendigital/sage-opencode"]
 }
 ```
 
@@ -23,11 +16,18 @@ Project config (`.opencode/opencode.json`):
 
 ```json
 {
-  "plugin": ["/absolute/path/to/sage/packages/opencode"]
+  "plugin": ["@gendigital/sage-opencode"]
 }
 ```
 
-`@gendigital/sage-opencode` is not published to npm. Use a local path plugin entry.
+Or install from source:
+
+```bash
+git clone https://github.com/gendigitalinc/sage
+cd sage
+pnpm install && pnpm --filter @gendigital/sage-opencode run build
+# Then use local path in config: "/absolute/path/to/sage/packages/opencode"
+```
 
 ## How It Works
 
@@ -36,8 +36,8 @@ Sage uses OpenCode plugin hooks:
 - `tool.execute.before` - extracts artifacts and runs the Sage evaluator
 - `tool` - registers Sage tools (`sage_approve`)
 
-For `ask` verdicts, Sage blocks the tool call and returns an action ID in the error message.
-The agent should ask the user for explicit confirmation, then call `sage_approve`.
+For `ask` verdicts, Sage blocks the tool call and returns an action ID. The agent calls
+`sage_approve`, which shows a native approval dialog to the user.
 
 ## Tool Mapping
 
@@ -62,7 +62,7 @@ Unmapped tools pass through unchanged.
 
 ## Sage Tools
 
-- `sage_approve`: approve/reject a blocked action ID for this OpenCode session
+- `sage_approve`: shows a native approval dialog for a blocked action ID
 
 ## Verify Installation
 

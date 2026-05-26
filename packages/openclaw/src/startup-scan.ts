@@ -68,7 +68,7 @@ export function createBeforeAgentStartHandler(
 		if (!findings) return undefined;
 
 		clearFindings();
-		logger.info(`${branding.name}: surfacing plugin scan findings via before_agent_start`);
+		logger.debug(`${branding.name}: surfacing plugin scan findings via before_agent_start`);
 
 		const prependContext = [
 			'<security-alert source="sage-plugin-scan">',

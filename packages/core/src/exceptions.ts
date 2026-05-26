@@ -167,7 +167,14 @@ export async function addException(
 	const existing = await loadExceptions(excConfig, logger);
 
 	// Dedup: skip if rule with same ID already exists
-	if (existing.some((r) => r.id === rule.id)) return;
+	if (existing.some((r) => r.id === rule.id)) {
+		logger.debug("Exception rule already exists", {
+			ruleId: rule.id,
+			decision: rule.decision,
+			match: rule.match,
+		});
+		return;
+	}
 
 	const rules = [...existing, rule];
 	const path = resolvePath(excConfig.path);
@@ -181,6 +188,11 @@ export async function addException(
 				pattern: r.pattern,
 				...(r.reason !== undefined ? { reason: r.reason } : {}),
 			})),
+		});
+		logger.info("Exception rule added", {
+			ruleId: rule.id,
+			decision: rule.decision,
+			match: rule.match,
 		});
 	} catch (e) {
 		logger.warn("Failed to write exception rule", { error: String(e) });

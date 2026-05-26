@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildContentSnapshot,
 	CONTENT_FIELD_LIMITS,
+	resolveFilePath,
 	safeTruncate,
 	scrubHomePath,
 } from "../content-snapshot.js";
@@ -78,6 +79,13 @@ describe("scrubHomePath", () => {
 
 describe("buildContentSnapshot", () => {
 	const home = homedir();
+
+	it("resolveFilePath accepts shared file path field variants", () => {
+		expect(resolveFilePath({ file_path: "/a", filePath: "/b", path: "/c" })).toBe("/a");
+		expect(resolveFilePath({ filePath: "/b", path: "/c" })).toBe("/b");
+		expect(resolveFilePath({ path: "/c" })).toBe("/c");
+		expect(resolveFilePath({ file_path: "", filePath: "/b" })).toBe("/b");
+	});
 
 	describe("tool-type extraction", () => {
 		it("Bash extracts command", () => {

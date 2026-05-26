@@ -12,6 +12,7 @@ import {
 	allowVerdict,
 	type Branding,
 	BundledPiProvider,
+	createOperationalLogger,
 	defaultBranding,
 	evaluateToolCall,
 	extractFromBash,
@@ -21,14 +22,14 @@ import {
 	extractFromWrite,
 	type Logger,
 	loadConfig,
+	nullLogger,
 	resolveBranding,
 	type Verdict,
 } from "@gendigital/sage-core";
-import pino from "pino";
 import { addPendingApproval } from "./approval-tracker.js";
 import { formatBlockReason } from "./format.js";
 
-const logger: Logger = pino({ level: "warn" }, pino.destination(2));
+let logger: Logger = nullLogger;
 
 function makeResponse(verdict: Verdict, branding: Branding): Record<string, unknown> {
 	if (verdict.decision === "allow") return {};
@@ -63,14 +64,30 @@ function getPluginRoot(): string {
 }
 
 async function main(): Promise<void> {
-	const config = await loadConfig(undefined, logger);
+	const config = await loadConfig();
+	logger = createOperationalLogger(config.operational_logging, "claude-code").forComponent(
+		"pre-tool-use",
+	);
 	const branding = resolveBranding(config.brand_key, logger);
+	logger.debug("PreToolUse hook started", { hookType: "PreToolUse" });
+	const completeHook = async (
+		result: string,
+		data: Record<string, unknown> = {},
+	): Promise<void> => {
+		logger.debug("PreToolUse hook completed", {
+			hookType: "PreToolUse",
+			result,
+			...data,
+		});
+		await logger.flush?.();
+	};
 
 	let rawInput: string;
 	try {
 		rawInput = readFileSync(0, "utf-8");
 	} catch {
 		process.stdout.write("{}\n");
+		await completeHook("skipped", { skippedReason: "no_input" });
 		return;
 	}
 
@@ -78,9 +95,11 @@ async function main(): Promise<void> {
 	try {
 		toolCall = JSON.parse(rawInput) as Record<string, unknown>;
 	} catch (e) {
+		logger.warn("Failed to parse hook input", { error: String(e) });
 		process.stdout.write(
 			`${JSON.stringify(makeResponse(allowVerdict(`Failed to parse input: ${e}`), branding))}\n`,
 		);
+		await completeHook("failed_open", { skippedReason: "invalid_json", decision: "allow" });
 		return;
 	}
 
@@ -97,6 +116,12 @@ async function main(): Promise<void> {
 			const command = (toolInput.command ?? "") as string;
 			if (!command) {
 				process.stdout.write("{}\n");
+				await completeHook("skipped", {
+					skippedReason: "empty_command",
+					toolName,
+					sessionId,
+					toolUseId,
+				});
 				return;
 			}
 			artifacts = extractFromBash(command);
@@ -118,6 +143,12 @@ async function main(): Promise<void> {
 		// Delete is handled only in VS Code and Cursor connectors.
 		default:
 			process.stdout.write("{}\n");
+			await completeHook("skipped", {
+				skippedReason: "unsupported_tool",
+				toolName,
+				sessionId,
+				toolUseId,
+			});
 			return;
 	}
 
@@ -163,11 +194,22 @@ async function main(): Promise<void> {
 	}
 
 	process.stdout.write(`${JSON.stringify(makeResponse(verdict, branding))}\n`);
-	BundledPiProvider.exitIfModelLoaded();
+	await completeHook("evaluated", {
+		toolName,
+		sessionId,
+		toolUseId,
+		decision: verdict.decision,
+		category: verdict.category,
+		severity: verdict.severity,
+		artifactsCount: artifacts.length,
+	});
+	await BundledPiProvider.exitIfModelLoaded(logger);
 }
 
-main().catch((e) => {
+main().catch(async (e) => {
+	logger.error("PreToolUse hook failed open", { error: String(e) });
 	process.stdout.write(
 		`${JSON.stringify(makeResponse(allowVerdict(`Internal error: ${e}`), defaultBranding))}\n`,
 	);
+	await logger.flush?.();
 });

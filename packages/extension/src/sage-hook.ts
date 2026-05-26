@@ -8,6 +8,7 @@ import {
 	BundledPiProvider,
 	type CanonicalToolType,
 	canonicalizeToolName,
+	createOperationalLogger,
 	evaluateToolCall,
 	evaluateToolOutput,
 	extractFromBash,
@@ -20,6 +21,7 @@ import {
 	findPiWarningInAuditLog,
 	formatPiWarning,
 	type HookType,
+	type Logger,
 	loadConfigSync,
 	MAX_CONTENT_SIZE,
 	readProductJsonVersion,
@@ -90,41 +92,60 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
 	const payload = await readStdinJson();
 	const config = loadConfigSync();
 	const branding = resolveBranding(config.brand_key);
+	const runtime = mode === "cursor" ? "cursor" : mode === "vscode" ? "vscode" : undefined;
+	const logger = runtime
+		? createOperationalLogger(config.operational_logging, runtime).forComponent("sage-hook")
+		: undefined;
 
 	if (mode === "cursor") {
-		await handleCursor(payload, branding);
+		await handleCursor(payload, branding, logger as Logger);
 		return;
 	}
 
 	if (mode === "vscode") {
-		await handleVsCode(payload, branding);
+		await handleVsCode(payload, branding, logger as Logger);
 		return;
 	}
 
 	writeJson({});
 }
 
-async function handleCursor(payload: unknown, branding: Branding): Promise<void> {
+async function handleCursor(payload: unknown, branding: Branding, logger: Logger): Promise<void> {
+	const completeHook = async (
+		result: string,
+		data: Record<string, unknown> = {},
+	): Promise<void> => {
+		logger.debug("Cursor hook completed", {
+			agentRuntime: "cursor",
+			result,
+			...data,
+		});
+		await logger.flush?.();
+	};
+	logger.debug("Cursor hook started", { agentRuntime: "cursor" });
 	const eventName = detectCursorEvent(payload);
 	if (!eventName) {
 		writeJson({});
+		await completeHook("skipped", { skippedReason: "unsupported_event" });
 		return;
 	}
 
 	// PostToolUse: scan tool output for prompt injection
 	if (eventName === "postToolUse") {
-		const warning = await handlePostToolUse(payload);
+		const warning = await handlePostToolUse(payload, logger, "cursor");
 		if (warning) {
 			writeJson({ additional_context: warning });
 		} else {
 			writeJson({});
 		}
-		BundledPiProvider.exitIfModelLoaded();
+		await completeHook("evaluated", { eventName, contextInjected: !!warning });
+		await BundledPiProvider.exitIfModelLoaded(logger);
 		return;
 	}
 
 	const normalized = normalizeCursorCall(payload, eventName);
 	if (!normalized) {
+		logger.warn("Could not normalize Cursor hook payload", { eventName });
 		writeJson(
 			internalCursorResponse(
 				"allow",
@@ -132,14 +153,26 @@ async function handleCursor(payload: unknown, branding: Branding): Promise<void>
 				branding,
 			),
 		);
+		await completeHook("failed_open", { eventName, skippedReason: "invalid_payload" });
 		return;
 	}
 
 	try {
-		const verdict = await evaluateNormalizedCall(normalized);
+		const verdict = await evaluateNormalizedCall(normalized, logger);
 		writeJson(toCursorResponse(verdict, branding));
-		BundledPiProvider.exitIfModelLoaded();
-	} catch {
+		await completeHook("evaluated", {
+			eventName,
+			toolName: normalized.toolName,
+			sessionId: normalized.sessionId,
+			toolUseId: normalized.toolUseId,
+			decision: verdict.decision,
+			category: verdict.category,
+			severity: verdict.severity,
+			artifactsCount: normalized.artifacts.length,
+		});
+		await BundledPiProvider.exitIfModelLoaded(logger);
+	} catch (error) {
+		logger.error("Cursor hook failed open", { error: String(error), eventName });
 		writeJson(
 			internalCursorResponse(
 				"allow",
@@ -147,26 +180,51 @@ async function handleCursor(payload: unknown, branding: Branding): Promise<void>
 				branding,
 			),
 		);
+		await completeHook("failed_open", { eventName, decision: "allow" });
 	}
 }
 
-async function handleVsCode(payload: unknown, branding: Branding): Promise<void> {
+async function handleVsCode(payload: unknown, branding: Branding, logger: Logger): Promise<void> {
+	const completeHook = async (
+		result: string,
+		data: Record<string, unknown> = {},
+	): Promise<void> => {
+		logger.debug("VS Code hook completed", {
+			agentRuntime: "vscode",
+			result,
+			...data,
+		});
+		await logger.flush?.();
+	};
+	logger.debug("VS Code hook started", { agentRuntime: "vscode" });
 	const normalized = normalizeVsCodeCall(payload);
 	if (!normalized) {
 		writeJson({});
+		await completeHook("skipped", { skippedReason: "invalid_payload" });
 		return;
 	}
 
 	try {
-		const verdict = await evaluateNormalizedCall(normalized);
+		const verdict = await evaluateNormalizedCall(normalized, logger);
 		writeJson(toVsCodeResponse(verdict, branding));
-		BundledPiProvider.exitIfModelLoaded();
-	} catch {
+		await completeHook("evaluated", {
+			toolName: normalized.toolName,
+			sessionId: normalized.sessionId,
+			toolUseId: normalized.toolUseId,
+			decision: verdict.decision,
+			category: verdict.category,
+			severity: verdict.severity,
+			artifactsCount: normalized.artifacts.length,
+		});
+		await BundledPiProvider.exitIfModelLoaded(logger);
+	} catch (error) {
+		logger.error("VS Code hook failed open", { error: String(error) });
 		writeJson({});
+		await completeHook("failed_open", { decision: "allow" });
 	}
 }
 
-async function evaluateNormalizedCall(call: NormalizedHookCall): Promise<Verdict> {
+async function evaluateNormalizedCall(call: NormalizedHookCall, logger: Logger): Promise<Verdict> {
 	const { threatsDir, allowlistsDir } = getBundledDataDirs();
 	return evaluateToolCall(
 		{
@@ -180,7 +238,7 @@ async function evaluateNormalizedCall(call: NormalizedHookCall): Promise<Verdict
 			artifacts: call.artifacts,
 			toolUseId: call.toolUseId,
 		},
-		{ threatsDir, allowlistsDir },
+		{ threatsDir, allowlistsDir, logger },
 	);
 }
 
@@ -721,15 +779,19 @@ function isCursorEvent(value: string): value is CursorEventName {
 	);
 }
 
-async function handlePostToolUse(payload: unknown): Promise<string | null> {
+async function handlePostToolUse(
+	payload: unknown,
+	logger: Logger,
+	agentRuntime: AgentRuntime,
+): Promise<string | null> {
 	try {
 		if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
 		const input = payload as Record<string, unknown>;
 		const toolName = asString(input.tool_name) ?? "";
 
 		const parts: string[] = [];
-		const config = loadConfigSync();
-		const branding = resolveBranding(config.brand_key);
+		const config = loadConfigSync(undefined, logger);
+		const branding = resolveBranding(config.brand_key, logger);
 
 		// PI warning injection from PreToolUse audit log (medium-risk WebFetch)
 		const toolUseId = asString(input.tool_use_id) ?? "";
@@ -744,20 +806,36 @@ async function handlePostToolUse(payload: unknown): Promise<string | null> {
 				if (piWarning) {
 					parts.push(`🛡️ ${formatPiWarning(piWarning, branding)}`);
 				}
-			} catch {
+			} catch (error) {
+				logger.debug("Failed to resolve PI warning from audit log", { error: String(error) });
 				// Best-effort
 			}
 		}
 
 		// Heuristic content scanning on tool output
 		const sessionId = asString(input.session_id) ?? "unknown";
+		const toolInput = parseUnknownObject(input.tool_input);
+		const canonicalToolName = canonicalizeToolName(CURSOR_TOOL_MAP, toolName);
 		const { threatsDir, allowlistsDir } = getBundledDataDirs();
-		const warnings = await evaluateToolOutput(toolName, input, {
-			threatsDir,
-			allowlistsDir,
-			agentRuntime: "cursor",
-			sessionId,
-		});
+
+		const warnings = await evaluateToolOutput(
+			{
+				sessionId,
+				conversationId: sessionId,
+				agentRuntime: agentRuntime,
+				agentRuntimeVersion: HOST_AGENT_RUNTIME_VERSION,
+				hookType: "PostToolUse",
+				toolName: canonicalToolName,
+				toolInput,
+				hookInput: input,
+				toolUseId,
+			},
+			{
+				threatsDir,
+				allowlistsDir,
+				logger,
+			},
+		);
 
 		for (const w of warnings) {
 			parts.push(`🛡️ ${w.message}`);
@@ -765,7 +843,8 @@ async function handlePostToolUse(payload: unknown): Promise<string | null> {
 
 		if (parts.length === 0) return null;
 		return parts.join("\n\n");
-	} catch {
+	} catch (error) {
+		logger.error("PostToolUse hook failed open", { error: String(error) });
 		return null; // Fail open
 	}
 }

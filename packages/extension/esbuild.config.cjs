@@ -47,6 +47,13 @@ async function build() {
 		outfile: "dist/model-download-worker.cjs",
 		external: ["koffi"],
 	});
+
+	await esbuild.build({
+		...shared,
+		entryPoints: ["src/uninstall.ts"],
+		outfile: "dist/uninstall.cjs",
+		external: ["koffi"],
+	});
 }
 
 build().then(

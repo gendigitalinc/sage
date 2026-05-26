@@ -33,7 +33,7 @@ describe("OpenCode integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 	let hooks: Hooks;
 	let allowlistPath: string;
 
-	function makeContext() {
+	function makeContext(askBehavior: "approve" | "reject" = "approve") {
 		return {
 			sessionID: "s1",
 			messageID: "m1",
@@ -42,7 +42,10 @@ describe("OpenCode integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 			worktree: process.cwd(),
 			abort: new AbortController().signal,
 			metadata() {},
-			async ask() {},
+			ask(): Promise<void> {
+				if (askBehavior === "approve") return Promise.resolve();
+				return Promise.reject(new Error("rejected"));
+			},
 		};
 	}
 
@@ -217,10 +220,28 @@ describe("OpenCode integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 			actionId = match?.[1] ?? "";
 		}
 
-		const result = await approve?.execute({ actionId, approved: true }, makeContext());
-		expect(result).toContain("Approved action");
+		const result = await approve?.execute({ actionId }, makeContext());
+		expect(result).toContain("Approved");
 
 		await expect(runBefore("chmod 777 ./run.sh", "c6")).resolves.toBeUndefined();
+	});
+
+	it("block -> reject via native dialog -> pending cleaned up", async () => {
+		const tools = hooks.tool ?? {};
+		const approve = tools.sage_approve;
+		expect(approve).toBeDefined();
+
+		let actionId = "";
+		try {
+			await runBefore("chmod 777 ./reject.sh", "c-reject");
+		} catch (error) {
+			const message = String(error instanceof Error ? error.message : error);
+			const match = message.match(/actionId: "([a-f0-9]+)"/);
+			actionId = match?.[1] ?? "";
+		}
+
+		const result = await approve?.execute({ actionId }, makeContext("reject"));
+		expect(result).toContain("Rejected");
 	});
 
 	it("does not expose allowlist tools (deprecated)", () => {

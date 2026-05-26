@@ -81,30 +81,6 @@ export function formatDenyMessage(verdict: Verdict, branding: Branding = default
 	].join("\n");
 }
 
-export function formatAskMessage(
-	actionId: string,
-	verdict: Verdict,
-	artifacts: Artifact[],
-	branding: Branding = defaultBranding,
-): string {
-	const reasons =
-		verdict.reasons.length > 0 ? verdict.reasons.slice(0, 3).join("; ") : verdict.category;
-
-	return [
-		`${branding.name} flagged this action and requires explicit user approval.`,
-		`Severity: ${verdict.severity}`,
-		`Category: ${verdict.category}`,
-		`Reason: ${reasons}`,
-		`Artifacts: ${summarizeArtifacts(artifacts)}`,
-		"",
-		"Ask the user for confirmation to proceed, DO NOT auto-approve.",
-		`if the user confirms, call:`,
-		`  sage_approve({ actionId: "${actionId}", approved: true })`,
-		"If the user declines, call:",
-		`  sage_approve({ actionId: "${actionId}", approved: false })`,
-	].join("\n");
-}
-
 // ── Allowlist tool logic ───────────────────────────────────────────
 
 export async function approveAction(
@@ -116,5 +92,5 @@ export async function approveAction(
 	if (!entry) {
 		return `No pending ${branding.name} approval found for this action ID.`;
 	}
-	return `Approved action ${actionId}. Retry the original tool call now.`;
+	return `Approved (${summarizeArtifacts(entry.artifacts)}). Retry the EXACT same tool call — do not modify the arguments.`;
 }

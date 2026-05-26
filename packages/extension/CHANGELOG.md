@@ -1,5 +1,19 @@
 # sage-cursor
 
+## 0.10.0
+
+### Minor Changes
+
+- rebuild cursor hooks on each activation
+
+- Add configurable operational JSONL logging for Sage runtimes. Emit structured diagnostics from core evaluation, telemetry, hooks, MCP servers, and connector startup paths into `~/.sage/operational.jsonl`, with level filtering and rotation alongside the existing audit log behavior.
+
+### Patch Changes
+
+- Add vscode:uninstall hook to clean up managed hook entries and shim scripts on extension removal. Always reinstall hooks on startup to self-heal stale paths after upgrades.
+
+- minor improvements to messaging and telemetry
+
 ## 0.9.0
 
 ### Minor Changes

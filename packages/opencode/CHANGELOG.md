@@ -1,5 +1,22 @@
 # @gendigital/sage-opencode
 
+## 0.10.0
+
+### Minor Changes
+
+- Use native OpenCode approval dialog for ask verdicts instead of LLM-mediated chat
+
+- Add configurable operational JSONL logging for Sage runtimes. Emit structured diagnostics from core evaluation, telemetry, hooks, MCP servers, and connector startup paths into `~/.sage/operational.jsonl`, with level filtering and rotation alongside the existing audit log behavior.
+
+### Patch Changes
+
+- Fix OpenCode approval flow: context.ask() returns Promise, not Effect — remove Effect.runPromise wrapper. Shorten actionId to 32 hex chars and echo original tool call in approval response.
+
+- minor improvements to messaging and telemetry
+
+- Updated dependencies:
+  - Updated dependency `@gendigital/sage-core` to `0.10.0`
+
 ## 0.9.0
 
 ### Minor Changes

@@ -369,6 +369,7 @@ class PersistentPowershellAmsiBackend implements AmsiBackend {
 	private readonly logger: Logger;
 	private process: ChildProcess | null = null;
 	private available = false;
+	private invalidResultLogged = false;
 	private stdoutBuffer = "";
 	private pendingResponse: {
 		resolve: (line: string) => void;
@@ -490,10 +491,13 @@ class PersistentPowershellAmsiBackend implements AmsiBackend {
 			const amsiResult = parseInt(line, 10);
 
 			if (Number.isNaN(amsiResult) || amsiResult < 0) {
-				this.logger.warn("AMSI: PowerShell scan returned invalid result", {
-					stdout: line.slice(0, 100),
-					contentName,
-				});
+				if (!this.invalidResultLogged) {
+					this.invalidResultLogged = true;
+					this.logger.warn("AMSI: PowerShell scan returned invalid result", {
+						stdout: line.slice(0, 100),
+						contentName,
+					});
+				}
 				return null;
 			}
 
@@ -537,6 +541,7 @@ class PersistentPowershellAmsiBackend implements AmsiBackend {
 class WslPowershellAmsiBackend implements AmsiBackend {
 	private readonly logger: Logger;
 	private available = false;
+	private invalidResultLogged = false;
 
 	constructor(logger: Logger) {
 		this.logger = logger;
@@ -593,10 +598,13 @@ class WslPowershellAmsiBackend implements AmsiBackend {
 					clearTimeout(timer);
 					const amsiResult = parseInt(stdout.trim(), 10);
 					if (Number.isNaN(amsiResult) || amsiResult < 0) {
-						this.logger.warn("AMSI: PowerShell one-shot invalid result", {
-							stdout: stdout.slice(0, 100),
-							contentName,
-						});
+						if (!this.invalidResultLogged) {
+							this.invalidResultLogged = true;
+							this.logger.warn("AMSI: PowerShell one-shot invalid result", {
+								stdout: stdout.slice(0, 100),
+								contentName,
+							});
+						}
 						resolve(null);
 						return;
 					}

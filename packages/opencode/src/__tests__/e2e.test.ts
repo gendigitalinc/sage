@@ -287,7 +287,7 @@ describeE2E("E2E: Sage plugin in OpenCode", { timeout: 180_000 }, () => {
 		}
 
 		expect(bashTools[0]?.status).toBe("completed");
-		expect(bashTools[0]?.output).toMatch(/git|status|not a git repository/i);
+		expect(bashTools[0]?.output).toMatch(/branch|commit|working tree|not a git repository/i);
 	});
 
 	it("scans plugins on session startup", () => {

@@ -4,10 +4,10 @@ import {
 	type CanonicalToolType,
 	canonicalizeToolName,
 	defaultBranding,
-	formatAskMessage,
 	formatDenyMessage,
 	guardToolCall,
 	type Logger,
+	summarizeArtifacts,
 } from "@gendigital/sage-core";
 
 const OPENCODE_TOOL_MAP: Record<string, CanonicalToolType> = {
@@ -71,22 +71,41 @@ export function createToolHandlers(
 		input: { tool: string; sessionID: string; callID: string },
 		output: { args: Record<string, unknown> },
 	): Promise<void> => {
-		logger.debug(`tool.execute.before hook invoked (tool=${input.tool})`);
+		const completeHook = (result: string, data: Record<string, unknown> = {}): void => {
+			logger.debug("OpenCode tool hook completed", {
+				agentRuntime: "opencode",
+				hookType: "PreToolUse",
+				toolName: input.tool,
+				sessionId: input.sessionID,
+				toolUseId: input.callID,
+				result,
+				...data,
+			});
+		};
+		logger.debug("OpenCode tool hook started", {
+			agentRuntime: "opencode",
+			hookType: "PreToolUse",
+			toolName: input.tool,
+			sessionId: input.sessionID,
+			toolUseId: input.callID,
+		});
 
 		try {
 			const args = output.args ?? {};
 			const artifacts = extractFromOpenCodeTool(input.tool, args);
 
 			if (!artifacts || artifacts.length === 0) {
+				completeHook("skipped", { skippedReason: "no_artifacts" });
 				return;
 			}
 
+			const toolName = canonicalizeToolName(OPENCODE_TOOL_MAP, input.tool);
 			const { verdict, actionId } = await guardToolCall(
 				{
 					sessionId: input.sessionID,
 					conversationId: input.sessionID,
 					agentRuntime: "opencode",
-					toolName: canonicalizeToolName(OPENCODE_TOOL_MAP, input.tool),
+					toolName,
 					toolInput: normalizeToolInput(input.tool, args),
 					artifacts,
 				},
@@ -99,6 +118,13 @@ export function createToolHandlers(
 			);
 
 			if (verdict.decision === "allow") {
+				completeHook("evaluated", {
+					toolName,
+					decision: verdict.decision,
+					category: verdict.category,
+					severity: verdict.severity,
+					artifactsCount: artifacts.length,
+				});
 				return;
 			}
 
@@ -113,12 +139,35 @@ export function createToolHandlers(
 			}
 
 			if (verdict.decision === "deny") {
+				completeHook("evaluated", {
+					toolName,
+					decision: verdict.decision,
+					category: verdict.category,
+					severity: verdict.severity,
+					artifactsCount: artifacts.length,
+				});
 				throw new SageVerdictBlockError(formatDenyMessage(verdict, branding));
 			}
 
 			// ask — actionId is always set for ask verdicts
+			const reasons =
+				verdict.reasons.length > 0 ? verdict.reasons.slice(0, 3).join("; ") : verdict.category;
+			completeHook("evaluated", {
+				toolName,
+				decision: verdict.decision,
+				reasons: verdict.reasons,
+				category: verdict.category,
+				severity: verdict.severity,
+				artifactsCount: artifacts.length,
+				actionId,
+			});
 			throw new SageVerdictBlockError(
-				formatAskMessage(actionId as string, verdict, artifacts, branding),
+				[
+					`${branding.name} flagged this action (${verdict.category}): ${reasons}`,
+					`Artifacts: ${summarizeArtifacts(artifacts)}`,
+					`Call sage_approve({ actionId: "${actionId}" }) to request approval from the user.`,
+					`After approval, retry the EXACT same tool call with identical arguments.`,
+				].join("\n"),
 			);
 		} catch (error) {
 			// Verdict errors are expected (blocks and asks); others are logged as fail-open
@@ -127,6 +176,7 @@ export function createToolHandlers(
 				error: String(error),
 				tool: input.tool,
 			});
+			completeHook("failed_open", { decision: "allow" });
 		}
 	};
 

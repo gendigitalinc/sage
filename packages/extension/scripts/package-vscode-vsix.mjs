@@ -41,12 +41,18 @@ function buildVsCodeManifest(base) {
 		"dist/mcp-server.cjs.map",
 		"dist/sage-hook.cjs",
 		"dist/sage-hook.cjs.map",
+		"dist/uninstall.cjs",
+		"dist/uninstall.cjs.map",
 		"resources/**",
 		"icon.png",
 		"package.json",
 		"README.md",
 		"LICENSE",
 	];
+	manifest.scripts = {
+		...manifest.scripts,
+		"vscode:uninstall": "node dist/uninstall.cjs vscode",
+	};
 	manifest.contributes = {
 		...base.contributes,
 		configuration: {

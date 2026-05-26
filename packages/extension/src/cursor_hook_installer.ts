@@ -23,6 +23,7 @@ const MANAGED_MARKER = "--managed-by sage-cursor";
 interface CursorHooksFile {
 	version: number;
 	hooks: HookMap;
+	[key: string]: unknown;
 }
 
 export async function installManagedHooks(
@@ -49,6 +50,7 @@ export async function installManagedHooks(
 		runnerPath,
 		installedEvents,
 		managedCommands: collectManagedCommands(updated.hooks, MANAGED_MARKER),
+		shimCurrent: true, // freshly written by buildHookCommand above
 	};
 }
 
@@ -71,11 +73,18 @@ export async function getHookHealth(
 		safeArray(hooksFile.hooks[eventName]).some((entry) => isManagedEntry(entry, MANAGED_MARKER)),
 	);
 
+	const shimFile = process.platform === "win32" ? "sage-hook.cmd" : "sage-hook";
+	const shimPath = path.join(path.dirname(configPath), "hooks", shimFile);
+	const shimCurrent = await readFile(shimPath, "utf8")
+		.then((content) => !!runnerPath && content.includes(`"${runnerPath}"`))
+		.catch(() => false);
+
 	return {
 		configPath,
 		runnerPath,
 		installedEvents,
 		managedCommands: collectManagedCommands(hooksFile.hooks, MANAGED_MARKER),
+		shimCurrent,
 	};
 }
 
@@ -131,7 +140,7 @@ function upsertManagedHooks(existing: CursorHooksFile, command: string): CursorH
 		MANAGED_MARKER,
 	);
 
-	return { version: 1, hooks };
+	return { ...existing, hooks };
 }
 
 function removeManagedEntries(existing: CursorHooksFile): CursorHooksFile {
@@ -142,15 +151,17 @@ function removeManagedEntries(existing: CursorHooksFile): CursorHooksFile {
 			hooks[eventName] = filtered;
 		}
 	}
-	return { version: existing.version || 1, hooks };
+	return { ...existing, hooks };
 }
 
 async function readHooksFile(filePath: string): Promise<CursorHooksFile> {
 	try {
-		const parsed = JSON.parse(await readFile(filePath, "utf8")) as Partial<CursorHooksFile>;
+		const parsed = JSON.parse(await readFile(filePath, "utf8")) as Record<string, unknown>;
+		const { version, hooks, ...rest } = parsed;
 		return {
-			version: parsed.version ?? 1,
-			hooks: parsed.hooks ?? {},
+			...rest,
+			version: typeof version === "number" ? version : 1,
+			hooks: (hooks && typeof hooks === "object" ? hooks : {}) as HookMap,
 		};
 	} catch {
 		return { version: 1, hooks: {} };

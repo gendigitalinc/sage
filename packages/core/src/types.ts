@@ -12,6 +12,16 @@ export interface Logger {
 	info(msg: string, data?: Record<string, unknown>): void;
 	warn(msg: string, data?: Record<string, unknown>): void;
 	error(msg: string, data?: Record<string, unknown>): void;
+	flush?(): Promise<void>;
+}
+
+export interface RuntimeOperationalLogger {
+	debug(component: string, msg: string, data?: Record<string, unknown>): void;
+	info(component: string, msg: string, data?: Record<string, unknown>): void;
+	warn(component: string, msg: string, data?: Record<string, unknown>): void;
+	error(component: string, msg: string, data?: Record<string, unknown>): void;
+	forComponent(component: string): Logger;
+	flush(): Promise<void>;
 }
 
 /** No-op logger for when no logger is provided. */
@@ -289,6 +299,20 @@ export const LoggingConfigSchema = z.object({
 	max_files: z.number().int().min(0).default(3),
 });
 
+export const OperationalLogLevelSchema = z.enum(["debug", "info", "warn", "error"]);
+
+export const OperationalLoggingConfigSchema = z.object({
+	enabled: z.boolean().default(true),
+	level: OperationalLogLevelSchema.default("info"),
+	path: z.string().default("~/.sage/operational.jsonl"),
+	max_bytes: z
+		.number()
+		.int()
+		.min(0)
+		.default(5 * 1024 * 1024),
+	max_files: z.number().int().min(0).default(3),
+});
+
 export const FileCheckConfigSchema = z.object({
 	endpoint: z.string().optional(),
 	timeout_seconds: z.number().default(5.0),
@@ -363,6 +387,7 @@ export const ConfigSchema = z.object({
 	allowlist: AllowlistConfigSchema.default({}),
 	exceptions: ExceptionsConfigSchema.default({}),
 	logging: LoggingConfigSchema.default({}),
+	operational_logging: OperationalLoggingConfigSchema.default({}),
 	sensitivity: SensitivitySchema.default("balanced"),
 	disabled_threats: z.array(z.string()).default([]),
 	brand_key: z
@@ -380,6 +405,8 @@ export type PackageCheckConfig = z.infer<typeof PackageCheckConfigSchema>;
 export type CacheConfig = z.infer<typeof CacheConfigSchema>;
 export type AllowlistConfig = z.infer<typeof AllowlistConfigSchema>;
 export type LoggingConfig = z.infer<typeof LoggingConfigSchema>;
+export type OperationalLogLevel = z.infer<typeof OperationalLogLevelSchema>;
+export type OperationalLoggingConfig = z.infer<typeof OperationalLoggingConfigSchema>;
 export type Config = z.infer<typeof ConfigSchema>;
 
 // ── Allowlist ───────────────────────────────────────────────────────

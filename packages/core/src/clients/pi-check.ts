@@ -113,8 +113,10 @@ export class BundledPiProvider implements PiCheckProvider {
 	 * crash (exit code 134/SIGABRT). Only exits if the runtime was actually
 	 * loaded.
 	 */
-	static exitIfModelLoaded(): void {
-		if (BundledPiProvider.modelRuntimeLoaded) process.exit(0);
+	static async exitIfModelLoaded(logger?: Logger): Promise<void> {
+		if (!BundledPiProvider.modelRuntimeLoaded) return;
+		await logger?.flush?.();
+		process.exit(0);
 	}
 
 	constructor(options: BundledPiProviderOptions = {}) {

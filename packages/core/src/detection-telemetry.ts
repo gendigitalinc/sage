@@ -120,9 +120,21 @@ export async function sendCommunityIqDetection(args: DetectionTelemetryArgs): Pr
 		});
 
 		if (!response.ok) {
-			logger.debug(`Detection telemetry HTTP ${response.status}`);
+			logger.warn("Detection telemetry send failed", {
+				eventId: args.eventId,
+				status: response.status,
+			});
+		} else {
+			logger.debug("Detection telemetry sent", {
+				eventId: args.eventId,
+				toolName: args.toolName,
+				hookType: args.hookType ?? "PreToolUse",
+			});
 		}
 	} catch (err) {
-		logger.debug(`Detection telemetry send failed: ${err}`);
+		logger.warn("Detection telemetry send failed", {
+			eventId: args.eventId,
+			error: String(err),
+		});
 	}
 }

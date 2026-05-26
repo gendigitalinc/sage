@@ -4,9 +4,15 @@
  * and before_agent_start handler.
  */
 
-import { ApprovalStore, loadConfigSync, resolveBranding } from "@gendigital/sage-core";
+import {
+	ApprovalStore,
+	createOperationalLogger,
+	formatConfigurationWarnings,
+	getConfigurationWarningsSync,
+	loadConfigSync,
+	resolveBranding,
+} from "@gendigital/sage-core";
 import { getBundledDataDirs } from "./bundled-dirs.js";
-import { createLogger, type PluginLogger } from "./logger-adapter.js";
 import {
 	createBeforeAgentStartHandler,
 	createSessionScanHandler,
@@ -15,7 +21,6 @@ import {
 import { createToolCallHandler } from "./tool-handler.js";
 
 interface PluginApi {
-	logger: PluginLogger;
 	// biome-ignore lint/suspicious/noExplicitAny: OpenClaw handler signatures vary by event
 	on(event: string, handler: (...args: any[]) => any, options?: { priority?: number }): void;
 }
@@ -34,7 +39,10 @@ export default {
 		jsonSchema: { type: "object", additionalProperties: false, properties: {} },
 	},
 	register(api: PluginApi) {
-		const logger = createLogger(api.logger);
+		const operationalLogger = createOperationalLogger(config.operational_logging, "openclaw");
+		const logger = operationalLogger.forComponent("plugin");
+		const toolLogger = operationalLogger.forComponent("tool-handler");
+		const scanLogger = operationalLogger.forComponent("startup-scan");
 		const approvalStore = new ApprovalStore();
 		const { threatsDir, allowlistsDir } = getBundledDataDirs();
 
@@ -42,25 +50,31 @@ export default {
 		const interval = setInterval(() => approvalStore.cleanup(), CLEANUP_INTERVAL_MS);
 		if (typeof interval.unref === "function") interval.unref();
 
-		// Shared state: scan findings waiting to be surfaced to the user
-		let pendingFindings: string | null = null;
+		// Shared state: warnings/findings waiting to be surfaced to the user.
+		let pendingConfigurationWarnings =
+			formatConfigurationWarnings(getConfigurationWarningsSync(undefined, logger), branding) ??
+			null;
+		let pendingScanFindings: string | null = null;
 		const onFindings = (msg: string) => {
-			pendingFindings = msg;
+			pendingScanFindings = msg;
 		};
+		const getPendingFindings = () =>
+			[pendingConfigurationWarnings, pendingScanFindings].filter(Boolean).join("\n\n") || null;
 
 		api.on(
 			"before_tool_call",
-			createToolCallHandler(approvalStore, logger, threatsDir, allowlistsDir, branding),
+			createToolCallHandler(approvalStore, toolLogger, threatsDir, allowlistsDir, branding),
 			{ priority: 100 },
 		);
-		api.on("gateway_start", createStartupScanHandler(logger, branding, onFindings));
-		api.on("session_start", createSessionScanHandler(logger, branding, onFindings));
+		api.on("gateway_start", createStartupScanHandler(scanLogger, branding, onFindings));
+		api.on("session_start", createSessionScanHandler(scanLogger, branding, onFindings));
 		api.on(
 			"before_agent_start",
 			createBeforeAgentStartHandler(
-				() => pendingFindings,
+				getPendingFindings,
 				() => {
-					pendingFindings = null;
+					pendingConfigurationWarnings = null;
+					pendingScanFindings = null;
 				},
 				logger,
 				branding,

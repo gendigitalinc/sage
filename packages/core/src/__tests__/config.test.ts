@@ -1,9 +1,15 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { defaultBranding } from "../brands.js";
 import { loadConfig, resolvePath } from "../config.js";
-import { makeTmpDir } from "./test-utils.js";
+import {
+	formatConfigurationWarnings,
+	getConfigurationWarnings,
+	getConfigurationWarningsSync,
+} from "../config-diagnostics.js";
+import { makeTmpDir, withHomeOverride } from "./test-utils.js";
 
 describe("resolvePath", () => {
 	it("expands ~ prefix", () => {
@@ -64,6 +70,25 @@ describe("loadConfig", () => {
 		expect(config.cache.enabled).toBe(true);
 	});
 
+	it("loads valid config from a tilde-prefixed path", async () => {
+		const dir = await makeTmpDir();
+		const home = withHomeOverride(dir);
+		try {
+			const sageDir = join(dir, ".sage");
+			await mkdir(sageDir, { recursive: true });
+			await writeFile(
+				join(sageDir, "config.json"),
+				JSON.stringify({ sensitivity: "paranoid", heuristics_enabled: false }),
+			);
+
+			const config = await loadConfig("~/.sage/config.json");
+			expect(config.sensitivity).toBe("paranoid");
+			expect(config.heuristics_enabled).toBe(false);
+		} finally {
+			home.restore();
+		}
+	});
+
 	it("returns defaults for malformed JSON", async () => {
 		const dir = await makeTmpDir();
 		const configPath = join(dir, "config.json");
@@ -105,6 +130,7 @@ describe("loadConfig", () => {
 				cache: { path: "cache-local.json" },
 				allowlist: { path: "allowlists/main.json" },
 				logging: { path: "logs/audit.jsonl" },
+				operational_logging: { path: "logs/operational.jsonl" },
 			}),
 		);
 		const config = await loadConfig(configPath);
@@ -112,6 +138,7 @@ describe("loadConfig", () => {
 		expect(config.cache.path).toBe(resolve(sageDir, "cache-local.json"));
 		expect(config.allowlist.path).toBe(resolve(sageDir, "allowlists/main.json"));
 		expect(config.logging.path).toBe(resolve(sageDir, "logs/audit.jsonl"));
+		expect(config.operational_logging.path).toBe(resolve(sageDir, "logs/operational.jsonl"));
 	});
 
 	it("accepts explicit ~/.sage paths", async () => {
@@ -123,6 +150,7 @@ describe("loadConfig", () => {
 				cache: { path: "~/.sage/cache-custom.json" },
 				allowlist: { path: "~/.sage/allowlist-custom.json" },
 				logging: { path: "~/.sage/audit-custom.jsonl" },
+				operational_logging: { path: "~/.sage/log-custom.jsonl" },
 			}),
 		);
 		const config = await loadConfig(configPath);
@@ -130,6 +158,7 @@ describe("loadConfig", () => {
 		expect(config.cache.path).toBe(resolve(sageDir, "cache-custom.json"));
 		expect(config.allowlist.path).toBe(resolve(sageDir, "allowlist-custom.json"));
 		expect(config.logging.path).toBe(resolve(sageDir, "audit-custom.jsonl"));
+		expect(config.operational_logging.path).toBe(resolve(sageDir, "log-custom.jsonl"));
 	});
 
 	it("accepts in-tree paths whose segment names start with '..'", async () => {
@@ -141,6 +170,7 @@ describe("loadConfig", () => {
 				cache: { path: "~/.sage/..data/cache.json" },
 				allowlist: { path: "~/.sage/..cfg/allowlist.json" },
 				logging: { path: "~/.sage/..logs/audit.jsonl" },
+				operational_logging: { path: "~/.sage/..logs/operational.jsonl" },
 			}),
 		);
 		const config = await loadConfig(configPath);
@@ -148,6 +178,7 @@ describe("loadConfig", () => {
 		expect(config.cache.path).toBe(resolve(sageDir, "..data/cache.json"));
 		expect(config.allowlist.path).toBe(resolve(sageDir, "..cfg/allowlist.json"));
 		expect(config.logging.path).toBe(resolve(sageDir, "..logs/audit.jsonl"));
+		expect(config.operational_logging.path).toBe(resolve(sageDir, "..logs/operational.jsonl"));
 	});
 
 	it("falls back to defaults when state file paths escape ~/.sage", async () => {
@@ -160,6 +191,7 @@ describe("loadConfig", () => {
 				cache: { path: "~/../../../tmp/evil-cache.json" },
 				allowlist: { path: outsideAbsolute },
 				logging: { path: "../evil-audit.jsonl" },
+				operational_logging: { path: "../evil-operational.jsonl" },
 			}),
 		);
 		const config = await loadConfig(configPath);
@@ -167,6 +199,7 @@ describe("loadConfig", () => {
 		expect(config.cache.path).toBe(resolve(sageDir, "cache.json"));
 		expect(config.allowlist.path).toBe(resolve(sageDir, "allowlist.json"));
 		expect(config.logging.path).toBe(resolve(sageDir, "audit.jsonl"));
+		expect(config.operational_logging.path).toBe(resolve(sageDir, "operational.jsonl"));
 	});
 
 	it("falls back when state file paths resolve to ~/.sage directory", async () => {
@@ -178,6 +211,7 @@ describe("loadConfig", () => {
 				cache: { path: "." },
 				allowlist: { path: "   " },
 				logging: { path: "~/.sage/" },
+				operational_logging: { path: "~/.sage/" },
 			}),
 		);
 		const config = await loadConfig(configPath);
@@ -185,5 +219,88 @@ describe("loadConfig", () => {
 		expect(config.cache.path).toBe(resolve(sageDir, "cache.json"));
 		expect(config.allowlist.path).toBe(resolve(sageDir, "allowlist.json"));
 		expect(config.logging.path).toBe(resolve(sageDir, "audit.jsonl"));
+		expect(config.operational_logging.path).toBe(resolve(sageDir, "operational.jsonl"));
+	});
+});
+
+describe("configuration diagnostics", () => {
+	it("reports malformed config JSON with a branded user-facing warning", async () => {
+		const dir = await makeTmpDir();
+		const configPath = join(dir, "config.json");
+		await writeFile(configPath, "not json");
+
+		const warnings = await getConfigurationWarnings(configPath);
+		expect(warnings).toEqual([{ file: "config", path: configPath, reason: "parse" }]);
+
+		const message = formatConfigurationWarnings(warnings, defaultBranding);
+		expect(message).toContain("Sage: configuration warning");
+		expect(message).toContain("config.json");
+		expect(message).toContain("not valid JSON");
+	});
+
+	it("reports malformed exceptions JSON", async () => {
+		const dir = await makeTmpDir();
+		const home = withHomeOverride(dir);
+		try {
+			const sageDir = join(dir, ".sage");
+			await mkdir(sageDir, { recursive: true });
+			const configPath = join(sageDir, "config.json");
+			const exceptionsPath = join(sageDir, "exceptions.json");
+			await writeFile(configPath, JSON.stringify({}));
+			await writeFile(exceptionsPath, "not json");
+
+			const warnings = await getConfigurationWarnings(configPath);
+			expect(warnings).toEqual([{ file: "exceptions", path: exceptionsPath, reason: "parse" }]);
+		} finally {
+			home.restore();
+		}
+	});
+
+	it("reports exceptions files with the wrong shape", async () => {
+		const dir = await makeTmpDir();
+		const home = withHomeOverride(dir);
+		try {
+			const sageDir = join(dir, ".sage");
+			await mkdir(sageDir, { recursive: true });
+			const configPath = join(sageDir, "config.json");
+			const exceptionsPath = join(sageDir, "exceptions.json");
+			await writeFile(configPath, JSON.stringify({}));
+			await writeFile(
+				exceptionsPath,
+				JSON.stringify([{ decision: "allow", match: "regex", pattern: "^jira\\s+" }]),
+			);
+
+			const warnings = await getConfigurationWarnings(configPath);
+			expect(warnings).toEqual([
+				{ file: "exceptions", path: exceptionsPath, reason: "validation" },
+			]);
+
+			const message = formatConfigurationWarnings(warnings, defaultBranding);
+			expect(message).toContain("wrong shape");
+			expect(message).toContain('"rules":[]');
+		} finally {
+			home.restore();
+		}
+	});
+
+	it("uses the resolved config path when checking exceptions diagnostics", async () => {
+		const dir = await makeTmpDir();
+		const home = withHomeOverride(dir);
+		try {
+			const sageDir = join(dir, ".sage");
+			await mkdir(sageDir, { recursive: true });
+			const exceptionsPath = join(sageDir, "custom-exceptions.json");
+			await writeFile(
+				join(sageDir, "config.json"),
+				JSON.stringify({ exceptions: { path: "custom-exceptions.json" } }),
+			);
+			await writeFile(exceptionsPath, "not json");
+
+			const expected = [{ file: "exceptions", path: exceptionsPath, reason: "parse" }];
+			await expect(getConfigurationWarnings("~/.sage/config.json")).resolves.toEqual(expected);
+			expect(getConfigurationWarningsSync("~/.sage/config.json")).toEqual(expected);
+		} finally {
+			home.restore();
+		}
 	});
 });

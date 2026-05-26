@@ -77,8 +77,8 @@ The confidence threshold determines when a detection escalates from `ask` to `de
 |--------|-----------|----------|
 | `paranoid` | 0.70 | Blocks on any suspicion |
 | `balanced` | 0.85 | Blocks confirmed threats, warns on suspicious (default) |
-| `relaxed` | 0.95 | Only blocks high-confidence malware |
+| `relaxed` | 0.95 | Only blocks high-confidence threats |
 
 Configure in `~/.sage/config.json` with `"sensitivity": "paranoid"`.
 
-On text-based connectors (OpenCode), `paranoid` mode also promotes all `ask` verdicts to `deny`. OpenCode relies on the agent to relay approval prompts, which is susceptible to prompt-injection auto-approval. Claude Code, Cursor, and OpenClaw use native approval dialogs and are unaffected.
+On connectors that route through `guardToolCall` (OpenClaw and OpenCode), `paranoid` mode also promotes all `ask` verdicts to `deny`. This prevents prompt-injection attacks from auto-approving flagged actions in flows where the agent — rather than a fully isolated UI — mediates approval. Claude Code and the Cursor/VS Code extension use native approval dialogs on a separate code path and are unaffected.

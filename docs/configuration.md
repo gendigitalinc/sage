@@ -45,6 +45,11 @@ Sage reads configuration from `~/.sage/config.json`. All fields are optional - d
     "log_clean": false,
     "path": "~/.sage/audit.jsonl"
   },
+  "operational_logging": {
+    "enabled": true,
+    "level": "info",
+    "path": "~/.sage/operational.jsonl"
+  },
   "sensitivity": "balanced",
   "disabled_threats": [],
   "community_iq": true
@@ -139,6 +144,20 @@ Relative `path` values are resolved under `~/.sage`. Paths that escape that dire
 
 See [Audit Log](audit-log.md) for the on-disk JSONL schema (entry types, fields, signals, content snapshot, rotation semantics).
 
+### `operational_logging`
+
+Developer-focused operational diagnostics emitted by hooks, connectors, evaluator, and telemetry paths. Entries are JSON Lines in `~/.sage/operational.jsonl` by default, with one JSON object per line containing `timestamp`, `level`, `runtime`, `component`, `message`, and optional structured `data`.
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `enabled` | `true` | Enable operational JSONL logging |
+| `level` | `info` | Minimum level to write: `debug`, `info`, `warn`, or `error` |
+| `path` | `~/.sage/operational.jsonl` | Log file location (must remain under `~/.sage`) |
+| `max_bytes` | `5242880` (5 MiB) | Rotate the active log when it reaches this size. `0` disables rotation. |
+| `max_files` | `3` | Number of rotated backups kept (`operational.jsonl.1` … `operational.jsonl.N`). `0` disables rotation. |
+
+Relative `path` values are resolved under `~/.sage`. Paths that escape that directory (or resolve to the `~/.sage` directory itself) are ignored and fall back to defaults.
+
 ### `sensitivity`
 
 One of `"paranoid"`, `"balanced"`, or `"relaxed"`. Default: `"balanced"`. See [How It Works](how-it-works.md#sensitivity-presets).
@@ -182,6 +201,7 @@ Use this to permanently suppress specific rules that don't apply to your workflo
 | `~/.sage/exceptions.json` | Exception rules (pattern-based allow/deny) |
 | `~/.sage/allowlist.json` | Legacy allowlist (read-only, exact-match) |
 | `~/.sage/audit.jsonl` | Audit log |
+| `~/.sage/operational.jsonl` | Operational developer log |
 | `~/.sage/installation-id` | Random UUID identifying this installation |
 | `~/.sage/pending-approvals.json` | Pending approval state (transient, managed by PreToolUse hook) |
 | `~/.sage/consumed-approvals.json` | Consumed approvals for MCP allowlist flow (10-min TTL entries) |

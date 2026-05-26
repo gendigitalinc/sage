@@ -257,7 +257,8 @@
   confidence: 0.85
   action: block
   case_insensitive: true
-  pattern: "\\[.*?\\]\\(.*?(?:ignore|forget|system|instruction|override).*?\\)"
+  # Require a reasonably long hidden link target/title plus a high-signal PI phrase.
+  pattern: "\\[[^\\]]*\\]\\((?=[^)]{40,}\\))[^)]*(?:ignore\\s+previous\\s+instructions|forget\\s+instructions|system\\s+prompt|override\\s+instructions)[^)]*\\)"
   match_on: content
   title: "Structural injection: markdown link with hidden injection"
   expires_at: null

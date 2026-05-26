@@ -48,7 +48,7 @@ Detection telemetry can be disabled independently:
 }
 ```
 
-With URL checks, file checks, and Community IQ all disabled, Sage operates fully offline using only local heuristics.
+With URL checks, file checks, and Community IQ all disabled, all detection runs locally via heuristics. The only outbound traffic that remains is the lightweight session-start version check described above (Sage version, agent runtime, OS, installation ID — no command, URL, or file content).
 
 ## More Information
 

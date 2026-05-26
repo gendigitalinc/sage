@@ -4,10 +4,9 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir, rename, stat, unlink } from "node:fs/promises";
-import { dirname } from "node:path";
 import { resolvePath } from "./config.js";
 import { getFileContent } from "./file-utils.js";
+import { appendJsonlEntry } from "./jsonl-log-writer.js";
 import type {
 	AgentRuntime,
 	AuditSignals,
@@ -78,58 +77,14 @@ function toolInputSummary(toolName: string, toolInput: Record<string, unknown>):
 	return JSON.stringify(toolInput).slice(0, MAX_SUMMARY_LEN);
 }
 
-/**
- * Classic logrotate: shift numbered backups and rename active file to .1.
- * All renames wrapped in try/catch ignoring ENOENT for race safety.
- */
-async function rotateIfNeeded(filePath: string, maxBytes: number, maxFiles: number): Promise<void> {
-	if (maxBytes <= 0 || maxFiles <= 0) return;
-
-	let size: number;
-	try {
-		const s = await stat(filePath);
-		size = s.size;
-	} catch {
-		return; // File doesn't exist yet
-	}
-
-	if (size < maxBytes) return;
-
-	// Delete oldest backup
-	try {
-		await unlink(`${filePath}.${maxFiles}`);
-	} catch {
-		// ENOENT OK
-	}
-
-	// Shift .N-1 → .N down to .1 → .2
-	for (let i = maxFiles - 1; i >= 1; i--) {
-		try {
-			await rename(`${filePath}.${i}`, `${filePath}.${i + 1}`);
-		} catch {
-			// ENOENT OK
-		}
-	}
-
-	// Active → .1
-	try {
-		await rename(filePath, `${filePath}.1`);
-	} catch {
-		// ENOENT OK (race: another process already renamed)
-	}
-}
-
 async function appendEntry(config: LoggingConfig, entry: Record<string, unknown>): Promise<void> {
-	const path = resolvePath(config.path);
-	await mkdir(dirname(path), { recursive: true });
-	await rotateIfNeeded(path, config.max_bytes, config.max_files);
 	// `schema_version` is stamped here — the single chokepoint for every
 	// audit write — so callers (logVerdict, logPluginScan, future entry
 	// types) cannot accidentally omit it. Spread last so this assignment
 	// is authoritative even if a future caller mistakenly sets the field
 	// in their entry literal.
 	const stamped = { ...entry, schema_version: AUDIT_LOG_SCHEMA_VERSION };
-	await appendFile(path, `${JSON.stringify(stamped)}\n`);
+	await appendJsonlEntry(config, stamped);
 }
 
 export async function logVerdict(config: LoggingConfig, input: VerdictLogEntry): Promise<void> {

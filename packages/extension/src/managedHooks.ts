@@ -9,4 +9,6 @@ export interface ManagedHookHealth {
 	runnerPath: string | undefined;
 	installedEvents: string[];
 	managedCommands: string[];
+	/** True iff the on-disk shim already references the current runner path. */
+	shimCurrent: boolean;
 }

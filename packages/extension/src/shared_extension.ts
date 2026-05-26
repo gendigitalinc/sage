@@ -3,8 +3,12 @@ import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
+	type AgentRuntime,
 	type Branding,
 	ConfigSchema,
+	createOperationalLogger,
+	formatConfigurationWarnings,
+	getConfigurationWarningsSync,
 	getRecentEntries,
 	loadConfig,
 	loadConfigSync,
@@ -14,7 +18,6 @@ import {
 } from "@gendigital/sage-core";
 import * as vscode from "vscode";
 import { disabledUntilKey, shouldAutoEnable } from "./auto_enable_logic.js";
-import { createExtensionLogger } from "./extension-logger.js";
 import type { ManagedHookHealth, ManagedHookInstallOptions } from "./managedHooks.js";
 import {
 	installCursorMcpServer,
@@ -37,12 +40,20 @@ interface ExtensionTarget {
 	installer: ManagedHookInstaller;
 }
 
+function runtimeForHost(hostName: string): AgentRuntime {
+	return hostName === "Cursor" ? "cursor" : "vscode";
+}
+
 export function activateManagedHooksExtension(
 	context: vscode.ExtensionContext,
 	target: ExtensionTarget,
 ): void {
 	const config = loadConfigSync();
 	const branding = resolveBranding(config.brand_key);
+	const warningMessage = formatConfigurationWarnings(getConfigurationWarningsSync(), branding);
+	if (warningMessage) {
+		void vscode.window.showWarningMessage(warningMessage);
+	}
 
 	// Watch ~/.sage/ for statusline file changes and show IDE notifications
 	setupStatusFileWatcher(context, branding);
@@ -50,7 +61,10 @@ export function activateManagedHooksExtension(
 	// Session-start plugin scan (fire-and-forget, fail-open).
 	// runSessionStart (called internally) handles update check, model download,
 	// and temp-file cleanup — no need to duplicate those here.
-	const logger = createExtensionLogger(branding);
+	const logger = createOperationalLogger(
+		config.operational_logging,
+		runtimeForHost(target.hostName),
+	).forComponent("extension");
 	const scanHandler = createExtensionScanHandler(
 		context,
 		target.hostName,
@@ -62,7 +76,7 @@ export function activateManagedHooksExtension(
 			} else if (msg.includes("Update available")) {
 				void vscode.window.showInformationMessage(msg);
 			} else {
-				logger.info(msg);
+				logger.debug("Extension scan result surfaced", { messageLength: msg.length });
 			}
 		},
 	);
@@ -203,8 +217,17 @@ async function autoEnableOnStartup(
 
 		const hookHealth = await target.installer.getHookHealth({ context }).catch(() => null);
 		const hasManagedHooks = !!hookHealth && hookHealth.installedEvents.length > 0;
-		if (!hasManagedHooks) {
-			await target.installer.installManagedHooks({ context }, branding);
+		// Reinstall when hooks are missing or the shim is stale (e.g. after a version
+		// upgrade the shim still points at the deleted old extension directory).
+		// Wrapped in its own try/catch so a transient write failure doesn't block MCP setup.
+		let installedOk = hasManagedHooks && (hookHealth?.shimCurrent ?? false);
+		if (!hasManagedHooks || !hookHealth?.shimCurrent) {
+			try {
+				await target.installer.installManagedHooks({ context }, branding);
+				installedOk = true;
+			} catch {
+				// Fail-open
+			}
 		}
 
 		if (target.hostName === "Cursor") {
@@ -212,7 +235,7 @@ async function autoEnableOnStartup(
 		}
 
 		const shownKey = `sage.autoEnabledShown.${target.hostName}`;
-		if (!context.globalState.get<boolean>(shownKey)) {
+		if (installedOk && !context.globalState.get<boolean>(shownKey)) {
 			await context.globalState.update(shownKey, true);
 			void vscode.window.showInformationMessage(
 				`${branding.short_name}: Protection auto-enabled for ${target.hostName}. Disable via "${branding.short_name}: Disable protection until restart".`,

@@ -17,7 +17,7 @@ function resolvedSageDir(): string {
 	return resolvePath(SAGE_DIR);
 }
 
-function defaultConfigPath(): string {
+export function defaultConfigPath(): string {
 	return join(resolvedSageDir(), "config.json");
 }
 
@@ -35,6 +35,10 @@ function defaultExceptionsPath(): string {
 
 function defaultAuditPath(): string {
 	return join(resolvedSageDir(), "audit.jsonl");
+}
+
+function defaultOperationalLogPath(): string {
+	return join(resolvedSageDir(), "operational.jsonl");
 }
 
 /** Expand ~ to the user's home directory. Prefers HOME env over os.homedir(). */
@@ -56,7 +60,7 @@ function isWithinDirectory(baseDir: string, targetPath: string): boolean {
 function normalizeStateFilePath(
 	configuredPath: string,
 	fallbackPath: string,
-	field: "cache" | "allowlist" | "exceptions" | "logging",
+	field: "cache" | "allowlist" | "exceptions" | "logging" | "operational_logging",
 	logger: Logger,
 ): string {
 	const sageDir = resolvedSageDir();
@@ -112,6 +116,7 @@ function sanitizeConfigPaths(config: Config, logger: Logger): Config {
 	const allowlistPath = defaultAllowlistPath();
 	const exceptionsPath = defaultExceptionsPath();
 	const auditPath = defaultAuditPath();
+	const operationalLogPath = defaultOperationalLogPath();
 	return {
 		...config,
 		cache: {
@@ -130,34 +135,34 @@ function sanitizeConfigPaths(config: Config, logger: Logger): Config {
 			...config.logging,
 			path: normalizeStateFilePath(config.logging.path, auditPath, "logging", logger),
 		},
+		operational_logging: {
+			...config.operational_logging,
+			path: normalizeStateFilePath(
+				config.operational_logging.path,
+				operationalLogPath,
+				"operational_logging",
+				logger,
+			),
+		},
 	};
 }
 
-export async function loadConfig(
-	configPath?: string,
-	logger: Logger = nullLogger,
-): Promise<Config> {
-	const path = configPath ?? defaultConfigPath();
+function defaultConfig(logger: Logger): Config {
+	return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+}
 
-	let raw: string;
-	try {
-		raw = await getFileContent(path);
-	} catch {
-		// Missing file → full defaults (fail-open)
-		return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
-	}
-
+function parseConfig(raw: string, path: string, logger: Logger): Config {
 	let data: unknown;
 	try {
 		data = JSON.parse(raw);
 	} catch (e) {
 		logger.warn(`Failed to parse config from ${path}`, { error: String(e) });
-		return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+		return defaultConfig(logger);
 	}
 
 	if (typeof data !== "object" || data === null || Array.isArray(data)) {
 		logger.warn(`Config file ${path} does not contain a JSON object`);
-		return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+		return defaultConfig(logger);
 	}
 
 	const sanitized = sanitizeBrandKey(data as Record<string, unknown>, logger);
@@ -166,7 +171,21 @@ export async function loadConfig(
 		return sanitizeConfigPaths(ConfigSchema.parse(sanitized), logger);
 	} catch (e) {
 		logger.warn(`Config validation failed, using defaults`, { error: String(e) });
-		return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+		return defaultConfig(logger);
+	}
+}
+
+export async function loadConfig(
+	configPath?: string,
+	logger: Logger = nullLogger,
+): Promise<Config> {
+	const path = configPath ? resolvePath(configPath) : defaultConfigPath();
+
+	try {
+		return parseConfig(await getFileContent(path), path, logger);
+	} catch {
+		// Missing file -> full defaults (fail-open)
+		return defaultConfig(logger);
 	}
 }
 
@@ -176,34 +195,11 @@ export async function loadConfig(
  * need branding synchronously before any async init.
  */
 export function loadConfigSync(configPath?: string, logger: Logger = nullLogger): Config {
-	const path = configPath ?? defaultConfigPath();
+	const path = configPath ? resolvePath(configPath) : defaultConfigPath();
 
-	let raw: string;
 	try {
-		raw = getFileContentSync(path);
+		return parseConfig(getFileContentSync(path), path, logger);
 	} catch {
-		return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
-	}
-
-	let data: unknown;
-	try {
-		data = JSON.parse(raw);
-	} catch (e) {
-		logger.warn(`Failed to parse config from ${path}`, { error: String(e) });
-		return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
-	}
-
-	if (typeof data !== "object" || data === null || Array.isArray(data)) {
-		logger.warn(`Config file ${path} does not contain a JSON object`);
-		return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
-	}
-
-	const sanitized = sanitizeBrandKey(data as Record<string, unknown>, logger);
-
-	try {
-		return sanitizeConfigPaths(ConfigSchema.parse(sanitized), logger);
-	} catch (e) {
-		logger.warn(`Config validation failed, using defaults`, { error: String(e) });
-		return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+		return defaultConfig(logger);
 	}
 }

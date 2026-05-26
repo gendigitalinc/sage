@@ -29,10 +29,18 @@ describe("Windows credential threats", () => {
 		expect(matchCommand(engine, "type .env")).toContain("CLT-WIN-CRED-003");
 	});
 
+	it("detects type .env.local (WIN-CRED-003)", () => {
+		expect(matchCommand(engine, "type .env.local")).toContain("CLT-WIN-CRED-003");
+	});
+
 	it("detects Get-Content .credentials (WIN-CRED-003)", () => {
 		expect(matchCommand(engine, "Get-Content C:\\Users\\user\\.credentials")).toContain(
 			"CLT-WIN-CRED-003",
 		);
+	});
+
+	it("detects grouped Get-Content .env.production (WIN-CRED-003)", () => {
+		expect(matchCommand(engine, "(Get-Content .env.production)")).toContain("CLT-WIN-CRED-003");
 	});
 
 	it("detects [Environment]::SetEnvironmentVariable with Password (WIN-CRED-004)", () => {
@@ -162,6 +170,14 @@ describe("Windows credential threats", () => {
 
 	it("does not match Get-Content for .log file (003 FP)", () => {
 		const ids = matchCommand(engine, "Get-Content app.log");
+		expect(ids).not.toContain("CLT-WIN-CRED-003");
+	});
+
+	it("does not treat --type plus os.environ as reading an env file (003 FP)", () => {
+		const ids = matchCommand(
+			engine,
+			"jira issue create --type STask --body 'Components read os.environ[\"PROJECT_ID\"] instead of taking params'",
+		);
 		expect(ids).not.toContain("CLT-WIN-CRED-003");
 	});
 

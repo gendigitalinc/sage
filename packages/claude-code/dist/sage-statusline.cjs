@@ -4161,7 +4161,7 @@ var init_zod = __esm({
 });
 
 // ../core/dist/types.js
-var nullLogger, ArtifactTypeSchema, ArtifactSchema, SeveritySchema, ActionSchema, ThreatSchema, DecisionSchema, VerdictSeveritySchema, SensitivitySchema, UrlCheckConfigSchema, CacheConfigSchema, AllowlistConfigSchema, LoggingConfigSchema, FileCheckConfigSchema, PackageCheckConfigSchema, AmsiCheckConfigSchema, DEFAULT_PI_HIGH_RISK_THRESHOLD, DEFAULT_PI_MEDIUM_RISK_THRESHOLD, PiCheckConfigSchema, ExceptionDecisionSchema, ExceptionMatchSchema, ExceptionRuleSchema, ExceptionsFileSchema, ExceptionsConfigSchema, ConfigSchema, HookTypeSchema;
+var nullLogger, ArtifactTypeSchema, ArtifactSchema, SeveritySchema, ActionSchema, ThreatSchema, DecisionSchema, VerdictSeveritySchema, SensitivitySchema, UrlCheckConfigSchema, CacheConfigSchema, AllowlistConfigSchema, LoggingConfigSchema, OperationalLogLevelSchema, OperationalLoggingConfigSchema, FileCheckConfigSchema, PackageCheckConfigSchema, AmsiCheckConfigSchema, DEFAULT_PI_HIGH_RISK_THRESHOLD, DEFAULT_PI_MEDIUM_RISK_THRESHOLD, PiCheckConfigSchema, ExceptionDecisionSchema, ExceptionMatchSchema, ExceptionRuleSchema, ExceptionsFileSchema, ExceptionsConfigSchema, ConfigSchema, HookTypeSchema;
 var init_types2 = __esm({
   "../core/dist/types.js"() {
     "use strict";
@@ -4221,6 +4221,14 @@ var init_types2 = __esm({
       max_bytes: external_exports.number().int().min(0).default(5 * 1024 * 1024),
       max_files: external_exports.number().int().min(0).default(3)
     });
+    OperationalLogLevelSchema = external_exports.enum(["debug", "info", "warn", "error"]);
+    OperationalLoggingConfigSchema = external_exports.object({
+      enabled: external_exports.boolean().default(true),
+      level: OperationalLogLevelSchema.default("info"),
+      path: external_exports.string().default("~/.sage/operational.jsonl"),
+      max_bytes: external_exports.number().int().min(0).default(5 * 1024 * 1024),
+      max_files: external_exports.number().int().min(0).default(3)
+    });
     FileCheckConfigSchema = external_exports.object({
       endpoint: external_exports.string().optional(),
       timeout_seconds: external_exports.number().default(5),
@@ -4270,6 +4278,7 @@ var init_types2 = __esm({
       allowlist: AllowlistConfigSchema.default({}),
       exceptions: ExceptionsConfigSchema.default({}),
       logging: LoggingConfigSchema.default({}),
+      operational_logging: OperationalLoggingConfigSchema.default({}),
       sensitivity: SensitivitySchema.default("balanced"),
       disabled_threats: external_exports.array(external_exports.string()).default([]),
       brand_key: external_exports.string().min(1).max(32).regex(/^[a-z0-9_-]+$/u).optional(),
@@ -4304,6 +4313,9 @@ function defaultExceptionsPath() {
 }
 function defaultAuditPath() {
   return (0, import_node_path.join)(resolvedSageDir(), "audit.jsonl");
+}
+function defaultOperationalLogPath() {
+  return (0, import_node_path.join)(resolvedSageDir(), "operational.jsonl");
 }
 function resolvePath(pathStr) {
   if (pathStr.startsWith("~/") || pathStr === "~") {
@@ -4364,6 +4376,7 @@ function sanitizeConfigPaths(config, logger) {
   const allowlistPath = defaultAllowlistPath();
   const exceptionsPath = defaultExceptionsPath();
   const auditPath = defaultAuditPath();
+  const operationalLogPath = defaultOperationalLogPath();
   return {
     ...config,
     cache: {
@@ -4381,34 +4394,42 @@ function sanitizeConfigPaths(config, logger) {
     logging: {
       ...config.logging,
       path: normalizeStateFilePath(config.logging.path, auditPath, "logging", logger)
+    },
+    operational_logging: {
+      ...config.operational_logging,
+      path: normalizeStateFilePath(config.operational_logging.path, operationalLogPath, "operational_logging", logger)
     }
   };
 }
-function loadConfigSync(configPath, logger = nullLogger) {
-  const path = configPath ?? defaultConfigPath();
-  let raw;
-  try {
-    raw = getFileContentSync(path);
-  } catch {
-    return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
-  }
+function defaultConfig(logger) {
+  return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+}
+function parseConfig(raw, path, logger) {
   let data;
   try {
     data = JSON.parse(raw);
   } catch (e) {
     logger.warn(`Failed to parse config from ${path}`, { error: String(e) });
-    return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+    return defaultConfig(logger);
   }
   if (typeof data !== "object" || data === null || Array.isArray(data)) {
     logger.warn(`Config file ${path} does not contain a JSON object`);
-    return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+    return defaultConfig(logger);
   }
   const sanitized = sanitizeBrandKey(data, logger);
   try {
     return sanitizeConfigPaths(ConfigSchema.parse(sanitized), logger);
   } catch (e) {
     logger.warn(`Config validation failed, using defaults`, { error: String(e) });
-    return sanitizeConfigPaths(ConfigSchema.parse({}), logger);
+    return defaultConfig(logger);
+  }
+}
+function loadConfigSync(configPath, logger = nullLogger) {
+  const path = configPath ? resolvePath(configPath) : defaultConfigPath();
+  try {
+    return parseConfig(getFileContentSync(path), path, logger);
+  } catch {
+    return defaultConfig(logger);
   }
 }
 var import_node_path, SAGE_DIR, BRAND_KEY_RE;
@@ -13670,6 +13691,9 @@ var APPROVED_TTL_MS = 10 * 60 * 1e3;
 init_config();
 init_file_utils();
 
+// ../core/dist/jsonl-log-writer.js
+init_config();
+
 // ../core/dist/brands.js
 var defaultBranding = { name: "Sage", short_name: "Sage" };
 var BRANDS = {
@@ -13843,7 +13867,7 @@ init_file_utils();
 var import_meta = {};
 function resolveVersion() {
   if (true)
-    return "0.9.0";
+    return "0.10.0";
   try {
     const pkgPath = (0, import_node_path2.join)((0, import_node_path2.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
     const pkg = JSON.parse(getFileContentSync(pkgPath));
@@ -13883,6 +13907,11 @@ init_types2();
 
 // ../core/dist/index.js
 init_config();
+
+// ../core/dist/config-diagnostics.js
+init_config();
+init_file_utils();
+init_types2();
 
 // ../core/dist/content-snapshot.js
 var CONTENT_FIELD_LIMITS = Object.freeze({
@@ -13954,28 +13983,6 @@ var import_yaml2 = __toESM(require_dist(), 1);
 init_file_utils();
 init_types2();
 
-// ../core/dist/tool-names.js
-var CANONICAL_TOOLS = [
-  "Bash",
-  "WebFetch",
-  "Write",
-  "Edit",
-  "Read",
-  "Delete",
-  "ApplyPatch",
-  "Glob",
-  "Grep",
-  "List",
-  "CodeSearch",
-  "WebSearch",
-  "Question",
-  "Task",
-  "ReadLines",
-  "MCP",
-  "Unknown"
-];
-var CANONICAL_SET = new Set(CANONICAL_TOOLS);
-
 // ../core/dist/evaluator.js
 init_types2();
 
@@ -14040,6 +14047,28 @@ init_types2();
 
 // ../core/dist/version-check.js
 init_types2();
+
+// ../core/dist/tool-names.js
+var CANONICAL_TOOLS = [
+  "Bash",
+  "WebFetch",
+  "Write",
+  "Edit",
+  "Read",
+  "Delete",
+  "ApplyPatch",
+  "Glob",
+  "Grep",
+  "List",
+  "CodeSearch",
+  "WebSearch",
+  "Question",
+  "Task",
+  "ReadLines",
+  "MCP",
+  "Unknown"
+];
+var CANONICAL_SET = new Set(CANONICAL_TOOLS);
 
 // ../core/dist/index.js
 init_types2();

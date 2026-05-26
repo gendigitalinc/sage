@@ -1,11 +1,26 @@
 # @gendigital/sage-core
 
+## 0.10.0
+
+### Minor Changes
+
+- Add configurable operational JSONL logging for Sage runtimes. Emit structured diagnostics from core evaluation, telemetry, hooks, MCP servers, and connector startup paths into `~/.sage/operational.jsonl`, with level filtering and rotation alongside the existing audit log behavior.
+
+### Patch Changes
+
+- Fix OpenCode approval flow: context.ask() returns Promise, not Effect — remove Effect.runPromise wrapper. Shorten actionId to 32 hex chars and echo original tool call in approval response.
+
+- minor improvements to messaging and telemetry
+
+- Use native OpenCode approval dialog for ask verdicts instead of LLM-mediated chat
+
 ## 0.9.0
 
 ### Minor Changes
 
 - Bundle brand definitions internally and resolve via `config.brand_key`. Replaces `product_name`/`banner_text` with `name` (full) and `short_name` (for space-constrained notification bubbles).
 - Migrate VS Code extension from Claude Code hooks to Copilot's native hook system. Add tool name canonicalization to core. Fix toolInput field normalization across all connectors so evaluator AMSI scanning and package-reputation checks work correctly for non-Claude-Code platforms.
+
   - **core**: Add `CanonicalToolType` vocabulary and `canonicalizeToolName()` helper
 
 - Restrict ML pi_check to WebFetch pre-fetch with content-type filtering

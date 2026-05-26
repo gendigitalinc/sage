@@ -1,5 +1,16 @@
 # @gendigital/sage-mcp
 
+## 0.10.0
+
+### Minor Changes
+
+- Add configurable operational JSONL logging for Sage runtimes. Emit structured diagnostics from core evaluation, telemetry, hooks, MCP servers, and connector startup paths into `~/.sage/operational.jsonl`, with level filtering and rotation alongside the existing audit log behavior.
+
+### Patch Changes
+
+- Updated dependencies:
+  - Updated dependency `@gendigital/sage-core` to `0.10.0`
+
 ## 0.9.0
 
 ### Minor Changes
@@ -8,6 +19,7 @@
 - improve audit log and telemetry to produce accurate data for verdict tracking and reporting issues
 
 ### Patch Changes
+
 - Updated dependencies
   - @gendigital/sage-core@0.9.0
 

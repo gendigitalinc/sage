@@ -59,7 +59,11 @@ describe("extended-info enrichment - version-check.checkForUpdate", () => {
 		await writeExtendedInfo(
 			home,
 			JSON.stringify({
-				identity: { extra1: "ext-extra1", extra2: "ext-extra2" },
+				identity: {
+					extra1: "ext-extra1",
+					extra2: "ext-extra2",
+					markers: ["test-marker"],
+				},
 				product: { extra_id: "ext-product" },
 				license: { extra_psn: "ext-psn", extra_account: "ext-account" },
 			}),
@@ -82,6 +86,7 @@ describe("extended-info enrichment - version-check.checkForUpdate", () => {
 		// Extended-info fields must be merged in.
 		expect(body.identity.extra1).toBe("ext-extra1");
 		expect(body.identity.extra2).toBe("ext-extra2");
+		expect(body.identity.markers).toEqual(["test-marker"]);
 		expect(body.product.extra_id).toBe("ext-product");
 		expect(body.license).toEqual({ extra_psn: "ext-psn", extra_account: "ext-account" });
 	});
@@ -128,7 +133,7 @@ describe("extended-info enrichment - sendCommunityIqDetection", () => {
 		await writeExtendedInfo(
 			home,
 			JSON.stringify({
-				identity: { extra1: "ext-extra1" },
+				identity: { extra1: "ext-extra1", markers: ["test-marker"] },
 				product: { extra_id: "ext-product" },
 			}),
 		);
@@ -149,6 +154,7 @@ describe("extended-info enrichment - sendCommunityIqDetection", () => {
 
 		expect(body.identity.uuid).toBe("test-iid");
 		expect(body.identity.extra1).toBe("ext-extra1");
+		expect(body.identity.markers).toEqual(["test-marker"]);
 		expect(body.product.extra_id).toBe("ext-product");
 		// Sage's own product.version_app must remain after the merge.
 		expect(typeof body.product.version_app).toBe("string");

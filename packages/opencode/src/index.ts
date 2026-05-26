@@ -3,20 +3,41 @@
  * Intercepts tool calls and uses @gendigital/sage-core to enforce security verdicts.
  */
 
-import { ApprovalStore, approveAction, loadConfig, resolveBranding } from "@gendigital/sage-core";
+import {
+	ApprovalStore,
+	approveAction,
+	createOperationalLogger,
+	formatConfigurationWarnings,
+	getConfigurationWarnings,
+	loadConfig,
+	resolveBranding,
+} from "@gendigital/sage-core";
 import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin/tool";
 import { getBundledDataDirs } from "./bundled-dirs.js";
-import { OpencodeLogger } from "./logger-adaptor.js";
 import { createSessionScanHandler } from "./startup-scan.js";
 import { createToolHandlers } from "./tool-handler.js";
 
 const APPROVAL_STORE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 export const SagePlugin: Plugin = async ({ client, directory }) => {
-	const logger = new OpencodeLogger(client);
-	const config = await loadConfig(undefined, logger);
+	const config = await loadConfig();
+	const operationalLogger = createOperationalLogger(config.operational_logging, "opencode");
+	const logger = operationalLogger.forComponent("plugin");
+	const toolLogger = operationalLogger.forComponent("tool-handler");
+	const scanLogger = operationalLogger.forComponent("startup-scan");
 	const branding = resolveBranding(config.brand_key, logger);
+	const warningMessage = formatConfigurationWarnings(
+		await getConfigurationWarnings(undefined, logger),
+		branding,
+	);
+	if (warningMessage) {
+		client.tui
+			.showToast({
+				body: { title: branding.name, message: warningMessage, variant: "warning", duration: 5000 },
+			})
+			.catch(() => {});
+	}
 	const { threatsDir, allowlistsDir } = getBundledDataDirs();
 	const approvalStore = new ApprovalStore();
 
@@ -32,7 +53,7 @@ export const SagePlugin: Plugin = async ({ client, directory }) => {
 	interval.unref?.();
 
 	const toolHandlers = createToolHandlers(
-		logger,
+		toolLogger,
 		approvalStore,
 		threatsDir,
 		allowlistsDir,
@@ -85,8 +106,9 @@ export const SagePlugin: Plugin = async ({ client, directory }) => {
 			};
 			message.parts.push(textPart);
 
-			logger.info(`Injected sage plugin scan findings to user message`, {
-				findings,
+			logger.debug(`Injected sage plugin scan findings to user message`, {
+				sessionID,
+				findingsLength: findings.length,
 			});
 			pendingFindingsBySession.delete(sessionID);
 		},
@@ -104,7 +126,7 @@ export const SagePlugin: Plugin = async ({ client, directory }) => {
 			try {
 				logger.debug(`${branding.name}: starting session scan`, { sessionID });
 				const scanHandler = createSessionScanHandler(
-					logger,
+					scanLogger,
 					directory,
 					(msg) => {
 						pendingFindingsBySession.set(sessionID, msg);
@@ -124,23 +146,39 @@ export const SagePlugin: Plugin = async ({ client, directory }) => {
 		},
 
 		tool: {
-			// TODO: After the following PR merged to support client V2 in Opencode Plugin, gitleaks:allow
-			// use QuestionTools.ask to replace sage_approve tool
-			// PR: https://github.com/anomalyco/opencode/pull/12046
-			// Discussion: https://github.com/avast/sage/pull/21#discussion_r2873812399
 			sage_approve: tool({
-				description: `Approve or reject a ${branding.name}-flagged tool call. IMPORTANT: you MUST ask the user for explicit confirmation in the conversation BEFORE calling this tool. Never auto-approve - always present the flagged action and wait for the user to response.`,
+				description: `Review a ${branding.name}-flagged tool call. Shows a native approval dialog to the user. Call this immediately when ${branding.name} flags an action — do NOT ask the user in chat first.`,
 				args: {
 					actionId: tool.schema
 						.string()
-						.describe(`Action ID from ${branding.name} blocked message`),
-					approved: tool.schema.boolean().describe("true to approve, false to reject"),
+						.describe(`Action ID from ${branding.name} flagged message`),
 				},
-				async execute(args: { actionId: string; approved: boolean }, _context) {
-					if (!args.approved) {
+				async execute(args: { actionId: string }, context) {
+					const pending = approvalStore.getPending(args.actionId);
+					if (!pending) {
+						return `No pending ${branding.name} approval found for this action ID.`;
+					}
+
+					try {
+						// "doom_loop" is the only permission OpenCode always gates with an ask dialog,
+						// bypassing wildcard `*: allow` defaults. If OpenCode changes this, the dialog silently stops appearing.
+						await context.ask({
+							permission: "doom_loop",
+							patterns: pending.artifacts.map((a) => `[${a.type}] ${a.value}`),
+							always: [],
+							metadata: {},
+						});
+					} catch (error) {
+						logger.debug(`${branding.name}: approval dialog failed`, {
+							actionId: args.actionId,
+							error: String(error),
+						});
 						approvalStore.deletePending(args.actionId);
+						logger.debug("OpenCode approval rejected", { actionId: args.actionId });
 						return "Rejected by user.";
 					}
+					logger.info("OpenCode approval accepted", { actionId: args.actionId });
+
 					return approveAction(approvalStore, args.actionId, branding);
 				},
 			}),

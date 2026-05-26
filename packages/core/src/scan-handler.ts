@@ -30,7 +30,9 @@ export async function runPluginScan(
 	modelDownloadWorkerPath?: string,
 	style: ThreatBannerStyle = "verbose",
 ): Promise<string> {
-	logger.info(`${branding.name} plugin scan started (${context})`, {
+	logger.debug(`${branding.name} plugin scan started (${context})`, {
+		agentRuntime,
+		pluginsCount: plugins.length,
 		threatsDir,
 		allowlistsDir,
 	});
@@ -45,10 +47,22 @@ export async function runPluginScan(
 		modelDownloadWorkerPath,
 	});
 
-	logger.info(`${branding.name} plugin scan (${context}) complete`, {
-		findings: result.scanResults.length,
+	const findingsCount = result.scanResults.reduce(
+		(total, scanResult) => total + scanResult.findings.length,
+		0,
+	);
+	const completionData = {
+		agentRuntime,
+		pluginsCount: plugins.length,
+		resultsWithFindings: result.scanResults.length,
+		findingsCount,
 		updateAvailable: result.versionCheck?.updateAvailable ?? false,
-	});
+	};
+	if (findingsCount > 0) {
+		logger.warn(`${branding.name} plugin scan (${context}) complete with findings`, completionData);
+	} else {
+		logger.debug(`${branding.name} plugin scan (${context}) complete`, completionData);
+	}
 
 	return formatSessionStartMessage(version, result, branding, style);
 }
@@ -95,7 +109,7 @@ export function createScanHandler(options: ScanHandlerOptions): () => Promise<vo
 			plugins = plugins.filter((p) => !p.key.startsWith(selfPrefix));
 
 			if (plugins.length === 0) {
-				logger.warn(
+				logger.debug(
 					`${branding.name} plugin scan (${context}): no plugins to scan after filtering`,
 				);
 			}

@@ -57,6 +57,13 @@ export {
 	resolvePath,
 	SAGE_DIR,
 } from "./config.js";
+// Config diagnostics
+export {
+	type ConfigurationWarning,
+	formatConfigurationWarnings,
+	getConfigurationWarnings,
+	getConfigurationWarningsSync,
+} from "./config-diagnostics.js";
 export {
 	extractWebFetchUrl,
 	getUrlExtension,
@@ -85,6 +92,7 @@ export {
 	extractOutputForPiCheck,
 	type ToolEvaluationContext,
 	type ToolEvaluationRequest,
+	type ToolOutputEvaluationRequest,
 	type ToolOutputWarning,
 } from "./evaluator.js";
 // Exceptions
@@ -153,7 +161,6 @@ export {
 // Guard (soft-gated connector orchestrator)
 export {
 	approveAction,
-	formatAskMessage,
 	formatDenyMessage,
 	type GuardResult,
 	guardToolCall,
@@ -182,6 +189,11 @@ export {
 	REQUIRED_MODELS_BY_SCHEMA,
 	requiredModelFiles,
 } from "./model-storage.js";
+// Operational logging
+export {
+	createOperationalLogger,
+	type OperationalLogEntry,
+} from "./operational-log.js";
 export type { PackageCheckerConfig, PackageCheckInput } from "./package-checker.js";
 // Package checker
 export { PackageChecker } from "./package-checker.js";
@@ -288,6 +300,8 @@ export type {
 	HookType,
 	Logger,
 	LoggingConfig,
+	OperationalLoggingConfig,
+	OperationalLogLevel,
 	PackageCheckConfig,
 	PackageCheckResult,
 	PiCheckConfig,
@@ -297,6 +311,7 @@ export type {
 	PluginInfo,
 	PluginScanCache,
 	PluginScanResult,
+	RuntimeOperationalLogger,
 	SignalSources,
 	Threat,
 	ThreatData,
@@ -325,6 +340,8 @@ export {
 	HookTypeSchema,
 	LoggingConfigSchema,
 	nullLogger,
+	OperationalLoggingConfigSchema,
+	OperationalLogLevelSchema,
 	PackageCheckConfigSchema,
 	PiCheckConfigSchema,
 	SensitivitySchema,

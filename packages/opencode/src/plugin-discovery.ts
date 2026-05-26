@@ -50,7 +50,7 @@ export async function discoverOpenCodePlugins(
 		plugins.push(...projectPlugins);
 	}
 
-	logger.info(`${branding.name} plugin discovery: found ${plugins.length} plugin(s)`);
+	logger.debug(`${branding.name} plugin discovery: found ${plugins.length} plugin(s)`);
 	return plugins;
 }
 

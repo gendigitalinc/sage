@@ -3,11 +3,7 @@ node_modules/
 dist/
 !packages/claude-code/dist/
 packages/claude-code/dist/*
-!packages/claude-code/dist/pre-tool-use.cjs
-!packages/claude-code/dist/post-tool-use.cjs
-!packages/claude-code/dist/session-start.cjs
-!packages/claude-code/dist/mcp-server.cjs
-!packages/claude-code/dist/sage-statusline.cjs
+!packages/claude-code/dist/*.cjs
 packages/extension/resources/
 packages/extension/.vsce/
 *.vsix
@@ -44,9 +40,6 @@ packages/opencode/resources/
 
 
 .pnpm-store
-
-# Dummy canary e2e threat rules
-threats/dummy.yaml
 
 # Local git worktrees
 .worktrees/

@@ -58,7 +58,7 @@ export async function loadScanCache(
 		const storedHash = (data.config_hash ?? "") as string;
 
 		if (configHash && storedHash !== configHash) {
-			logger.info("Config hash changed, invalidating plugin scan cache", {
+			logger.debug("Config hash changed, invalidating plugin scan cache", {
 				from: storedHash,
 				to: configHash,
 			});

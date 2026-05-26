@@ -1,0 +1,161 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & package
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm build
+      - run: pnpm check
+      - run: pnpm test
+
+      - name: Package .vsix files
+        run: pnpm package:vsix
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload .vsix artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: |
+            sage-vscode.vsix
+            sage-cursor.vsix
+          retention-days: 30
+          if-no-files-found: error
+
+  publish-npm:
+    name: Publish to npm
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.ref_name, '-') }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm install -g npm@latest
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm -r publish --access public --no-git-checks --provenance
+
+  publish-vscode:
+    name: Publish to VS Code Marketplace
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.ref_name, '-') }}
+    continue-on-error: true
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+      - name: Publish via vsce
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "::warning::VSCE_PAT not set; skipping VS Code Marketplace publish."
+            exit 0
+          fi
+          npx -y @vscode/vsce publish --packagePath sage-vscode.vsix --pat "$VSCE_PAT"
+
+  publish-openvsx:
+    name: Publish to Open VSX
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.ref_name, '-') }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+      - name: Publish via ovsx
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx -y ovsx publish sage-cursor.vsix -p "$OVSX_PAT"
+
+  publish-clawhub:
+    name: Publish to ClawHub
+    needs: [build, publish-npm]
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.ref_name, '-') }}
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -C packages/openclaw build
+      - name: Authenticate to ClawHub
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: npx -y clawhub@latest login --token "$CLAWHUB_TOKEN" --no-browser
+      - name: Publish OpenClaw package
+        run: |
+          npx -y clawhub@latest package publish ./packages/openclaw \
+            --family code-plugin \
+            --name "@gendigital/sage-openclaw" \
+            --display-name "Gen Sage" \
+            --owner gendigital \
+            --version "${{ needs.build.outputs.version }}" \
+            --source-repo gendigitalinc/sage \
+            --source-commit "${{ github.sha }}" \
+            --source-ref "${{ github.ref_name }}" \
+            --source-path packages/openclaw \
+            --changelog "v${{ needs.build.outputs.version }} release"
+
+  github-release:
+    name: Create GitHub Release
+    needs: [build, publish-npm, publish-vscode, publish-openvsx]
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            sage-vscode.vsix
+            sage-cursor.vsix

@@ -43,7 +43,19 @@ export async function ensureModelsAvailable(args: EnsureModelsAvailableArgs): Pr
 	if (required.length === 0) return [];
 
 	const missing = missingRequiredModels(schema, sageDir);
-	if (missing.length === 0) return [...required];
+	logger.debug("Model availability check started", {
+		schema,
+		requiredModels: required,
+		missingModels: missing,
+	});
+	if (missing.length === 0) {
+		logger.debug("Model availability check completed", {
+			schema,
+			result: "already_available",
+			installedModels: required,
+		});
+		return [...required];
+	}
 
 	const manifest = await fetchModelManifest({
 		iid: args.iid,
@@ -54,8 +66,15 @@ export async function ensureModelsAvailable(args: EnsureModelsAvailableArgs): Pr
 		logger,
 	});
 	if (!manifest) {
-		logger.debug("model manifest unavailable; skipping background download");
-		return required.filter((name) => !missing.includes(name));
+		const installed = required.filter((name) => !missing.includes(name));
+		logger.debug("Model availability check completed", {
+			schema,
+			result: "skipped",
+			skippedReason: "manifest_unavailable",
+			installedModels: installed,
+			missingModels: missing,
+		});
+		return installed;
 	}
 
 	const installed = new Set<string>(required.filter((name) => !missing.includes(name)));
@@ -78,5 +97,12 @@ export async function ensureModelsAvailable(args: EnsureModelsAvailableArgs): Pr
 			logger.warn(`download of model '${name}' threw: ${err}`);
 		}
 	}
-	return [...installed];
+	const installedModels = [...installed];
+	logger.debug("Model availability check completed", {
+		schema,
+		result: "checked",
+		installedModels,
+		missingModels: required.filter((name) => !installed.has(name)),
+	});
+	return installedModels;
 }

@@ -131,20 +131,40 @@ export function createToolCallHandler(
 		event: ToolCallEvent,
 		ctx?: ToolCallContext,
 	): Promise<ToolCallResult | undefined> {
+		const sessionId = ctx?.sessionKey ?? "unknown";
+		const completeHook = (result: string, data: Record<string, unknown> = {}): void => {
+			logger.debug("OpenClaw tool hook completed", {
+				agentRuntime: "openclaw",
+				hookType: "PreToolUse",
+				toolName: event.toolName,
+				sessionId,
+				result,
+				...data,
+			});
+		};
+		logger.debug("OpenClaw tool hook started", {
+			agentRuntime: "openclaw",
+			hookType: "PreToolUse",
+			toolName: event.toolName,
+			sessionId,
+		});
 		try {
 			const { toolName, params } = event;
 
 			// Map tool → artifacts. No artifacts → pass through.
 			const artifacts = mapToolToArtifacts(toolName, params);
-			if (!artifacts || artifacts.length === 0) return undefined;
+			if (!artifacts || artifacts.length === 0) {
+				completeHook("skipped", { skippedReason: "no_artifacts" });
+				return undefined;
+			}
 
-			const sessionId = ctx?.sessionKey ?? "unknown";
+			const canonicalToolName = canonicalizeToolName(OPENCLAW_TOOL_MAP, toolName);
 			const { verdict, actionId } = await guardToolCall(
 				{
 					sessionId,
 					conversationId: sessionId,
 					agentRuntime: "openclaw",
-					toolName: canonicalizeToolName(OPENCLAW_TOOL_MAP, toolName),
+					toolName: canonicalToolName,
 					toolInput: normalizeToolInput(toolName, params),
 					artifacts,
 				},
@@ -152,9 +172,25 @@ export function createToolCallHandler(
 				approvalStore,
 			);
 
-			if (verdict.decision === "allow") return undefined;
+			if (verdict.decision === "allow") {
+				completeHook("evaluated", {
+					toolName: canonicalToolName,
+					decision: verdict.decision,
+					category: verdict.category,
+					severity: verdict.severity,
+					artifactsCount: artifacts.length,
+				});
+				return undefined;
+			}
 
 			if (verdict.decision === "deny") {
+				completeHook("evaluated", {
+					toolName: canonicalToolName,
+					decision: verdict.decision,
+					category: verdict.category,
+					severity: verdict.severity,
+					artifactsCount: artifacts.length,
+				});
 				return { block: true, blockReason: formatDenyMessage(verdict, branding) };
 			}
 
@@ -164,6 +200,14 @@ export function createToolCallHandler(
 			const intersected = artifacts.filter((a) => verdict.artifacts.includes(a.value));
 			const flaggedArtifacts = intersected.length > 0 ? intersected : artifacts;
 
+			completeHook("evaluated", {
+				toolName: canonicalToolName,
+				decision: verdict.decision,
+				category: verdict.category,
+				severity: verdict.severity,
+				artifactsCount: artifacts.length,
+				actionId,
+			});
 			return {
 				requireApproval: {
 					id: actionId as string,
@@ -177,7 +221,14 @@ export function createToolCallHandler(
 					timeoutBehavior: "deny",
 					onResolution: async (decision: string) => {
 						approvalStore.deletePending(actionId as string);
-						if (decision !== "allow-always") return;
+						if (decision !== "allow-always") {
+							logger.debug("OpenClaw approval resolved without persistent allow", {
+								actionId,
+								decision,
+							});
+							return;
+						}
+						logger.info("OpenClaw approval accepted permanently", { actionId });
 						for (const a of flaggedArtifacts) {
 							await addException(
 								{ type: a.type as "url" | "command" | "file_path", value: a.value },
@@ -192,6 +243,7 @@ export function createToolCallHandler(
 		} catch (e) {
 			// Fail-open: any unhandled error → pass through
 			logger.error("tool-handler error, failing open", { error: String(e) });
+			completeHook("failed_open", { decision: "allow" });
 			return undefined;
 		}
 	}

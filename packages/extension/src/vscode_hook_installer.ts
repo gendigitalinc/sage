@@ -49,6 +49,7 @@ export async function installManagedHooks(
 		runnerPath,
 		installedEvents,
 		managedCommands: collectManagedCommands(updated.hooks, MANAGED_MARKER),
+		shimCurrent: true, // freshly written by buildHookCommand above
 	};
 }
 
@@ -71,11 +72,18 @@ export async function getHookHealth(
 		safeArray(hooksFile.hooks[eventName]).some((entry) => isManagedEntry(entry, MANAGED_MARKER)),
 	);
 
+	const shimFile = process.platform === "win32" ? "sage-hook.cmd" : "sage-hook";
+	const shimPath = path.join(path.dirname(configPath), shimFile);
+	const shimCurrent = await readFile(shimPath, "utf8")
+		.then((content) => !!runnerPath && content.includes(`"${runnerPath}"`))
+		.catch(() => false);
+
 	return {
 		configPath,
 		runnerPath,
 		installedEvents,
 		managedCommands: collectManagedCommands(hooksFile.hooks, MANAGED_MARKER),
+		shimCurrent,
 	};
 }
 

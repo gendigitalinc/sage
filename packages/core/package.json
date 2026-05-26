@@ -5,7 +5,16 @@
     "access": "public"
   },
   "description": "Safety for Agents — platform-agnostic detection engine",
-  "version": "0.9.0",
+  "homepage": "https://github.com/gendigitalinc/sage",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gendigitalinc/sage.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/gendigitalinc/sage/issues"
+  },
+  "version": "0.10.0",
   "type": "module",
   "exports": {
     ".": {

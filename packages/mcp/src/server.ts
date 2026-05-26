@@ -25,7 +25,16 @@ export function createSageMcpServer(options: SageMcpServerOptions): McpServer {
 
 export async function runSageMcpServerStdio(options: SageMcpServerOptions): Promise<void> {
 	const branding = options.branding ?? defaultBranding;
+	const logger = options.logger ?? nullLogger;
+	logger.debug("MCP server start requested", {
+		serverName: options.name ?? branding.name.toLowerCase(),
+		version: options.version,
+	});
 	const server = createSageMcpServer({ ...options, branding });
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
+	logger.debug("MCP server connected", {
+		serverName: options.name ?? branding.name.toLowerCase(),
+		version: options.version,
+	});
 }

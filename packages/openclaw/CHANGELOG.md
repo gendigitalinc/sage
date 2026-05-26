@@ -1,5 +1,15 @@
 # @gendigital/sage-openclaw
 
+## 0.10.0
+
+### Minor Changes
+
+- Add configurable operational JSONL logging for Sage runtimes. Emit structured diagnostics from core evaluation, telemetry, hooks, MCP servers, and connector startup paths into `~/.sage/operational.jsonl`, with level filtering and rotation alongside the existing audit log behavior.
+
+### Patch Changes
+
+- minor improvements to messaging and telemetry
+
 ## 0.9.0
 
 ### Minor Changes

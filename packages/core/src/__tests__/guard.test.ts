@@ -1,12 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApprovalStore } from "../approval-store.js";
-import {
-	approveAction,
-	formatAskMessage,
-	formatDenyMessage,
-	guardToolCall,
-	summarizeArtifacts,
-} from "../guard.js";
+import { approveAction, formatDenyMessage, guardToolCall, summarizeArtifacts } from "../guard.js";
 import type { Verdict } from "../types.js";
 
 // Mock evaluator
@@ -163,17 +157,6 @@ describe("formatDenyMessage", () => {
 	});
 });
 
-describe("formatAskMessage", () => {
-	it("formats ask message with actionId and artifacts", () => {
-		const msg = formatAskMessage("abc123", makeVerdict({ decision: "ask" }), [
-			{ type: "command", value: "chmod 777 ./x" },
-		]);
-		expect(msg).toContain("sage_approve");
-		expect(msg).toContain("abc123");
-		expect(msg).toContain("command 'chmod 777 ./x'");
-	});
-});
-
 describe("summarizeArtifacts", () => {
 	it("formats artifacts", () => {
 		expect(
@@ -212,7 +195,7 @@ describe("summarizeArtifacts", () => {
 });
 
 describe("approveAction", () => {
-	it("approves pending action", async () => {
+	it("approves pending action and returns original tool call", async () => {
 		const store = new ApprovalStore();
 		store.setPending("a1", {
 			artifacts: [{ type: "command", value: "chmod 777 ./x" }],
@@ -220,7 +203,9 @@ describe("approveAction", () => {
 		});
 
 		const msg = await approveAction(store, "a1");
-		expect(msg).toContain("Approved action a1");
+		expect(msg).toContain("Approved");
+		expect(msg).toContain("command 'chmod 777 ./x'");
+		expect(msg).toContain("do not modify the arguments");
 		expect(store.isApproved("a1")).toBe(true);
 	});
 

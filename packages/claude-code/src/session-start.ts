@@ -11,21 +11,24 @@ import { basename, join, resolve } from "node:path";
 import {
 	atomicWriteJson,
 	type Branding,
+	createOperationalLogger,
 	discoverPlugins,
+	formatConfigurationWarnings,
 	formatMigrationNotice,
+	getConfigurationWarnings,
 	initSessionStatus,
 	type Logger,
 	loadConfig,
 	needsMarketplaceMigration,
+	nullLogger,
 	pruneSessionStatusFiles,
 	resolveBranding,
 	runPluginScan,
 } from "@gendigital/sage-core";
-import pino from "pino";
 import { pruneStaleSessionFiles } from "./approval-tracker.js";
 import { STATUSLINE_MARKER } from "./constants.js";
 
-const logger: Logger = pino({ level: "warn" }, pino.destination(2));
+let logger: Logger = nullLogger;
 
 function getPluginRoot(): string {
 	// When bundled by esbuild into CJS, __dirname points to packages/claude-code/dist/
@@ -161,8 +164,30 @@ async function configureStatusLine(pluginRoot: string, branding: Branding): Prom
 
 async function main(): Promise<void> {
 	const sessionId = getSessionId();
-	const config = await loadConfig(undefined, logger);
+	const config = await loadConfig();
+	logger = createOperationalLogger(config.operational_logging, "claude-code").forComponent(
+		"session-start",
+	);
 	const branding = resolveBranding(config.brand_key, logger);
+
+	logger.debug("SessionStart hook started", { hookType: "SessionStart", sessionId });
+	const completeHook = async (
+		result: string,
+		data: Record<string, unknown> = {},
+	): Promise<void> => {
+		logger.debug("SessionStart hook completed", {
+			hookType: "SessionStart",
+			sessionId,
+			result,
+			...data,
+		});
+		await logger.flush?.();
+	};
+
+	const warningMessage = formatConfigurationWarnings(
+		await getConfigurationWarnings(undefined, logger),
+		branding,
+	);
 
 	// Prune stale files
 	await pruneStaleSessionFiles(logger);
@@ -211,12 +236,21 @@ async function main(): Promise<void> {
 	// TODO: Remove marketplace migration check after v0.7.x // gitleaks:allow
 	const migrationNeeded = await needsMarketplaceMigration();
 	let finalMsg = migrationNeeded ? `${statusMsg}\n${formatMigrationNotice(branding)}` : statusMsg;
+	if (warningMessage) {
+		finalMsg = `${warningMessage}\n${finalMsg}`;
+	}
 	if (statusLineHint) {
 		finalMsg = `${finalMsg}\n${statusLineHint}`;
 	}
 	process.stdout.write(`${JSON.stringify({ systemMessage: finalMsg })}\n`);
+	await completeHook("completed", {
+		migrationNeeded,
+		statusLineHintShown: !!statusLineHint,
+	});
 }
 
-main().catch(() => {
+main().catch(async (error) => {
+	logger.error("SessionStart hook failed open", { error: String(error) });
 	process.stdout.write("{}\n");
+	await logger.flush?.();
 });
