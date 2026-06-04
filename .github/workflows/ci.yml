@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, pre-release]
   pull_request:
-    branches: [main]
+    branches: [main, pre-release]
 
 jobs:
   gitleaks:
@@ -16,9 +16,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Write gitleaks config from secret
         if: env.HAS_CONFIG == 'true'
-        run: echo "${{ secrets.GITLEAKS_CONFIG }}" | base64 -d > .gitleaks.toml
+        run: printf '%s' "$GITLEAKS_CONFIG_B64" | base64 -d > .gitleaks.toml
         env:
           HAS_CONFIG: ${{ secrets.GITLEAKS_CONFIG != '' }}
+          GITLEAKS_CONFIG_B64: ${{ secrets.GITLEAKS_CONFIG }}
       - name: Install gitleaks
         if: env.HAS_CONFIG == 'true'
         run: |

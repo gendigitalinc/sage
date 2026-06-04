@@ -4,11 +4,16 @@ import { execFile } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const DIST_DIR = resolve(__dirname, "..", "..", "dist");
 const SAGE_HOOK = resolve(DIST_DIR, "sage-hook.cjs");
 type HookMode = "cursor" | "vscode";
+
+// Each test spawns the bundled hook as a child process. On slower/constrained CI
+// agents the flagged-path work (cold start + awaited detection telemetry) can exceed
+// vitest's default 5s, so use the same 30s budget as the claude-code hook suite.
+vi.setConfig({ testTimeout: 30_000 });
 
 /** Temp HOME so hooks don't read the user's ~/.sage/config.json */
 const TEST_HOME = mkdtempSync(join(tmpdir(), "sage-test-"));
@@ -21,7 +26,7 @@ function runHook(
 		const child = execFile(
 			"node",
 			[SAGE_HOOK, mode],
-			{ env: { ...process.env, HOME: TEST_HOME } },
+			{ timeout: 30_000, env: { ...process.env, HOME: TEST_HOME } },
 			(error, stdout, stderr) => {
 				resolveRun({ stdout, stderr, code: error?.code ? Number(error.code) : child.exitCode });
 			},

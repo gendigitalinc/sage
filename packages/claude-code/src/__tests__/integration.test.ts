@@ -10,12 +10,18 @@ import { execFile } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const DIST_DIR = resolve(__dirname, "..", "..", "dist");
 const PRE_TOOL_USE = resolve(DIST_DIR, "pre-tool-use.cjs");
 const POST_TOOL_USE = resolve(DIST_DIR, "post-tool-use.cjs");
 const SESSION_START = resolve(DIST_DIR, "session-start.cjs");
+
+// Each test spawns a bundled hook as a child process; on slower/constrained CI agents
+// the flagged-path work (cold start + awaited detection telemetry) can exceed vitest's
+// default 5s. Apply the 30s budget suite-wide so a per-test override can't be missed
+// (the PI test below relied on the default and timed out on TeamCity).
+vi.setConfig({ testTimeout: 30_000 });
 
 /** Temp HOME so hooks don't read the user's ~/.sage/config.json */
 const TEST_HOME = mkdtempSync(join(tmpdir(), "sage-test-"));
