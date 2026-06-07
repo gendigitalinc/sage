@@ -36,7 +36,7 @@ export function makeMatch(overrides: Partial<Threat> = {}): HeuristicMatch {
 }
 
 export function createMatcher(
-	artifactType: "command" | "content" | "file_path",
+	artifactType: "command" | "content" | "file_path" | "url",
 ): (engine: HeuristicsEngine, value: string) => string[] {
 	return (engine: HeuristicsEngine, value: string): string[] => {
 		const artifacts: Artifact[] = [{ type: artifactType, value }];
