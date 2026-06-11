@@ -2,8 +2,8 @@
 #
 # This file controls the ATR (Agent Threat Rules) upstream sync. The sync
 # script is OPT-IN: set `enabled: true` to allow regeneration of
-# threats/agent-layer.atr-generated.yaml. The accompanying GitHub Action
-# is also disabled by default.
+# threats/agent-layer.atr-generated.yaml. The script runs only when a
+# maintainer invokes it locally; there is no automated workflow.
 #
 # Sage maintainers retain full editorial control. The sync NEVER modifies
 # threats/agent-layer.yaml directly — it writes a separate generated file

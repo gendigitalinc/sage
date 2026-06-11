@@ -78,17 +78,17 @@ The bridge does NOT guarantee:
 
 ## How Sage maintainers stay in control
 
-The sync workflow is OPT-IN and produces DRAFT pull requests only. No auto-
+The sync is OPT-IN and entirely manual. No workflow runs in CI and no auto-
 merge ever happens. Specifically:
 
 1. `scripts/sync-with-atr.ts` writes to a separate file
    `threats/agent-layer.atr-generated.yaml`, NOT directly to
    `threats/agent-layer.yaml`. Sage maintainers manually copy desired
    entries into the production file.
-2. `.github/workflows/atr-sync.yml` is disabled by default (`if: false`).
-3. The workflow opens DRAFT pull requests against `pre-release`. Draft
-   status prevents accidental merges via GitHub's auto-merge feature.
-4. `threats/.atr-bridge-config.yaml` controls every aspect:
+2. There is no automated sync workflow. A maintainer runs the script
+   locally and opens a pull request by hand, so a human reviews every
+   proposed change before it lands.
+3. `threats/.atr-bridge-config.yaml` controls every aspect:
    - `enabled: false` (the default) makes the script a no-op.
    - `include_ids: []` is the only ATR ids the script will sync. New ids
      added to upstream do NOT auto-flow until they appear here.

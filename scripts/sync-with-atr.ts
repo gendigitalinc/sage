@@ -3,9 +3,9 @@
  * Sync threat rules from the ATR (Agent Threat Rules) upstream project into
  * Sage's `threats/agent-layer.yaml`.
  *
- * This script is OPT-IN. It does not run automatically. The accompanying
- * GitHub Action (.github/workflows/atr-sync.yml) is also disabled by default;
- * a Sage maintainer must explicitly enable it to receive sync proposals.
+ * This script is OPT-IN. It does not run automatically and there is no CI
+ * workflow; a Sage maintainer runs it locally and opens a pull request by
+ * hand to receive sync proposals.
  *
  * What this script does:
  *   1. Loads the ATR rules listed in `threats/.atr-bridge-config.yaml`
