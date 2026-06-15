@@ -88,9 +88,18 @@
   expires_at: null
   revoked: false
 
-# --- Hex-encoded IP address in URL (obfuscated host / SSRF evasion) ---
+# --- Hex-encoded IP address in URL (obfuscated host) ---
 # Complements CLT-URL-004 (dotted-decimal public IP): catches the hex
 # rewrite of the same address, e.g. http://0x7f.0x0.0x0.0x1/ for 127.0.0.1.
+#
+# Unlike CLT-URL-004, this rule intentionally does NOT exclude loopback /
+# RFC1918 / link-local ranges. CLT-URL-004 excludes them because those
+# addresses appear routinely in local development *in dotted-decimal form*
+# (e.g. http://127.0.0.1:3000). Hex-encoding an IP has no legitimate use —
+# it is a deliberate obfuscation — so a hex-encoded loopback/private address
+# is, if anything, more suspicious than a hex-encoded public one and is
+# flagged on purpose.
+#
 # Requires at least two dotted octets with >= 1 hex octet so that a domain
 # that merely starts with "0x" (e.g. the exfil host 0x0.st handled by
 # CLT-URL-006) is not misclassified as a hex IP.
@@ -101,6 +110,6 @@
   action: require_approval
   pattern: "https?://(0x[0-9a-fA-F]{1,2}\\.(0x[0-9a-fA-F]{1,2}|[0-9]{1,3})|[0-9]{1,3}\\.0x[0-9a-fA-F]{1,2})"
   match_on: [command, url]
-  title: "Hex-encoded IP address in URL (obfuscated host / SSRF evasion)"
+  title: "Hex-encoded IP address in URL (obfuscated host)"
   expires_at: null
   revoked: false
