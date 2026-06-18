@@ -59,3 +59,52 @@
   title: "URL pointing to executable file download"
   expires_at: null
   revoked: false
+
+# --- Ephemeral file-upload hosts (data exfiltration egress) ---
+# CLI-friendly upload services frequently abused as data-exfiltration
+# outbound channels. Matches on both `command` and `url`:
+#   - Branch 1 (https?://host) covers every URL form, including the `url`
+#     artifact and commands that embed a full URL.
+#   - Branch 2 (nc|curl|wget ... host) covers bare-domain usage with no
+#     scheme — notably termbin.com via `nc termbin.com 9999` and
+#     bashupload.com via `curl bashupload.com -T file` — which the URL
+#     extractor never turns into a `url` artifact.
+# Requiring either a scheme or a network tool avoids false positives on
+# local scripts that happen to share a host name (e.g. `./transfer.sh`,
+# `bash temp.sh`).
+- id: "CLT-URL-006"
+  category: network_egress
+  severity: high
+  confidence: 0.80
+  action: require_approval
+  pattern: "(https?://(transfer\\.sh|file\\.io|temp\\.sh|bashupload\\.com|termbin\\.com|0x0\\.st)|\\b(nc|curl|wget)\\b.*\\b(transfer\\.sh|file\\.io|temp\\.sh|bashupload\\.com|termbin\\.com|0x0\\.st)\\b)"
+  match_on: [command, url]
+  title: "Upload to ephemeral file-hosting service (potential data exfiltration)"
+  expires_at: null
+  revoked: false
+
+# --- Hex-encoded IP address in URL (obfuscated host) ---
+# Complements CLT-URL-004 (dotted-decimal public IP): catches the hex
+# rewrite of the same address, e.g. http://0x7f.0x0.0x0.0x1/ for 127.0.0.1.
+#
+# Unlike CLT-URL-004, this rule intentionally does NOT exclude loopback /
+# RFC1918 / link-local ranges. CLT-URL-004 excludes them because those
+# addresses appear routinely in local development *in dotted-decimal form*
+# (e.g. http://127.0.0.1:3000). Hex-encoding an IP has no legitimate use —
+# it is a deliberate obfuscation — so a hex-encoded loopback/private address
+# is, if anything, more suspicious than a hex-encoded public one and is
+# flagged on purpose.
+#
+# Requires at least two dotted octets with >= 1 hex octet so that a domain
+# that merely starts with "0x" (e.g. the exfil host 0x0.st handled by
+# CLT-URL-006) is not misclassified as a hex IP.
+- id: "CLT-URL-007"
+  category: network_egress
+  severity: high
+  confidence: 0.80
+  action: require_approval
+  pattern: "https?://(0x[0-9a-fA-F]{1,2}\\.(0x[0-9a-fA-F]{1,2}|[0-9]{1,3})|[0-9]{1,3}\\.0x[0-9a-fA-F]{1,2})"
+  match_on: [command, url]
+  title: "Hex-encoded IP address in URL (obfuscated host)"
+  expires_at: null
+  revoked: false
