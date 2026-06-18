@@ -11,10 +11,9 @@ import { normalizeUrl } from "./url-utils.js";
 
 const ONE_HOUR = 3600;
 const TWENTY_FOUR_HOURS = 86400;
-const FAR_FUTURE = "9999-12-31T23:59:59+00:00";
 
 export class VerdictCache {
-	private store: CacheStore = { urls: {}, commands: {}, packages: {} };
+	private store: CacheStore = { urls: {}, packages: {} };
 	private readonly path: string;
 	private readonly config: CacheConfig;
 	private readonly logger: Logger;
@@ -35,11 +34,10 @@ export class VerdictCache {
 			const data = JSON.parse(raw) as CacheStore;
 			this.store = {
 				urls: data.urls ?? {},
-				commands: data.commands ?? {},
 				packages: data.packages ?? {},
 			};
 		} catch {
-			this.store = { urls: {}, commands: {}, packages: {} };
+			this.store = { urls: {}, packages: {} };
 		}
 	}
 
@@ -74,33 +72,6 @@ export class VerdictCache {
 		};
 	}
 
-	getCommand(commandHash: string): CachedVerdict | null {
-		if (!this.config.enabled) return null;
-		const entry = this.store.commands[commandHash];
-		if (!entry || this.isStale(entry)) return null;
-
-		return {
-			verdict: entry.verdict,
-			severity: entry.severity,
-			reasons: entry.reasons,
-			source: entry.source,
-		};
-	}
-
-	putCommand(commandHash: string, verdict: CachedVerdict): void {
-		if (!this.config.enabled) return;
-
-		// urlSignalLabels is URL-cache only; strip defensively so accidental misuse is a no-op.
-		const { urlSignalLabels: _ignoredUrlLabels, ...rest } = verdict;
-		const now = new Date();
-		this.store.commands[commandHash] = {
-			...rest,
-			checkedAt: now.toISOString(),
-			expiresAt: FAR_FUTURE,
-			sageVersion: this.version,
-		};
-	}
-
 	getPackage(key: string): CachedVerdict | null {
 		if (!this.config.enabled) return null;
 		const entry = this.store.packages[key];
@@ -111,6 +82,10 @@ export class VerdictCache {
 			severity: entry.severity,
 			reasons: entry.reasons,
 			source: entry.source,
+			...(entry.packageVerdict !== undefined ? { packageVerdict: entry.packageVerdict } : {}),
+			...(entry.packageConfidence !== undefined
+				? { packageConfidence: entry.packageConfidence }
+				: {}),
 		};
 	}
 
@@ -164,9 +139,6 @@ export class VerdictCache {
 	private pruneStaleEntries(): void {
 		for (const [key, entry] of Object.entries(this.store.urls)) {
 			if (this.isStale(entry)) delete this.store.urls[key];
-		}
-		for (const [key, entry] of Object.entries(this.store.commands)) {
-			if (this.isStale(entry)) delete this.store.commands[key];
 		}
 		for (const [key, entry] of Object.entries(this.store.packages)) {
 			if (this.isStale(entry)) delete this.store.packages[key];

@@ -7,11 +7,11 @@ const packageRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(packageRoot, "..", "..");
 
 const sourceThreats = join(repoRoot, "threats");
-const sourceAllowlists = join(repoRoot, "allowlists");
+const sourceAllowlists = join(repoRoot, "trusted-domains");
 
 const resourcesDir = join(packageRoot, "resources");
 const targetThreats = join(resourcesDir, "threats");
-const targetAllowlists = join(resourcesDir, "allowlists");
+const targetAllowlists = join(resourcesDir, "trusted-domains");
 
 await assertReadableDir(sourceThreats);
 await assertReadableDir(sourceAllowlists);
@@ -21,7 +21,7 @@ await mkdir(resourcesDir, { recursive: true });
 await cp(sourceThreats, targetThreats, { recursive: true, force: true });
 await cp(sourceAllowlists, targetAllowlists, { recursive: true, force: true });
 
-console.log("Synced opencode assets (threats + allowlists).");
+console.log("Synced opencode assets (threats + trusted-domains).");
 
 async function assertReadableDir(path) {
 	try {

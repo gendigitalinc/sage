@@ -56,34 +56,26 @@ openclaw plugins install @gendigital/sage-openclaw
 }
 ```
 
-See [Getting Started](docs/getting-started.md) for detailed instructions and [User Guide](docs/user-guide.md) for verification, configuration, and troubleshooting.
+See the [User Guide](docs/user-guide.md) for detailed instructions, configuration, and troubleshooting.
 
 ## Privacy
 
-For privacy considerations, please refer to [Privacy](docs/privacy.md).
+For privacy considerations, please refer to [Privacy](docs/user-guide.md#privacy).
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [User Guide](docs/user-guide.md) | Verify install, handle alerts, manage false positives |
-| [Getting Started](docs/getting-started.md) | Installation for all platforms |
-| [How It Works](docs/how-it-works.md) | Detection layers, data flow, verdicts |
-| [Configuration](docs/configuration.md) | All config options and file paths |
-| [Exceptions](docs/exceptions.md) | Pattern-based allow/deny rules |
-| [Threat Rules](docs/threat-rules.md) | YAML rule format and what gets checked |
-| [Package Protection](docs/package-protection.md) | npm/PyPI supply-chain checks |
-| [Plugin Scanning](docs/plugin-scanning.md) | Session-start plugin scanning |
+| [User Guide](docs/user-guide.md) | Installation, usage, configuration, exceptions, platform guides, privacy, FAQ |
+| [Developer Guide](docs/developer-guide.md) | Architecture, development setup, testing, threat rule format |
 | [Prompt Injection](docs/prompt-injection.md) | ML + heuristic prompt injection detection |
+| [Package Protection](docs/package-protection.md) | npm/PyPI supply-chain checks |
 | [AMSI Scanning](docs/amsi-scanning.md) | Windows antimalware scanning via AMSI |
-| [MCP Server](docs/mcp.md) | Shared MCP server architecture |
-| [Architecture](docs/architecture.md) | Monorepo structure and design decisions |
-| [Privacy](docs/privacy.md) | What data is sent, what stays local |
+| [Plugin Scanning](docs/plugin-scanning.md) | Session-start plugin scanning |
 | [Audit Log](docs/audit-log.md) | On-disk JSONL schema (entries, signals, content) |
-| [Development](docs/development.md) | Building, testing, tooling, conventions |
-| [FAQ](docs/faq.md) | Common questions |
-
-**Platform guides:** [Claude Code](docs/platform-guides/claude-code.md) · [Cursor / VS Code](docs/platform-guides/cursor.md) · [OpenClaw](docs/platform-guides/openclaw.md) · [OpenCode](docs/platform-guides/opencode.md)
+| [MCP Server](docs/mcp.md) | Shared MCP server architecture |
+| [Decision Pipeline](docs/decision-pipeline.md) | Signal sources, policy model, evaluation order |
+| [Branding](docs/branding.md) | Product name configuration |
 
 ## Contributing
 

@@ -7043,23 +7043,21 @@ var ArtifactSchema = external_exports.object({
   value: external_exports.string(),
   context: external_exports.string().optional()
 });
-var SeveritySchema = external_exports.enum(["critical", "high", "medium", "low"]);
-var ActionSchema = external_exports.enum(["block", "require_approval", "log"]);
+var VerdictSeveritySchema = external_exports.enum(["info", "warning", "critical"]);
 var ThreatSchema = external_exports.object({
   id: external_exports.string(),
   version: external_exports.number().int().optional(),
   category: external_exports.string(),
-  severity: SeveritySchema,
+  severity: VerdictSeveritySchema,
   confidence: external_exports.number(),
-  action: ActionSchema,
   pattern: external_exports.string(),
   match_on: external_exports.union([external_exports.string(), external_exports.array(external_exports.string())]),
   title: external_exports.string(),
   expires_at: external_exports.string().nullable().optional(),
-  revoked: external_exports.boolean().optional().default(false)
+  revoked: external_exports.boolean().optional().default(false),
+  flags: external_exports.array(external_exports.string()).optional().default([])
 });
 var DecisionSchema = external_exports.enum(["allow", "deny", "ask"]);
-var VerdictSeveritySchema = external_exports.enum(["info", "warning", "critical"]);
 var SensitivitySchema = external_exports.enum(["paranoid", "balanced", "relaxed"]);
 var UrlCheckConfigSchema = external_exports.object({
   endpoint: external_exports.string().optional(),
@@ -7071,9 +7069,6 @@ var CacheConfigSchema = external_exports.object({
   ttl_malicious_seconds: external_exports.number().default(3600),
   ttl_clean_seconds: external_exports.number().default(86400),
   path: external_exports.string().default("~/.sage/cache.json")
-});
-var AllowlistConfigSchema = external_exports.object({
-  path: external_exports.string().default("~/.sage/allowlist.json")
 });
 var LoggingConfigSchema = external_exports.object({
   enabled: external_exports.boolean().default(true),
@@ -7136,7 +7131,6 @@ var ConfigSchema = external_exports.object({
   pi_check: PiCheckConfigSchema.default({}),
   heuristics_enabled: external_exports.boolean().default(true),
   cache: CacheConfigSchema.default({}),
-  allowlist: AllowlistConfigSchema.default({}),
   exceptions: ExceptionsConfigSchema.default({}),
   logging: LoggingConfigSchema.default({}),
   operational_logging: OperationalLoggingConfigSchema.default({}),
@@ -7164,9 +7158,6 @@ function defaultConfigPath() {
 }
 function defaultCachePath() {
   return (0, import_node_path.join)(resolvedSageDir(), "cache.json");
-}
-function defaultAllowlistPath() {
-  return (0, import_node_path.join)(resolvedSageDir(), "allowlist.json");
 }
 function defaultExceptionsPath() {
   return (0, import_node_path.join)(resolvedSageDir(), "exceptions.json");
@@ -7231,7 +7222,6 @@ function sanitizeBrandKey(data, logger) {
 }
 function sanitizeConfigPaths(config, logger) {
   const cachePath = defaultCachePath();
-  const allowlistPath = defaultAllowlistPath();
   const exceptionsPath = defaultExceptionsPath();
   const auditPath = defaultAuditPath();
   const operationalLogPath = defaultOperationalLogPath();
@@ -7240,10 +7230,6 @@ function sanitizeConfigPaths(config, logger) {
     cache: {
       ...config.cache,
       path: normalizeStateFilePath(config.cache.path, cachePath, "cache", logger)
-    },
-    allowlist: {
-      ...config.allowlist,
-      path: normalizeStateFilePath(config.allowlist.path, allowlistPath, "allowlist", logger)
     },
     exceptions: {
       ...config.exceptions,
@@ -7582,7 +7568,7 @@ var import_node_path14 = require("node:path");
 var import_node_url = require("node:url");
 var import_meta = {};
 function resolveVersion() {
-  if (true) return "0.10.0";
+  if (true) return "0.11.0";
   try {
     const pkgPath = (0, import_node_path14.join)((0, import_node_path14.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
     const pkg = JSON.parse(getFileContentSync(pkgPath));

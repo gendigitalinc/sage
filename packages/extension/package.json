@@ -2,7 +2,7 @@
   "name": "sage-cursor",
   "displayName": "Gen Sage",
   "description": "Safety for Agents — protects AI agent tool calls against dangerous commands, malicious URLs, and harmful file writes.",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "private": true,
   "publisher": "Gen",
   "icon": "icon.png",
@@ -178,10 +178,10 @@
     }
   },
   "scripts": {
-    "build": "pnpm -C ../core build && pnpm -C ../mcp build && npm run clean && npm run sync:assets && node scripts/generate-brand-commands.mjs && node esbuild.config.cjs",
+    "build": "npm run clean && npm run sync:assets && node scripts/generate-brand-commands.mjs && node esbuild.config.cjs",
     "clean": "node ../../scripts/clean.mjs dist resources .vsce",
     "sync:assets": "node scripts/sync-assets.mjs",
-    "pretest": "pnpm -C ../core build && pnpm -C ../mcp build && npm run sync:assets && node scripts/generate-brand-commands.mjs && node esbuild.config.cjs",
+    "pretest": "npm run sync:assets && node scripts/generate-brand-commands.mjs && node esbuild.config.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "package:cursor:vsix": "npm run build && pnpm dlx @vscode/vsce package -o ../../sage-cursor.vsix --no-dependencies --allow-package-secrets github --allow-package-secrets slack",

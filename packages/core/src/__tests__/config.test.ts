@@ -3,13 +3,13 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { defaultBranding } from "../brands.js";
-import { loadConfig, resolvePath } from "../config.js";
+import { getClaudeConfigDir, loadConfig, resolvePath } from "../config.js";
 import {
 	formatConfigurationWarnings,
 	getConfigurationWarnings,
 	getConfigurationWarningsSync,
 } from "../config-diagnostics.js";
-import { makeTmpDir, withHomeOverride } from "./test-utils.js";
+import { makeTmpDir, snapshotEnv, withHomeOverride } from "./test-utils.js";
 
 describe("resolvePath", () => {
 	it("expands ~ prefix", () => {
@@ -35,6 +35,54 @@ describe("resolvePath", () => {
 
 	it("leaves absolute paths unchanged", () => {
 		expect(resolvePath("/absolute/path")).toBe("/absolute/path");
+	});
+});
+
+describe("getClaudeConfigDir", () => {
+	it("falls back to ~/.claude when CLAUDE_CONFIG_DIR is unset", () => {
+		const claudeEnv = snapshotEnv(["CLAUDE_CONFIG_DIR"]);
+		const home = withHomeOverride("/fake-home");
+		try {
+			delete process.env.CLAUDE_CONFIG_DIR;
+			expect(getClaudeConfigDir()).toBe(join("/fake-home", ".claude"));
+		} finally {
+			claudeEnv.restore();
+			home.restore();
+		}
+	});
+
+	it("falls back to ~/.claude when CLAUDE_CONFIG_DIR is set to empty string", () => {
+		const claudeEnv = snapshotEnv(["CLAUDE_CONFIG_DIR"]);
+		const home = withHomeOverride("/fake-home");
+		try {
+			process.env.CLAUDE_CONFIG_DIR = "";
+			expect(getClaudeConfigDir()).toBe(join("/fake-home", ".claude"));
+		} finally {
+			claudeEnv.restore();
+			home.restore();
+		}
+	});
+
+	it("returns the env var value when CLAUDE_CONFIG_DIR is set to an absolute path", () => {
+		const env = snapshotEnv(["CLAUDE_CONFIG_DIR"]);
+		try {
+			process.env.CLAUDE_CONFIG_DIR = "/custom/claude/dir";
+			expect(getClaudeConfigDir()).toBe("/custom/claude/dir");
+		} finally {
+			env.restore();
+		}
+	});
+
+	it("expands tilde in CLAUDE_CONFIG_DIR", () => {
+		const claudeEnv = snapshotEnv(["CLAUDE_CONFIG_DIR"]);
+		const home = withHomeOverride("/fake-home");
+		try {
+			process.env.CLAUDE_CONFIG_DIR = "~/custom-claude";
+			expect(getClaudeConfigDir()).toBe(join("/fake-home", "custom-claude"));
+		} finally {
+			claudeEnv.restore();
+			home.restore();
+		}
 	});
 });
 
@@ -128,7 +176,6 @@ describe("loadConfig", () => {
 			configPath,
 			JSON.stringify({
 				cache: { path: "cache-local.json" },
-				allowlist: { path: "allowlists/main.json" },
 				logging: { path: "logs/audit.jsonl" },
 				operational_logging: { path: "logs/operational.jsonl" },
 			}),
@@ -136,7 +183,6 @@ describe("loadConfig", () => {
 		const config = await loadConfig(configPath);
 		const sageDir = join(homedir(), ".sage");
 		expect(config.cache.path).toBe(resolve(sageDir, "cache-local.json"));
-		expect(config.allowlist.path).toBe(resolve(sageDir, "allowlists/main.json"));
 		expect(config.logging.path).toBe(resolve(sageDir, "logs/audit.jsonl"));
 		expect(config.operational_logging.path).toBe(resolve(sageDir, "logs/operational.jsonl"));
 	});
@@ -148,7 +194,6 @@ describe("loadConfig", () => {
 			configPath,
 			JSON.stringify({
 				cache: { path: "~/.sage/cache-custom.json" },
-				allowlist: { path: "~/.sage/allowlist-custom.json" },
 				logging: { path: "~/.sage/audit-custom.jsonl" },
 				operational_logging: { path: "~/.sage/log-custom.jsonl" },
 			}),
@@ -156,7 +201,6 @@ describe("loadConfig", () => {
 		const config = await loadConfig(configPath);
 		const sageDir = join(homedir(), ".sage");
 		expect(config.cache.path).toBe(resolve(sageDir, "cache-custom.json"));
-		expect(config.allowlist.path).toBe(resolve(sageDir, "allowlist-custom.json"));
 		expect(config.logging.path).toBe(resolve(sageDir, "audit-custom.jsonl"));
 		expect(config.operational_logging.path).toBe(resolve(sageDir, "log-custom.jsonl"));
 	});
@@ -168,7 +212,6 @@ describe("loadConfig", () => {
 			configPath,
 			JSON.stringify({
 				cache: { path: "~/.sage/..data/cache.json" },
-				allowlist: { path: "~/.sage/..cfg/allowlist.json" },
 				logging: { path: "~/.sage/..logs/audit.jsonl" },
 				operational_logging: { path: "~/.sage/..logs/operational.jsonl" },
 			}),
@@ -176,7 +219,6 @@ describe("loadConfig", () => {
 		const config = await loadConfig(configPath);
 		const sageDir = join(homedir(), ".sage");
 		expect(config.cache.path).toBe(resolve(sageDir, "..data/cache.json"));
-		expect(config.allowlist.path).toBe(resolve(sageDir, "..cfg/allowlist.json"));
 		expect(config.logging.path).toBe(resolve(sageDir, "..logs/audit.jsonl"));
 		expect(config.operational_logging.path).toBe(resolve(sageDir, "..logs/operational.jsonl"));
 	});
@@ -184,12 +226,10 @@ describe("loadConfig", () => {
 	it("falls back to defaults when state file paths escape ~/.sage", async () => {
 		const dir = await makeTmpDir();
 		const configPath = join(dir, "config.json");
-		const outsideAbsolute = resolve(homedir(), "..", "evil-allowlist.json");
 		await writeFile(
 			configPath,
 			JSON.stringify({
 				cache: { path: "~/../../../tmp/evil-cache.json" },
-				allowlist: { path: outsideAbsolute },
 				logging: { path: "../evil-audit.jsonl" },
 				operational_logging: { path: "../evil-operational.jsonl" },
 			}),
@@ -197,7 +237,6 @@ describe("loadConfig", () => {
 		const config = await loadConfig(configPath);
 		const sageDir = join(homedir(), ".sage");
 		expect(config.cache.path).toBe(resolve(sageDir, "cache.json"));
-		expect(config.allowlist.path).toBe(resolve(sageDir, "allowlist.json"));
 		expect(config.logging.path).toBe(resolve(sageDir, "audit.jsonl"));
 		expect(config.operational_logging.path).toBe(resolve(sageDir, "operational.jsonl"));
 	});
@@ -209,7 +248,6 @@ describe("loadConfig", () => {
 			configPath,
 			JSON.stringify({
 				cache: { path: "." },
-				allowlist: { path: "   " },
 				logging: { path: "~/.sage/" },
 				operational_logging: { path: "~/.sage/" },
 			}),
@@ -217,7 +255,6 @@ describe("loadConfig", () => {
 		const config = await loadConfig(configPath);
 		const sageDir = join(homedir(), ".sage");
 		expect(config.cache.path).toBe(resolve(sageDir, "cache.json"));
-		expect(config.allowlist.path).toBe(resolve(sageDir, "allowlist.json"));
 		expect(config.logging.path).toBe(resolve(sageDir, "audit.jsonl"));
 		expect(config.operational_logging.path).toBe(resolve(sageDir, "operational.jsonl"));
 	});

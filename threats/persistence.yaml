@@ -5,9 +5,8 @@
 # --- Shell RC file modification ---
 - id: "CLT-PERSIST-001"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(>>|>)\\s*~?/?(\\$HOME/)?\\.?(bashrc|zshrc|profile|bash_profile|zprofile|zshenv)"
   match_on: command
   title: "Write/append to shell RC file (persistence mechanism)"
@@ -17,9 +16,8 @@
 # --- Crontab manipulation ---
 - id: "CLT-PERSIST-002"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bcrontab\\s+(-[er]|[^-])"
   match_on: command
   title: "Crontab manipulation (list, edit, or remove scheduled tasks)"
@@ -29,9 +27,8 @@
 # --- Cron directory writes ---
 - id: "CLT-PERSIST-003"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "/etc/cron\\.(d|daily|hourly|weekly|monthly)/"
   match_on: command
   title: "Write to system cron directory"
@@ -41,9 +38,8 @@
 # --- systemd service manipulation ---
 - id: "CLT-PERSIST-005"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bsystemctl\\s+(enable|start)\\b|/etc/systemd/system/"
   match_on: command
   title: "systemd service enable/start or unit file write"
@@ -55,7 +51,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: ">>\\s*(~|\\/(root|home\\/[a-zA-Z0-9._-]{1,32}))?/?\\.ssh/authorized_keys"
   match_on: command
   title: "Append to SSH authorized_keys (unauthorized access persistence)"
@@ -67,7 +62,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(echo|printf)\\s+.*>>\\s*~?/?(\\$HOME/)?\\.?(bashrc|zshrc|profile|bash_profile)"
   match_on: command
   title: "Echo/printf append to shell RC file (code injection persistence)"
@@ -77,9 +71,8 @@
 # --- at job scheduling ---
 - id: "CLT-PERSIST-008"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bat\\b\\s+(-f\\s+|now|midnight|noon|teatime)"
   match_on: command
   title: "At-job scheduling (persistence)"

@@ -37,7 +37,7 @@ function makeRequest(toolName = "bash", toolInput: Record<string, unknown> = { c
 }
 
 function makeContext() {
-	return { threatsDir: "/threats", allowlistsDir: "/allowlists" };
+	return { threatsDir: "/threats", trustedDomainsDir: "/trusted-domains" };
 }
 
 function makeVerdict(overrides: Partial<Verdict> = {}): Verdict {
@@ -171,13 +171,17 @@ describe("summarizeArtifacts", () => {
 		expect(summarizeArtifacts([])).toBe("none");
 	});
 
-	it("truncates at 3 artifacts", () => {
+	it("truncates at 3 artifacts and shows overflow count", () => {
 		const arts = Array.from({ length: 5 }, (_, i) => ({
 			type: "url" as const,
 			value: `http://${i}`,
 		}));
 		const result = summarizeArtifacts(arts);
-		expect(result.split(", ")).toHaveLength(3);
+		// First 3 artifacts shown, then the overflow indicator
+		expect(result).toContain("... and 2 more");
+		expect(result).toContain("http://0");
+		expect(result).toContain("http://2");
+		expect(result).not.toContain("http://3");
 	});
 
 	it("truncates long artifact values", () => {

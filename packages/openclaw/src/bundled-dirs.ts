@@ -9,10 +9,10 @@ import { getFileContentSync } from "@gendigital/sage-core";
 
 const packageRoot = resolve(__dirname, "..");
 
-export function getBundledDataDirs(): { threatsDir: string; allowlistsDir: string } {
+export function getBundledDataDirs(): { threatsDir: string; trustedDomainsDir: string } {
 	return {
 		threatsDir: join(packageRoot, "resources", "threats"),
-		allowlistsDir: join(packageRoot, "resources", "allowlists"),
+		trustedDomainsDir: join(packageRoot, "resources", "trusted-domains"),
 	};
 }
 

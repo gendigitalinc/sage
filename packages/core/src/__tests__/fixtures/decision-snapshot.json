@@ -1,0 +1,1836 @@
+{
+	"generatedAt": "2026-06-10T12:51:34.526Z",
+	"threatCount": 366,
+	"entries": {
+		"CLT-PI-091": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-092": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-093": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MCP-004": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-SKL-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-SKL-002": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-SKL-004": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-SKL-005": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-SKL-006": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-SKL-008": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-CTX-003": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-SUPPLY-002": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-CMD-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-CMD-002": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-CMD-003": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-004": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-005": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-006": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-CMD-007": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-CMD-008": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-009": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-010": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-011": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-CMD-012": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-CMD-013": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-CMD-014": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-CMD-015": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-CMD-016": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-017": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-018": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-019": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-020": {
+			"paranoid": "deny",
+			"balanced": "ask",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-021": {
+			"paranoid": "deny",
+			"balanced": "ask",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-022": {
+			"paranoid": "deny",
+			"balanced": "ask",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-023": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-024": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-025": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-CMD-026": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-CMD-027": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-CMD-028": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-CMD-029": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-CRED-001": {
+			"paranoid": "deny",
+			"balanced": "ask",
+			"relaxed": "ask"
+		},
+		"CLT-CRED-002": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-CRED-003": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-CRED-004": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-CRED-005": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-CRED-006": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-CRED-007": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-CRED-008": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"DUMMY-CMD-DENY-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"DUMMY-CMD-DENY-002": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"DUMMY-CMD-ASK-001": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"DUMMY-CMD-ASK-002": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"DUMMY-CMD-LOG-001": {
+			"paranoid": "allow",
+			"balanced": "allow",
+			"relaxed": "allow"
+		},
+		"DUMMY-FILE-DENY-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"DUMMY-FILE-ASK-001": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"DUMMY-FILE-LOG-001": {
+			"paranoid": "allow",
+			"balanced": "allow",
+			"relaxed": "allow"
+		},
+		"DUMMY-CONTENT-DENY-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"DUMMY-CONTENT-ASK-001": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"DUMMY-CONTENT-LOG-001": {
+			"paranoid": "allow",
+			"balanced": "allow",
+			"relaxed": "allow"
+		},
+		"DUMMY-URL-DENY-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"DUMMY-URL-ASK-001": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"DUMMY-URL-LOG-001": {
+			"paranoid": "allow",
+			"balanced": "allow",
+			"relaxed": "allow"
+		},
+		"DUMMY-DOMAIN-DENY-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-FILE-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-FILE-002": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-FILE-003": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-004": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-006": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-007": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-008": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-009": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-010": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-011": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-012": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-013": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-014": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-015": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-016": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-017": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-018": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-019": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-FILE-020": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-CMD-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-MAC-CMD-002": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-CMD-003": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-CMD-004": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-CMD-005": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-CMD-006": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-CMD-007": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-CMD-008": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-CMD-009": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-CMD-010": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-CMD-011": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-CMD-012": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-CMD-013": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-CMD-014": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-MAC-CMD-015": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-MAC-CMD-016": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-MAC-CMD-017": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-MAC-CMD-018": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-CMD-019": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-CMD-020": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-CMD-021": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-CMD-022": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-CMD-023": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-CMD-024": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-CMD-025": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-MAC-CMD-026": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-CMD-027": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-CRED-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-MAC-CRED-002": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-MAC-CRED-003": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-MAC-CRED-004": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-CRED-005": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-CRED-006": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-CRED-007": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-CRED-008": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-FILE-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-FILE-002": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-MAC-FILE-003": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-MAC-FILE-004": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-FILE-005": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-FILE-006": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-FILE-007": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-FILE-008": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-FILE-009": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-FILE-010": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-OBFUS-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-OBFUS-002": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-OBFUS-003": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-MAC-OBFUS-004": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-OBFUS-005": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-OBFUS-006": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-OBFUS-007": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-PERSIST-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-PERSIST-002": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-PERSIST-003": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-PERSIST-004": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-PERSIST-005": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-PERSIST-006": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-PERSIST-007": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-PERSIST-008": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-PERSIST-009": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-SUPPLY-001": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MAC-SUPPLY-002": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MAC-SUPPLY-003": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MITRE-002": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MITRE-003": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MITRE-004": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MITRE-005": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MITRE-006": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MITRE-007": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MITRE-012": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-014": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-016": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-017": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-020": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-022": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-023": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MITRE-026": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-027": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MITRE-032": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-033": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-034": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-037": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-038": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-039": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-040": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-041": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-042": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-043": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-048": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-049": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-050": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-051": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-052": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MITRE-053": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-064": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-065": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-066": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-067": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-071": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-072": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-075": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-076": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-077": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-078": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-081": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-082": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-083": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-085": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-086": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-087": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-088": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-089": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-090": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-091": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-092": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-093": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-094": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-095": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-096": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-099": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-100": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-102": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-104": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-MITRE-105": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-OBFUS-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-OBFUS-002": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-OBFUS-003": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-OBFUS-004": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-OBFUS-005": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-OBFUS-006": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-OBFUS-007": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-OBFUS-008": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PERSIST-001": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-PERSIST-002": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-PERSIST-003": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-PERSIST-005": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-PERSIST-006": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-PERSIST-007": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PERSIST-008": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-PI-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-002": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-003": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-004": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-005": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-010": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-011": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-012": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-013": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-020": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-021": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-022": {
+			"paranoid": "deny",
+			"balanced": "ask",
+			"relaxed": "ask"
+		},
+		"CLT-PI-023": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-030": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-040": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-041": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-042": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-043": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-050": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-051": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-060": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-061": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-070": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-PI-080": {
+			"paranoid": "deny",
+			"balanced": "ask",
+			"relaxed": "ask"
+		},
+		"CLT-PI-081": {
+			"paranoid": "deny",
+			"balanced": "ask",
+			"relaxed": "ask"
+		},
+		"CLT-SELF-001": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-SELF-002": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-SELF-003": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-SELF-004": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-SUPPLY-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-URL-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-URL-002": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-URL-003": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-URL-004": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-URL-005": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-002": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-003": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-004": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-005": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-006": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-007": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-008": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-009": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-010": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-011": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-012": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-013": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-014": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-015": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-016": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-017": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-018": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-019": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-020": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-021": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-022": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-023": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-024": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-025": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-026": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-027": {
+			"paranoid": "deny",
+			"balanced": "ask",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-028": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-029": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-030": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-031": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-032": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-033": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-034": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-035": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-036": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-037": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-038": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-039": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-040": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-041": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-042": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-043": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-044": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CMD-045": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-046": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-047": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-048": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-049": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-050": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-051": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-052": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-053": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-054": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-055": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-056": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-057": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-058": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-CMD-059": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-060": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CMD-061": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CRED-001": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CRED-002": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CRED-003": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CRED-004": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CRED-005": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CRED-006": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CRED-007": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CRED-008": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-CRED-009": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-CRED-010": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-FILE-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-FILE-002": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-FILE-003": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-FILE-004": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-FILE-005": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-FILE-006": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-FILE-007": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-FILE-008": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-FILE-009": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-FILE-010": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-OBFUS-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "deny"
+		},
+		"CLT-WIN-OBFUS-002": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-OBFUS-003": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-OBFUS-004": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-OBFUS-005": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-OBFUS-006": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-OBFUS-007": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-OBFUS-008": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-OBFUS-009": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-OBFUS-010": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-OBFUS-011": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-OBFUS-012": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-OBFUS-013": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-OBFUS-014": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-OBFUS-015": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-OBFUS-016": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-PERSIST-001": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-PERSIST-002": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-PERSIST-003": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-PERSIST-004": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-PERSIST-005": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-PERSIST-006": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-PERSIST-007": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-WIN-PERSIST-008": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-WIN-SUPPLY-001": {
+			"paranoid": "ask",
+			"balanced": "ask",
+			"relaxed": "allow"
+		},
+		"CLT-PI-052": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		}
+	}
+}

@@ -53,7 +53,7 @@ describe("loadTrustedDomains", () => {
 	});
 
 	it("loads real allowlist files", async () => {
-		const dir = join(import.meta.dirname, "../../../../allowlists");
+		const dir = join(import.meta.dirname, "../../../../trusted-domains");
 		const domains = await loadTrustedDomains(dir);
 		expect(domains.length).toBeGreaterThan(0);
 	});

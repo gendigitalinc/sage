@@ -63,7 +63,7 @@ export function createToolHandlers(
 	logger: Logger,
 	approvalStore: ApprovalStore,
 	threatsDir: string,
-	allowlistsDir: string,
+	trustedDomainsDir: string,
 	options?: ToolHandlerOptions,
 	branding: Branding = defaultBranding,
 ) {
@@ -111,7 +111,7 @@ export function createToolHandlers(
 				},
 				{
 					threatsDir,
-					allowlistsDir,
+					trustedDomainsDir,
 					logger,
 				},
 				approvalStore,
@@ -150,8 +150,14 @@ export function createToolHandlers(
 			}
 
 			// ask — actionId is always set for ask verdicts
+			const maxReasons = 3;
 			const reasons =
-				verdict.reasons.length > 0 ? verdict.reasons.slice(0, 3).join("; ") : verdict.category;
+				verdict.reasons.length > 0
+					? verdict.reasons.slice(0, maxReasons).join("; ") +
+						(verdict.reasons.length > maxReasons
+							? `; ... and ${verdict.reasons.length - maxReasons} more`
+							: "")
+					: verdict.category;
 			completeHook("evaluated", {
 				toolName,
 				decision: verdict.decision,

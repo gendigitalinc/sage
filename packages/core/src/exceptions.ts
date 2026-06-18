@@ -1,7 +1,7 @@
 /**
- * Exception rules — pattern-based allow/deny rules that supersede the legacy allowlist.
- * Loaded from ~/.sage/exceptions.json, evaluated in the pipeline before and after
- * the legacy allowlist (deny first, then allow).
+ * Exception rules — pattern-based allow/deny rules evaluated in the pipeline
+ * before heuristics and reputation checks (deny first, then allow).
+ * Loaded from ~/.sage/exceptions.json.
  */
 
 import { createHash } from "node:crypto";

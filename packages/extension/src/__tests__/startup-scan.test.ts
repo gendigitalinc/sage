@@ -7,7 +7,7 @@ import { discoverExtensionPlugins } from "../plugin-discovery.js";
 
 const REPO_ROOT = resolve(__dirname, "..", "..", "..", "..");
 const THREATS_DIR = join(REPO_ROOT, "threats");
-const ALLOWLISTS_DIR = join(REPO_ROOT, "allowlists");
+const TRUSTED_DOMAINS_DIR = join(REPO_ROOT, "trusted-domains");
 
 describe("startup scan integration", () => {
 	const originalFetch = globalThis.fetch;
@@ -83,7 +83,7 @@ describe("startup scan integration", () => {
 			"test",
 			plugins,
 			THREATS_DIR,
-			ALLOWLISTS_DIR,
+			TRUSTED_DOMAINS_DIR,
 			"0.0.0-test",
 			"cursor",
 		);
@@ -107,7 +107,7 @@ describe("startup scan integration", () => {
 			"test",
 			plugins,
 			THREATS_DIR,
-			ALLOWLISTS_DIR,
+			TRUSTED_DOMAINS_DIR,
 			"0.0.0-test",
 			"cursor",
 		);
@@ -124,7 +124,7 @@ describe("startup scan integration", () => {
 			"test",
 			plugins,
 			THREATS_DIR,
-			ALLOWLISTS_DIR,
+			TRUSTED_DOMAINS_DIR,
 			"0.0.0-test",
 			"vscode",
 		);
@@ -159,7 +159,7 @@ describe("startup scan integration", () => {
 			discoverPlugins: () => discoverExtensionPlugins(nullLogger, extensionsDir),
 			selfPrefix: "sage-cursor@",
 			threatsDir: THREATS_DIR,
-			allowlistsDir: ALLOWLISTS_DIR,
+			trustedDomainsDir: TRUSTED_DOMAINS_DIR,
 			version: "0.0.0-test",
 			agentRuntime: "cursor",
 			onResult: (msg) => {

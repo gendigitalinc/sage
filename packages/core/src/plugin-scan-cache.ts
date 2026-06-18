@@ -15,7 +15,8 @@ import type {
 import { nullLogger } from "./types.js";
 
 const DEFAULT_CACHE_PATH = join(getHomeDir(), ".sage", "plugin_scan_cache.json");
-const CACHE_TTL_DAYS = 7;
+const CACHE_TTL_DAYS = 1;
+const SCHEMA_VERSION = 3;
 
 export function cacheKey(pluginKey: string, version: string, lastUpdated: string): string {
 	return `${pluginKey}:${version}:${lastUpdated}`;
@@ -55,6 +56,16 @@ export async function loadScanCache(
 
 	try {
 		const data = JSON.parse(raw) as Record<string, unknown>;
+
+		const storedVersion = (data.schema_version ?? 1) as number;
+		if (storedVersion !== SCHEMA_VERSION) {
+			logger.debug("Schema version changed, invalidating plugin scan cache", {
+				from: storedVersion,
+				to: SCHEMA_VERSION,
+			});
+			return { configHash, entries: {} };
+		}
+
 		const storedHash = (data.config_hash ?? "") as string;
 
 		if (configHash && storedHash !== configHash) {
@@ -90,6 +101,7 @@ export async function saveScanCache(
 ): Promise<void> {
 	try {
 		const data = {
+			schema_version: SCHEMA_VERSION,
 			config_hash: cache.configHash,
 			entries: Object.fromEntries(
 				Object.entries(cache.entries).map(([key, entry]) => [

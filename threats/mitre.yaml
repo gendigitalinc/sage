@@ -1,14 +1,13 @@
 # MITRE ATT&CK threat detection patterns for Sage
 # Author: Gen Digital Inc.
 # License: DRL-1.1 (see threats/LICENSE)
-# Schema: id, category, severity, confidence, action, pattern, match_on, title, expires_at, revoked
+# Schema: id, category, severity, confidence, pattern, match_on, title, expires_at, revoked, flags
 
 # --- T1003.001: LSASS Memory ---
 - id: "CLT-MITRE-001"
   category: credential_access
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(rundll32(\\.exe)?.*comsvcs\\.dll,MiniDump.*|procdump.*-ma.*lsass\\.exe.*lsass_dump|sekurlsa::Minidump.*lsassdump\\.dmp|sekurlsa::logonPasswords)"
   case_insensitive: true
   match_on: command
@@ -21,7 +20,6 @@
   category: credential_access
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(reg.*save.*HKLM.*sam.*sam|reg.*save.*HKLM.*system.*system)"
   case_insensitive: true
   match_on: command
@@ -34,7 +32,6 @@
   category: credential_access
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "ntdsutil(\\.exe)?"
   case_insensitive: true
   match_on: command
@@ -47,7 +44,6 @@
   category: credential_access
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "Get-LSASecret\\.ps1"
   case_insensitive: true
   match_on: command
@@ -60,7 +56,6 @@
   category: credential_access
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "cmdkey(\\.exe)?.*/list"
   case_insensitive: true
   match_on: command
@@ -73,7 +68,6 @@
   category: credential_access
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "Invoke-Mimikatz.*-Command.*lsadump::dcsync.*/user:"
   case_insensitive: true
   match_on: command
@@ -86,7 +80,6 @@
   category: credential_access
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(reg(\\.exe)? (save|export).*SAM|(PasswordDump|CreateMiniDump)|Invoke-PowerDump\\.ps1|Get-PassHashes\\.ps1|Get-RegAutoLogon\\.ps1)"
   case_insensitive: true
   match_on: command
@@ -97,9 +90,8 @@
 # --- T1020: Automated Exfiltration ---
 - id: "CLT-MITRE-012"
   category: exfiltration
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(rar(\\.exe)?.*[afu].*\\s(-dw|-tb|-ta)|7z(\\.exe)?.*[au].*-sdel|Add-Exfiltration\\.ps1|Do-Exfiltration\\.ps1|Invoke-PostExfil\\.ps1)"
   case_insensitive: true
   match_on: command
@@ -110,9 +102,8 @@
 # --- T1021.003: Distributed Component Object Model ---
 - id: "CLT-MITRE-014"
   category: lateral_movement
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "Invoke-DCOM.*\\-ComputerName"
   case_insensitive: true
   match_on: command
@@ -123,9 +114,8 @@
 # --- T1027.003: Steganography ---
 - id: "CLT-MITRE-016"
   category: defense_evasion
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(Invoke-PSImage.*-Script|Invoke-PSImage)"
   case_insensitive: true
   match_on: command
@@ -136,9 +126,8 @@
 # --- T1027.005: Indicator Removalfrom Tools ---
 - id: "CLT-MITRE-017"
   category: defense_evasion
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "Find-AVSignature.*-Startbyte"
   case_insensitive: true
   match_on: command
@@ -149,9 +138,8 @@
 # --- T1040: Network Sniffing ---
 - id: "CLT-MITRE-020"
   category: credential_access
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "netsh(\\.exe)?.*start.*trace"
   case_insensitive: true
   match_on: command
@@ -162,9 +150,8 @@
 # --- T1046: Network Service Scanning ---
 - id: "CLT-MITRE-022"
   category: discovery
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(\\btelnet(\\.exe)?\\b|\\bnmap(\\.exe)?\\b|Invoke-ARPScan\\.ps1|Invoke-PortScan\\.ps1|Invoke-SMBScanner\\.ps1|Port-Scan\\.ps1)"
   case_insensitive: true
   match_on: command
@@ -177,7 +164,6 @@
   category: exfiltration
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(dnscat2|iodine)"
   case_insensitive: true
   match_on: command
@@ -188,9 +174,8 @@
 # --- T1053.005: Scheduled Task ---
 - id: "CLT-MITRE-026"
   category: persistence
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(schtasks(\\.exe)?\\s+/create|schtasks(\\.exe)?\\s+/%windir:~0,1%reate|\\bat\\.exe\\b)"
   case_insensitive: true
   match_on: command
@@ -203,7 +188,6 @@
   category: defense_evasion
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "Invoke-DllInjection\\.ps1"
   case_insensitive: true
   match_on: command
@@ -214,9 +198,8 @@
 # --- T1069: Permission Groups Discovery ---
 - id: "CLT-MITRE-032"
   category: discovery
-  severity: medium
-  confidence: 0.70
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "Get-ManagementRoleAssignment"
   case_insensitive: true
   match_on: command
@@ -227,9 +210,8 @@
 # --- T1070.004: File Deletion ---
 - id: "CLT-MITRE-033"
   category: defense_evasion
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(cmd(\\.exe)?\\s+/c\\s+del\\s+/[sqf]|fsutil(\\.exe)?.*usn.*deleteJournal)"
   case_insensitive: true
   match_on: command
@@ -240,9 +222,8 @@
 # --- T1070.005: Network Share Connection Removal ---
 - id: "CLT-MITRE-034"
   category: defense_evasion
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "net(1)?(\\.exe)?.*use.*\\\\\\\\.*\\\\.*/delete$"
   case_insensitive: true
   match_on: command
@@ -253,9 +234,8 @@
 # --- T1087.002: Domain Account ---
 - id: "CLT-MITRE-037"
   category: discovery
-  severity: medium
-  confidence: 0.70
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(net1.*user.*/dom|net(\\.exe)?.*user.*/dom|net1.*group.*/dom|net(\\.exe)?.*group.*/dom)"
   case_insensitive: true
   match_on: command
@@ -266,9 +246,8 @@
 # --- T1087.003: Email Account ---
 - id: "CLT-MITRE-038"
   category: discovery
-  severity: medium
-  confidence: 0.70
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "Get-.*GlobalAddressList"
   case_insensitive: true
   match_on: command
@@ -279,9 +258,8 @@
 # --- T1098.002: Exchange Email Delegate Permissions ---
 - id: "CLT-MITRE-039"
   category: persistence
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "Add-MailboxPermission"
   case_insensitive: true
   match_on: command
@@ -292,9 +270,8 @@
 # --- T1098: Account Manipulation ---
 - id: "CLT-MITRE-040"
   category: persistence
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(net(1|\\.exe)?.*user.*\\w+.*/add|net(1|\\.exe)?.*group.*Administrators.*\\w+ /add|net(1|\\.exe)?.*localgroup.*Administrators.*\\w+ /add)"
   case_insensitive: true
   match_on: command
@@ -305,9 +282,8 @@
 # --- T1105: Ingress Tool Transfer ---
 - id: "CLT-MITRE-041"
   category: command_and_control
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(certutil(\\.exe)?.*-(decode|decodehex|encode|ping|url|urlcache|verifyctl)|MpCmdRun(\\.exe)?.*-DownloadFile.*-url.*http|\\(new-object System\\.Net\\.WebClient\\)\\.DownloadFile|bitsadmin(\\.exe)?.*/(transfer|download|create|addfile|setnotifycmdline|resume|complete)|Start-BitsTransfer)"
   case_insensitive: true
   match_on: command
@@ -318,9 +294,8 @@
 # --- T1110.004: Credential Stuffing ---
 - id: "CLT-MITRE-042"
   category: credential_access
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "Invoke-CredentialInjection\\.ps1"
   case_insensitive: true
   match_on: command
@@ -331,9 +306,8 @@
 # --- T1120: Peripheral Device Discovery ---
 - id: "CLT-MITRE-043"
   category: discovery
-  severity: medium
-  confidence: 0.70
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(Get-WMIObject.*Win32_PnPEntity|pnputil(\\.exe)?.*/enum-devices)"
   case_insensitive: true
   match_on: command
@@ -344,9 +318,8 @@
 # --- T1136.001: Local Account ---
 - id: "CLT-MITRE-048"
   category: persistence
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "net(1)?(\\.exe)?.*user.*/add"
   case_insensitive: true
   match_on: command
@@ -357,9 +330,8 @@
 # --- T1136.002: Domain Account ---
 - id: "CLT-MITRE-049"
   category: persistence
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "net(1)?(\\.exe)?.*user.*/add.*/domain"
   case_insensitive: true
   match_on: command
@@ -370,9 +342,8 @@
 # --- T1201: Password Policy Discovery ---
 - id: "CLT-MITRE-050"
   category: discovery
-  severity: medium
-  confidence: 0.70
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(net.*accounts|Get-ADDefaultDomainPasswordPolicy|Get-PassPol)"
   case_insensitive: true
   match_on: command
@@ -383,9 +354,8 @@
 # --- T1202: Indirect Command Execution ---
 - id: "CLT-MITRE-051"
   category: defense_evasion
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(regsvr32(\\.exe)?.*/i:http(s)?://.+.*scrobj\\.dll|rundll32(\\.exe)?.*pcwutl\\.dll,LaunchApplication|rundll32(\\.exe)?.*shell32\\.dll,ShellExec_RunDLL|rundll32(\\.exe)?.*url\\.dll,OpenURL|msiexec(\\.exe)?.*-(Y|Z)|regasm(\\.exe)?.*/u.*\\\\)"
   case_insensitive: true
   match_on: command
@@ -398,7 +368,6 @@
   category: execution
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(p\\^+o\\^+w\\^+e\\^+r\\^+s\\^+h\\^+e\\^+l\\^+l|w\\^+s\\^+c\\^+r\\^+i\\^+p\\^+t|c\\^+e\\^+r\\^+t\\^+u\\^+t\\^+i\\^+l|m\\^+s\\^+h\\^+t\\^+a|explorer\\.exe .*\\.vbs$)"
   case_insensitive: true
   match_on: command
@@ -409,9 +378,8 @@
 # --- T1216.001: Pub Prn ---
 - id: "CLT-MITRE-053"
   category: defense_evasion
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "pubprn\\.vbs"
   case_insensitive: true
   match_on: command
@@ -422,9 +390,8 @@
 # --- T1218.012: Verclsid ---
 - id: "CLT-MITRE-064"
   category: defense_evasion
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "verclsid(\\.exe)?.*/S.*/C.*\\{[0-9a-fA-F]{8}"
   case_insensitive: true
   match_on: command
@@ -435,9 +402,8 @@
 # --- T1220: XSL Script Processing ---
 - id: "CLT-MITRE-065"
   category: defense_evasion
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(msxsl(\\.exe)?.+\\.xsl|wmic(\\.exe)?.*process.*list.*/FORMAT:.+\\.xsl|wmic(\\.exe)?.*os.*get.*/FORMAT:.+\\.xsl|wmic.*process.*list.*/FORMAT:evil\\[\\.\\]xsl|wmic.*os.*get.*/FORMAT:https\\[:\\]//example\\[\\.\\]com/evil\\[\\.\\]xsl)"
   case_insensitive: true
   match_on: command
@@ -448,9 +414,8 @@
 # --- T1482: Domain Trust Discovery ---
 - id: "CLT-MITRE-066"
   category: discovery
-  severity: medium
-  confidence: 0.70
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(nltest(\\.exe)?.*/domain_trusts|dsquery(\\.exe)?.*/trustedDomain|Get-NetDomainTrust|Get-NetForestTrust|Get-ADDomain)"
   case_insensitive: true
   match_on: command
@@ -461,9 +426,8 @@
 # --- T1484.001: Group Policy Modification ---
 - id: "CLT-MITRE-067"
   category: defense_evasion
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(New-GPOImmediateTask|New-.*GPOImmediateTask)"
   case_insensitive: true
   match_on: command
@@ -474,9 +438,8 @@
 # --- T1518.001: Security Software Discovery ---
 - id: "CLT-MITRE-071"
   category: discovery
-  severity: medium
-  confidence: 0.70
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(tasklist(\\.exe)?.+(virus|defender|cylance)|wmic(\\.exe)?.+Path.*AntiVirusProduct)"
   case_insensitive: true
   match_on: command
@@ -487,9 +450,8 @@
 # --- T1518: Software Discovery ---
 - id: "CLT-MITRE-072"
   category: discovery
-  severity: medium
-  confidence: 0.70
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "wmic(\\.exe)? product get name"
   case_insensitive: true
   match_on: command
@@ -500,9 +462,8 @@
 # --- T1546.001: Change Default File Association ---
 - id: "CLT-MITRE-075"
   category: persistence
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "cmd(\\.exe)?.*/c.+assoc"
   case_insensitive: true
   match_on: command
@@ -513,9 +474,8 @@
 # --- T1546.003: Windows Management Instrumentation Event Subscription ---
 - id: "CLT-MITRE-076"
   category: persistence
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "scrcons\\.exe"
   case_insensitive: true
   match_on: command
@@ -526,9 +486,8 @@
 # --- T1546.007: Netsh Helper DLL ---
 - id: "CLT-MITRE-077"
   category: persistence
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "netsh\\.exe add helper"
   case_insensitive: true
   match_on: command
@@ -539,9 +498,8 @@
 # --- T1546.012: Image File Execution Options Injection ---
 - id: "CLT-MITRE-078"
   category: persistence
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(Add-ScrnSaveBackdoor\\.ps1|Add-RegBackdoor\\.ps1)"
   case_insensitive: true
   match_on: command
@@ -552,9 +510,8 @@
 # --- T1547: Bootor Logon Autostart Execution ---
 - id: "CLT-MITRE-081"
   category: persistence
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "Add-Persistence\\.ps1"
   case_insensitive: true
   match_on: command
@@ -565,9 +522,8 @@
 # --- T1548.002: Bypass User Account Control ---
 - id: "CLT-MITRE-082"
   category: privilege_escalation
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(Invoke-BypassUAC\\.ps1|Invoke-WScriptBypassUAC\\.ps1|Add-MpPreference\\.ps1)"
   case_insensitive: true
   match_on: command
@@ -578,9 +534,8 @@
 # --- T1552.002: Credentialsin Registry ---
 - id: "CLT-MITRE-083"
   category: credential_access
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "reg(\\.exe)? query (HKLM|HKCU) /f password /t REG_SZ /s"
   case_insensitive: true
   match_on: command
@@ -591,9 +546,8 @@
 # --- T1553.004: Install Root Certificate ---
 - id: "CLT-MITRE-085"
   category: defense_evasion
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(certutil(\\.exe)? -addstore|certmgr(\\.exe)? -add)"
   case_insensitive: true
   match_on: command
@@ -604,9 +558,8 @@
 # --- T1555.003: Credentialsfrom Web Browsers ---
 - id: "CLT-MITRE-086"
   category: credential_access
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(Get-ChromeDump\\.ps1|Get-FoxDump\\.ps1)"
   case_insensitive: true
   match_on: command
@@ -617,9 +570,8 @@
 # --- T1555: Credentialsfrom Password Stores ---
 - id: "CLT-MITRE-087"
   category: credential_access
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "Get-VaultCredential\\.ps1"
   case_insensitive: true
   match_on: command
@@ -630,9 +582,8 @@
 # --- T1558.001: Golden Ticket ---
 - id: "CLT-MITRE-088"
   category: credential_access
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(net(1)?(\\.exe)?.*group.*(domain admins|enterprise admins|organization management).*/domain$|Invoke-Mimikatz.*Golden.*Ticket)"
   case_insensitive: true
   match_on: command
@@ -643,9 +594,8 @@
 # --- T1558.002: Silver Ticket ---
 - id: "CLT-MITRE-089"
   category: credential_access
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "Invoke-Mimikatz.*Silver.*Ticket"
   case_insensitive: true
   match_on: command
@@ -656,9 +606,8 @@
 # --- T1558.003: Kerberoasting ---
 - id: "CLT-MITRE-090"
   category: credential_access
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "Invoke-Kerberoast"
   case_insensitive: true
   match_on: command
@@ -669,9 +618,8 @@
 # --- T1558.004: ASREP Roasting ---
 - id: "CLT-MITRE-091"
   category: credential_access
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "Get-ASREPHash"
   case_insensitive: true
   match_on: command
@@ -682,9 +630,8 @@
 # --- T1560.001: Archive Via Utility ---
 - id: "CLT-MITRE-092"
   category: collection
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(\\brar(\\.exe)?\\s+.*\\b[afu]\\b|\\bWinRAR(\\.exe)?\\s|\\b7z(\\.exe)?\\s+.*\\ba\\b|\\bzip(\\.exe)?\\s+.*-u|\\bWinZip32(\\.exe)?\\s)"
   case_insensitive: true
   match_on: command
@@ -695,9 +642,8 @@
 # --- T1562.002: Disable Windows Event Logging ---
 - id: "CLT-MITRE-093"
   category: defense_evasion
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "AUDITPOL(\\.exe)?.*/set.*/category:Detailed Tracking"
   case_insensitive: true
   match_on: command
@@ -708,9 +654,8 @@
 # --- T1562.003: Impair Command History Logging ---
 - id: "CLT-MITRE-094"
   category: defense_evasion
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(Set-.*PSReadLineOption.*-HistorySavePath.*\\{File.*Path\\}|Set-PSReadlineOption.*-HistorySaveStyle.*SaveNothing)"
   case_insensitive: true
   match_on: command
@@ -721,9 +666,8 @@
 # --- T1562.006: Indicator Blocking ---
 - id: "CLT-MITRE-095"
   category: defense_evasion
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(wevtutil(\\.exe)?.*(sl|set-log).+/e:false|wevtutil(\\.exe)?.*(cl|clear-log)|Set-.*EtwTraceProvider)"
   case_insensitive: true
   match_on: command
@@ -734,9 +678,8 @@
 # --- T1563.002: RDP Hijacking ---
 - id: "CLT-MITRE-096"
   category: lateral_movement
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(^|\\s|[;&|])(?:\"[^\"]*\\btscon(?:\\.exe)?\\b\"|'[^']*\\btscon(?:\\.exe)?\\b'|(?:[^\\s\"']*[\\\\/])?\\btscon(?:\\.exe)?\\b)\\s+\\S+(\\s+/dest:[^\\s]+)?"
   case_insensitive: true
   match_on: command
@@ -747,9 +690,8 @@
 # --- T1567.001: Exfiltrationto Code Repository ---
 - id: "CLT-MITRE-099"
   category: exfiltration
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "Invoke-ExfilDataToGitHub"
   case_insensitive: true
   match_on: command
@@ -760,9 +702,8 @@
 # --- T1567.002: Exfiltrationto Cloud Storage ---
 - id: "CLT-MITRE-100"
   category: exfiltration
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "Invoke-DropboxUpload"
   case_insensitive: true
   match_on: command
@@ -773,9 +714,8 @@
 # --- T1569: System Services ---
 - id: "CLT-MITRE-102"
   category: execution
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(subinacl(\\.exe) /service|sc(\\.exe)? sdset)"
   case_insensitive: true
   match_on: command
@@ -786,9 +726,8 @@
 # --- T1592.002: Software ---
 - id: "CLT-MITRE-104"
   category: reconnaissance
-  severity: medium
-  confidence: 0.70
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(powershell(\\.exe)?.*-Class.*AntiVirusProduct|powershell(\\.exe)?.*path.*AntiVirusProduct)"
   case_insensitive: true
   match_on: command
@@ -799,9 +738,8 @@
 # --- T1592.004: Client Configurations ---
 - id: "CLT-MITRE-105"
   category: reconnaissance
-  severity: medium
-  confidence: 0.70
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(powershell(\\.exe)?.*-Class.*Win32_UserAccount|powershell(\\.exe)?.*Get-SmbShare)"
   case_insensitive: true
   match_on: command

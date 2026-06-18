@@ -7,11 +7,11 @@ const extensionRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(extensionRoot, "..", "..");
 
 const sourceThreats = join(repoRoot, "threats");
-const sourceAllowlists = join(repoRoot, "allowlists");
+const sourceAllowlists = join(repoRoot, "trusted-domains");
 
 const resourcesDir = join(extensionRoot, "resources");
 const targetThreats = join(resourcesDir, "threats");
-const targetAllowlists = join(resourcesDir, "allowlists");
+const targetAllowlists = join(resourcesDir, "trusted-domains");
 
 await assertReadableDir(sourceThreats);
 await assertReadableDir(sourceAllowlists);
@@ -23,9 +23,8 @@ await cp(sourceAllowlists, targetAllowlists, { recursive: true, force: true });
 
 // ML models are downloaded on demand into ~/.sage/models/<schema>/<name>/
 // at session start; the extension no longer ships them in the VSIX.
-// See docs/model-update.md.
 
-console.log("Synced extension assets (threats + allowlists).");
+console.log("Synced extension assets (threats + trusted-domains).");
 
 async function assertReadableDir(path) {
 	try {

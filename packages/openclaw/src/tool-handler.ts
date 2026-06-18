@@ -124,7 +124,7 @@ export function createToolCallHandler(
 	approvalStore: ApprovalStore,
 	logger: Logger,
 	threatsDir: string,
-	allowlistsDir: string,
+	trustedDomainsDir: string,
 	branding: Branding = defaultBranding,
 ): (event: ToolCallEvent, ctx?: ToolCallContext) => Promise<ToolCallResult | undefined> {
 	async function handleToolCall(
@@ -168,7 +168,7 @@ export function createToolCallHandler(
 					toolInput: normalizeToolInput(toolName, params),
 					artifacts,
 				},
-				{ threatsDir, allowlistsDir, logger },
+				{ threatsDir, trustedDomainsDir, logger },
 				approvalStore,
 			);
 
@@ -195,8 +195,14 @@ export function createToolCallHandler(
 			}
 
 			// ask — actionId is always set for ask verdicts
+			const maxReasons = 3;
 			const reasons =
-				verdict.reasons.length > 0 ? verdict.reasons.slice(0, 3).join("; ") : verdict.category;
+				verdict.reasons.length > 0
+					? verdict.reasons.slice(0, maxReasons).join("; ") +
+						(verdict.reasons.length > maxReasons
+							? `; ... and ${verdict.reasons.length - maxReasons} more`
+							: "")
+					: verdict.category;
 			const intersected = artifacts.filter((a) => verdict.artifacts.includes(a.value));
 			const flaggedArtifacts = intersected.length > 0 ? intersected : artifacts;
 

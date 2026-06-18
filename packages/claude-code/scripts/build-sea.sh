@@ -53,7 +53,6 @@ SEACFG
     echo "Built: $BIN_DIR/$binary_name"
 }
 
-build_binary "pre-tool-use" "sage-pre-tool-use"
 build_binary "session-start" "sage-session-start"
 
 echo ""

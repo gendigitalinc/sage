@@ -1,9 +1,8 @@
 /**
- * URL, command, and file path normalization utilities.
- * Used by cache, allowlist, and other modules that need consistent keys.
+ * URL and file path normalization utilities.
+ * Used by cache, exceptions, and other modules that need consistent keys.
  */
 
-import { createHash } from "node:crypto";
 import { normalize } from "node:path";
 import { getHomeDir } from "./file-utils.js";
 
@@ -22,11 +21,7 @@ export function normalizeUrl(raw: string): string {
 	}
 }
 
-export function hashCommand(command: string): string {
-	return createHash("sha256").update(command).digest("hex");
-}
-
-/** Normalize file path for consistent allowlist keys: resolve ~, normalize . and .. */
+/** Normalize file path for consistent cache/exception keys: resolve ~, normalize . and .. */
 export function normalizeFilePath(raw: string): string {
 	const home = getHomeDir();
 	const expanded = raw.startsWith("~/") || raw === "~" ? `${home}${raw.slice(1)}` : raw;

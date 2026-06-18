@@ -263,9 +263,19 @@ describe("Windows command threats", () => {
 	});
 
 	it("detects Remove-Item -Force -Recurse (reversed flags) (WIN-CMD-028)", () => {
-		expect(matchCommand(engine, "Remove-Item C:\\temp -Force -Recurse")).toContain(
-			"CLT-WIN-CMD-028",
-		);
+		expect(
+			matchCommand(engine, "Remove-Item C:\\ProgramData\\VendorCache -Force -Recurse"),
+		).toContain("CLT-WIN-CMD-028");
+	});
+
+	it("detects Remove-Item -Recurse -Force targeting windir (WIN-CMD-028)", () => {
+		const command = "Remove-Item " + "-Recurse -Force -Path " + "$env:windir\\Temp";
+		expect(matchCommand(engine, command)).toContain("CLT-WIN-CMD-028");
+	});
+
+	it("detects Remove-Item -Recurse -Force targeting braced windir (WIN-CMD-028)", () => {
+		const command = "Remove-Item " + "-Recurse -Force -Path " + "${" + "env:windir}\\Temp";
+		expect(matchCommand(engine, command)).toContain("CLT-WIN-CMD-028");
 	});
 
 	it("detects Clear-RecycleBin -Force (WIN-CMD-029)", () => {
@@ -601,6 +611,36 @@ describe("Windows command threats", () => {
 
 	it("does not match Remove-Item without -Recurse -Force (028 FP)", () => {
 		const ids = matchCommand(engine, "Remove-Item -Path .\\temp.txt");
+		expect(ids).not.toContain("CLT-WIN-CMD-028");
+	});
+
+	it("does not match Remove-Item project cleanup (028)", () => {
+		const command = "Remove-Item .next " + "-Recurse -Force";
+		const ids = matchCommand(engine, command);
+		expect(ids).not.toContain("CLT-WIN-CMD-028");
+	});
+
+	it("does not match Remove-Item temp directory cleanup (028)", () => {
+		const command = "Remove-Item $env:TEMP\\build-cache " + "-Recurse -Force";
+		const ids = matchCommand(engine, command);
+		expect(ids).not.toContain("CLT-WIN-CMD-028");
+	});
+
+	it("does not match Remove-Item cleanup with later high-risk path (028)", () => {
+		const command = "Remove-Item .next -Recurse -Force; Write-Host C:\\Windows";
+		const ids = matchCommand(engine, command);
+		expect(ids).not.toContain("CLT-WIN-CMD-028");
+	});
+
+	it("does not match Remove-Item cleanup with high-risk path in comment (028)", () => {
+		const command = "Remove-Item .next -Recurse -Force # C:\\Windows";
+		const ids = matchCommand(engine, command);
+		expect(ids).not.toContain("CLT-WIN-CMD-028");
+	});
+
+	it("does not match Remove-Item Windows.old cleanup (028)", () => {
+		const command = "Remove-Item " + "-Recurse -Force -Path " + "C:\\Windows.old";
+		const ids = matchCommand(engine, command);
 		expect(ids).not.toContain("CLT-WIN-CMD-028");
 	});
 

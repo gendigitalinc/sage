@@ -25,10 +25,6 @@ function defaultCachePath(): string {
 	return join(resolvedSageDir(), "cache.json");
 }
 
-function defaultAllowlistPath(): string {
-	return join(resolvedSageDir(), "allowlist.json");
-}
-
 function defaultExceptionsPath(): string {
 	return join(resolvedSageDir(), "exceptions.json");
 }
@@ -50,6 +46,16 @@ export function resolvePath(pathStr: string): string {
 	return pathStr;
 }
 
+/**
+ * Returns the Claude Code config directory, respecting the CLAUDE_CONFIG_DIR
+ * environment variable. Falls back to ~/.claude when unset.
+ */
+export function getClaudeConfigDir(): string {
+	const envDir = process.env.CLAUDE_CONFIG_DIR;
+	if (envDir) return resolvePath(envDir);
+	return resolvePath("~/.claude");
+}
+
 function isWithinDirectory(baseDir: string, targetPath: string): boolean {
 	const rel = relative(baseDir, targetPath);
 	if (rel === "") return true;
@@ -60,7 +66,7 @@ function isWithinDirectory(baseDir: string, targetPath: string): boolean {
 function normalizeStateFilePath(
 	configuredPath: string,
 	fallbackPath: string,
-	field: "cache" | "allowlist" | "exceptions" | "logging" | "operational_logging",
+	field: "cache" | "exceptions" | "logging" | "operational_logging",
 	logger: Logger,
 ): string {
 	const sageDir = resolvedSageDir();
@@ -113,7 +119,6 @@ function sanitizeBrandKey(data: Record<string, unknown>, logger: Logger): Record
 
 function sanitizeConfigPaths(config: Config, logger: Logger): Config {
 	const cachePath = defaultCachePath();
-	const allowlistPath = defaultAllowlistPath();
 	const exceptionsPath = defaultExceptionsPath();
 	const auditPath = defaultAuditPath();
 	const operationalLogPath = defaultOperationalLogPath();
@@ -122,10 +127,6 @@ function sanitizeConfigPaths(config: Config, logger: Logger): Config {
 		cache: {
 			...config.cache,
 			path: normalizeStateFilePath(config.cache.path, cachePath, "cache", logger),
-		},
-		allowlist: {
-			...config.allowlist,
-			path: normalizeStateFilePath(config.allowlist.path, allowlistPath, "allowlist", logger),
 		},
 		exceptions: {
 			...config.exceptions,

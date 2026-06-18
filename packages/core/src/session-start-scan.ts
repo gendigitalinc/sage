@@ -29,7 +29,7 @@ import { nullLogger } from "./types.js";
 export interface SessionStartScanContext {
 	plugins: PluginInfo[];
 	threatsDir: string;
-	allowlistsDir: string;
+	trustedDomainsDir: string;
 	sageVersion?: string;
 	logger?: Logger;
 	configPath?: string;
@@ -43,8 +43,6 @@ export function fromCachedFinding(finding: PluginFindingData): PluginFinding {
 		threatId: finding.threat_id,
 		title: finding.title,
 		severity: finding.severity,
-		confidence: finding.confidence,
-		action: finding.action,
 		artifact: finding.artifact,
 		sourceFile: finding.source_file,
 		recommendations: finding.recommendations,
@@ -56,8 +54,6 @@ export function toFindingData(finding: PluginFinding): PluginFindingData {
 		threat_id: finding.threatId,
 		title: finding.title,
 		severity: finding.severity,
-		confidence: finding.confidence,
-		action: finding.action,
 		artifact: finding.artifact,
 		source_file: finding.sourceFile,
 		recommendations: finding.recommendations,
@@ -65,8 +61,7 @@ export function toFindingData(finding: PluginFinding): PluginFindingData {
 }
 
 export function toAuditFindingData(finding: PluginFinding): Record<string, unknown> {
-	const { action: _, ...rest } = toFindingData(finding);
-	return rest;
+	return { ...toFindingData(finding) };
 }
 
 export async function runSessionStartScan(
@@ -133,7 +128,7 @@ async function scanAllPlugins(
 	const configHash = await computeConfigHash(
 		context.sageVersion ?? "",
 		context.threatsDir,
-		context.allowlistsDir,
+		context.trustedDomainsDir,
 	);
 	const cache = await loadScanCache(configHash, context.scanCachePath, logger);
 	const resultsWithFindings: PluginScanResult[] = [];
@@ -162,8 +157,6 @@ async function scanAllPlugins(
 						threatId: "EXCEPTION-DENY",
 						title: `Denied by exception: ${denyMatch.pattern}${denyMatch.reason ? ` — ${denyMatch.reason}` : ""}`,
 						severity: "critical",
-						confidence: 1.0,
-						action: "block",
 						artifact: plugin.key,
 						sourceFile: "~/.sage/exceptions.json",
 					},

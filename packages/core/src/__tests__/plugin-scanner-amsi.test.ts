@@ -62,7 +62,6 @@ describe("scanPlugin AMSI scanning", () => {
 		const amsiFindings = result.findings.filter((f) => f.threatId === "AMSI_SCAN");
 		expect(amsiFindings).toHaveLength(1);
 		expect(amsiFindings[0].severity).toBe("critical");
-		expect(amsiFindings[0].action).toBe("block");
 		expect(amsiFindings[0].title).toContain("32768");
 		expect(amsiFindings[0].sourceFile).toBe("evil.js");
 		expect(client.mockScanString).toHaveBeenCalledWith(

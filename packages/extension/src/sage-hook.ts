@@ -225,7 +225,7 @@ async function handleVsCode(payload: unknown, branding: Branding, logger: Logger
 }
 
 async function evaluateNormalizedCall(call: NormalizedHookCall, logger: Logger): Promise<Verdict> {
-	const { threatsDir, allowlistsDir } = getBundledDataDirs();
+	const { threatsDir, trustedDomainsDir } = getBundledDataDirs();
 	return evaluateToolCall(
 		{
 			sessionId: call.sessionId,
@@ -238,7 +238,7 @@ async function evaluateNormalizedCall(call: NormalizedHookCall, logger: Logger):
 			artifacts: call.artifacts,
 			toolUseId: call.toolUseId,
 		},
-		{ threatsDir, allowlistsDir, logger },
+		{ threatsDir, trustedDomainsDir, logger },
 	);
 }
 
@@ -761,11 +761,11 @@ function truncateReason(verdict: Verdict, branding: Branding): string {
 	return joined.length <= 350 ? joined : `${joined.slice(0, 347)}...`;
 }
 
-function getBundledDataDirs(): { threatsDir: string; allowlistsDir: string } {
+function getBundledDataDirs(): { threatsDir: string; trustedDomainsDir: string } {
 	const extensionRoot = resolve(__dirname, "..");
 	return {
 		threatsDir: join(extensionRoot, "resources", "threats"),
-		allowlistsDir: join(extensionRoot, "resources", "allowlists"),
+		trustedDomainsDir: join(extensionRoot, "resources", "trusted-domains"),
 	};
 }
 
@@ -816,7 +816,7 @@ async function handlePostToolUse(
 		const sessionId = asString(input.session_id) ?? "unknown";
 		const toolInput = parseUnknownObject(input.tool_input);
 		const canonicalToolName = canonicalizeToolName(CURSOR_TOOL_MAP, toolName);
-		const { threatsDir, allowlistsDir } = getBundledDataDirs();
+		const { threatsDir, trustedDomainsDir } = getBundledDataDirs();
 
 		const warnings = await evaluateToolOutput(
 			{
@@ -832,7 +832,7 @@ async function handlePostToolUse(
 			},
 			{
 				threatsDir,
-				allowlistsDir,
+				trustedDomainsDir,
 				logger,
 			},
 		);

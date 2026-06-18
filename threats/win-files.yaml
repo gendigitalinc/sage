@@ -8,7 +8,6 @@
   category: secrets
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "(\\\\|/)Windows(\\\\|/)System32(\\\\|/)config(\\\\|/)(SAM|SECURITY|SYSTEM)"
   match_on: file_path
   title: "Access SAM/SECURITY/SYSTEM registry hive"
@@ -20,7 +19,6 @@
   category: secrets
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "[Nn][Tt][Dd][Ss]\\.[Dd][Ii][Tt]"
   match_on: file_path
   title: "Access NTDS.dit (Active Directory database)"
@@ -30,9 +28,8 @@
 # Windows hosts file
 - id: "CLT-WIN-FILE-003"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(\\\\|/)Windows(\\\\|/)System32(\\\\|/)drivers(\\\\|/)etc(\\\\|/)hosts"
   match_on: file_path
   title: "Access Windows hosts file"
@@ -42,9 +39,8 @@
 # Startup folder
 - id: "CLT-WIN-FILE-004"
   category: tool
-  severity: high
-  confidence: 0.90
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(\\\\|/)(Startup|Start Menu(\\\\|/)Programs(\\\\|/)Startup)(\\\\|/)"
   match_on: file_path
   title: "Access Windows Startup folder"
@@ -56,7 +52,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(\\\\|/)Windows(\\\\|/)(System32|SysWOW64)(\\\\|/).*\\.(bat|cmd|ps1|vbs|wsf)$"
   match_on: file_path
   title: "Access executable script in System32/SysWOW64"
@@ -68,7 +63,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(\\\\|/)Windows(\\\\|/)System32(\\\\|/)drivers(\\\\|/).*\\.sys$"
   match_on: file_path
   title: "Access driver file in System32/drivers"
@@ -78,9 +72,8 @@
 # Task Scheduler directory
 - id: "CLT-WIN-FILE-007"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(Windows|WINDOWS)[/\\\\]System32[/\\\\]Tasks[/\\\\]"
   match_on: file_path
   title: "Access Windows Task Scheduler directory"
@@ -90,9 +83,8 @@
 # SSH key or config file (Windows path)
 - id: "CLT-WIN-FILE-008"
   category: secrets
-  severity: high
-  confidence: 0.90
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\.ssh[\\\\](id_rsa|id_ed25519|id_ecdsa|id_dsa|config|authorized_keys)$"
   match_on: file_path
   title: "Access SSH key or config file (Windows path)"
@@ -102,9 +94,8 @@
 # AWS credentials file (Windows path)
 - id: "CLT-WIN-FILE-009"
   category: secrets
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\.aws[\\\\]credentials$"
   match_on: file_path
   title: "Access AWS credentials file (Windows path)"
@@ -116,7 +107,6 @@
   category: secrets
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(Google[/\\\\]Chrome|Mozilla[/\\\\]Firefox|Microsoft[/\\\\]Edge)[/\\\\].*[/\\\\](Login Data|logins\\.json|Cookies)$"
   match_on: file_path
   title: "Access browser credential store"

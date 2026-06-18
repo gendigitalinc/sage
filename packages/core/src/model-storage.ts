@@ -12,7 +12,7 @@
  * multiple Sage versions across environments sharing the same `~/.sage`,
  * and pruning would force the older client to re-download.
  *
- * See `docs/model-update.md` §3.1 for the full rationale and bump policy.
+ * Schema version is bumped only when the model format changes incompatibly.
  */
 
 import { existsSync } from "node:fs";

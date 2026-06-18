@@ -145,6 +145,9 @@ importers:
       '@gendigital/sage-core':
         specifier: workspace:*
         version: link:../core
+      '@gendigital/sage-mcp':
+        specifier: workspace:*
+        version: link:../mcp
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.11
@@ -167,6 +170,9 @@ importers:
       '@gendigital/sage-core':
         specifier: workspace:*
         version: link:../core
+      '@gendigital/sage-mcp':
+        specifier: workspace:*
+        version: link:../mcp
       '@opencode-ai/plugin':
         specifier: ^1.14.48
         version: 1.14.48
@@ -174,6 +180,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.11
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
       typescript:
         specifier: ^5.9.0
         version: 5.9.3

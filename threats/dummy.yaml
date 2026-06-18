@@ -24,7 +24,6 @@
   category: testing
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "__sage_test_deny_cmd_a75bf229__"
   match_on: command
   title: "[TEST] Canary deny command (alpha)"
@@ -35,7 +34,6 @@
   category: testing
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "__sage_test_deny_run_c3d91e4a__"
   match_on: command
   title: "[TEST] Canary deny command (bravo)"
@@ -44,9 +42,8 @@
 
 - id: "DUMMY-CMD-ASK-001"
   category: testing
-  severity: high
-  confidence: 0.90
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "__sage_test_ask_cmd_8f2e6b71__"
   match_on: command
   title: "[TEST] Canary approval command (alpha)"
@@ -55,9 +52,8 @@
 
 - id: "DUMMY-CMD-ASK-002"
   category: testing
-  severity: high
-  confidence: 0.90
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "__sage_test_ask_run_d4a09c53__"
   match_on: command
   title: "[TEST] Canary approval command (bravo)"
@@ -66,14 +62,14 @@
 
 - id: "DUMMY-CMD-LOG-001"
   category: testing
-  severity: low
-  confidence: 0.90
-  action: log
+  severity: info
+  confidence: 0.10
   pattern: "__sage_test_log_cmd_1b7e3f82__"
   match_on: command
   title: "[TEST] Canary log-only command"
   expires_at: null
   revoked: false
+  flags: ["report"]
 
 # ─── File-path patterns (Write / Edit / Read / Delete tools) ────────
 
@@ -81,7 +77,6 @@
   category: testing
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "__sage_test_deny_file_e6c4a918__"
   match_on: file_path
   title: "[TEST] Canary deny file path"
@@ -90,9 +85,8 @@
 
 - id: "DUMMY-FILE-ASK-001"
   category: testing
-  severity: high
-  confidence: 0.90
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "__sage_test_ask_file_52fd7b36__"
   match_on: file_path
   title: "[TEST] Canary approval file path"
@@ -101,14 +95,14 @@
 
 - id: "DUMMY-FILE-LOG-001"
   category: testing
-  severity: low
-  confidence: 0.90
-  action: log
+  severity: info
+  confidence: 0.10
   pattern: "__sage_test_log_file_9a13de74__"
   match_on: file_path
   title: "[TEST] Canary log-only file path"
   expires_at: null
   revoked: false
+  flags: ["report"]
 
 # ─── Content patterns (Write / Edit tools — file body) ──────────────
 
@@ -116,7 +110,6 @@
   category: testing
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "__SAGE_TEST_DENY_CONTENT_3c8f15b7__"
   match_on: content
   title: "[TEST] Canary deny content"
@@ -125,9 +118,8 @@
 
 - id: "DUMMY-CONTENT-ASK-001"
   category: testing
-  severity: high
-  confidence: 0.90
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "__SAGE_TEST_ASK_CONTENT_7d4ea2c9__"
   match_on: content
   title: "[TEST] Canary approval content"
@@ -136,14 +128,14 @@
 
 - id: "DUMMY-CONTENT-LOG-001"
   category: testing
-  severity: low
-  confidence: 0.90
-  action: log
+  severity: info
+  confidence: 0.10
   pattern: "__SAGE_TEST_LOG_CONTENT_f0b683d1__"
   match_on: content
   title: "[TEST] Canary log-only content"
   expires_at: null
   revoked: false
+  flags: ["report"]
 
 # ─── URL patterns (WebFetch / Bash / Write content) ─────────────────
 # Uses .test TLD (RFC 2606 reserved, never resolves) for safety.
@@ -152,7 +144,6 @@
   category: testing
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "sage-canary-deny-4e91ca37\\.test"
   match_on: url
   title: "[TEST] Canary deny URL"
@@ -161,9 +152,8 @@
 
 - id: "DUMMY-URL-ASK-001"
   category: testing
-  severity: high
-  confidence: 0.90
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "sage-canary-ask-b26d80f5\\.test"
   match_on: url
   title: "[TEST] Canary approval URL"
@@ -172,14 +162,14 @@
 
 - id: "DUMMY-URL-LOG-001"
   category: testing
-  severity: low
-  confidence: 0.90
-  action: log
+  severity: info
+  confidence: 0.10
   pattern: "sage-canary-log-65f3d7a4\\.test"
   match_on: url
   title: "[TEST] Canary log-only URL"
   expires_at: null
   revoked: false
+  flags: ["report"]
 
 # ─── Domain pattern (verifies domain→url routing in heuristics) ─────
 
@@ -187,7 +177,6 @@
   category: testing
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "sage-canary-domain-0c82eb16\\.test"
   match_on: domain
   title: "[TEST] Canary deny domain"

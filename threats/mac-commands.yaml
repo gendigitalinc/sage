@@ -10,7 +10,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\bosascript\\b.*-e.*do shell script"
   case_insensitive: true
   match_on: command
@@ -23,7 +22,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\bosascript\\b.*-l\\s+JavaScript"
   case_insensitive: true
   match_on: command
@@ -36,7 +34,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\|\\s*osascript"
   match_on: command
   title: "Piped input to osascript (stdin AppleScript execution)"
@@ -48,7 +45,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(curl|wget).*\\|.*osascript|osascript.*(curl|wget)"
   case_insensitive: true
   match_on: command
@@ -61,9 +57,8 @@
 # open -a Terminal (launch Terminal with script)
 - id: "CLT-MAC-CMD-005"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bopen\\s+-a\\s+Terminal"
   match_on: command
   title: "Launch Terminal application via open -a"
@@ -73,9 +68,8 @@
 # open with hidden/background flags
 - id: "CLT-MAC-CMD-006"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bopen\\s+(-[jg]|--hide|--background)"
   match_on: command
   title: "Launch application hidden/background via open"
@@ -87,9 +81,8 @@
 # dscl user/group manipulation
 - id: "CLT-MAC-CMD-007"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bdscl\\b.*(-create|-delete|-passwd|-append)"
   match_on: command
   title: "Directory Services user/group manipulation via dscl"
@@ -99,9 +92,8 @@
 # networksetup proxy/DNS manipulation
 - id: "CLT-MAC-CMD-008"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bnetworksetup\\b.*(-setwebproxy|-setsocksfirewallproxy|-setdnsservers|-setautoproxyurl)"
   case_insensitive: true
   match_on: command
@@ -114,7 +106,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\bsystemsetup\\b.*(-setremotelogin\\s+on|-setwakeonnetworkaccess\\s+on)"
   case_insensitive: true
   match_on: command
@@ -127,7 +118,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "kickstart.*-activate.*-configure"
   case_insensitive: true
   match_on: command
@@ -138,9 +128,8 @@
 # installer -pkg -target / (silent package install)
 - id: "CLT-MAC-CMD-011"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\binstaller\\b.*-pkg.*-target"
   case_insensitive: true
   match_on: command
@@ -151,9 +140,8 @@
 # hdiutil mount remote DMG
 - id: "CLT-MAC-CMD-012"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bhdiutil\\b.*\\b(attach|mount)\\b.*https?://"
   case_insensitive: true
   match_on: command
@@ -164,9 +152,8 @@
 # pkgutil --forget (package receipt manipulation)
 - id: "CLT-MAC-CMD-013"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bpkgutil\\b.*--forget"
   match_on: command
   title: "Package receipt removal via pkgutil --forget"
@@ -180,7 +167,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\bdiskutil\\b.*\\b(eraseDisk|partitionDisk|secureErase)\\b"
   match_on: command
   title: "Disk erase/partition via diskutil"
@@ -192,7 +178,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\btmutil\\b.*\\b(delete|disable)\\b"
   match_on: command
   title: "Time Machine backup deletion/disable via tmutil (ransomware indicator)"
@@ -206,7 +191,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\bspctl\\b.*--master-disable"
   match_on: command
   title: "Gatekeeper disable via spctl --master-disable"
@@ -218,7 +202,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\bcsrutil\\b.*\\bdisable\\b"
   match_on: command
   title: "System Integrity Protection disable via csrutil"
@@ -230,7 +213,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\bdefaults\\b.*\\bwrite\\b.*LSQuarantine"
   case_insensitive: true
   match_on: command
@@ -241,9 +223,8 @@
 # xattr -d com.apple.quarantine (quarantine removal)
 - id: "CLT-MAC-CMD-019"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bxattr\\b.*-d.*com\\.apple\\.quarantine"
   match_on: command
   title: "Quarantine attribute removal via xattr"
@@ -255,7 +236,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\bpfctl\\b.*\\s-d\\b"
   match_on: command
   title: "Packet filter (firewall) disable via pfctl -d"
@@ -267,7 +247,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\btccutil\\b.*\\breset\\b"
   match_on: command
   title: "TCC privacy permissions reset via tccutil"
@@ -279,7 +258,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\blaunchctl\\b.*\\b(unload|bootout)\\b.*(com\\.apple\\.MRT|com\\.apple\\.XProtect|com\\.apple\\.security)"
   case_insensitive: true
   match_on: command
@@ -292,7 +270,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\bdefaults\\b.*\\bwrite\\b.*(com\\.apple\\.Finder\\s+AppleShowAllFiles|com\\.apple\\.LaunchServices\\s+LSQuarantine|com\\.apple\\.loginwindow)"
   case_insensitive: true
   match_on: command
@@ -307,7 +284,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\bdscl\\b.*\\s-passwd\\b"
   match_on: command
   title: "User password change via dscl"
@@ -319,7 +295,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\bdseditgroup\\b.*-o\\s+edit.*-a.*admin"
   match_on: command
   title: "Add user to admin group via dseditgroup"
@@ -329,9 +304,8 @@
 # createhomedir — create home directory for arbitrary user
 - id: "CLT-MAC-CMD-026"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bcreatehomedir\\b"
   match_on: command
   title: "Create home directory for user via createhomedir"
@@ -345,9 +319,8 @@
 # screencapture to remote or hidden location
 - id: "CLT-MAC-CMD-027"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bscreencapture\\b.*(-x|-C)"
   match_on: command
   title: "Silent screen capture via screencapture"

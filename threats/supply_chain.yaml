@@ -5,9 +5,8 @@
 # --- Install scripts piped to shell ---
 - id: "CLT-SUPPLY-001"
   category: supply_chain
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   pattern: "(curl|wget)\\s+.*install.*\\|\\s*(bash|sh|zsh|sudo\\s+bash|sudo\\s+sh)"
   match_on: command
   title: "Install script piped to shell (supply chain risk)"

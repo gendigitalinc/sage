@@ -1,7 +1,7 @@
 {
   "name": "sage",
-  "version": "0.10.0",
-  "description": "Safety for Agents - Agent Detection & Response (ADR) for Claude Code",
+  "version": "0.11.0",
+  "description": "Safety for Agents - Agent Detection & Response (ADR) for AI agents",
   "author": {
     "name": "Gen Digital"
   },

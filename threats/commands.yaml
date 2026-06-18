@@ -1,14 +1,13 @@
 # Command threat patterns for Sage
 # Author: Gen Digital Inc.
 # License: DRL-1.1 (see threats/LICENSE)
-# Schema: id, category, severity, confidence, action, pattern, match_on, title, expires_at, revoked
+# Schema: id, category, severity, confidence, pattern, match_on, title, expires_at, revoked, flags
 
 # --- Pipe to shell (Remote Code Execution) ---
 - id: "CLT-CMD-001"
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "curl\\s[^|]*\\|\\s*(bash|sh|zsh|ksh|dash)"
   match_on: command
   title: "Remote code execution via curl pipe to shell"
@@ -19,7 +18,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "wget\\s[^|]*\\|\\s*(bash|sh|zsh|ksh|dash)"
   match_on: command
   title: "Remote code execution via wget pipe to shell"
@@ -31,8 +29,7 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
-  pattern: "/dev/tcp/"
+  pattern: "\\b(bash|sh|zsh|ksh|dash)\\s+-i\\b[\\s\\S]{0,160}/dev/tcp/"
   match_on: command
   title: "Reverse shell via /dev/tcp"
   expires_at: null
@@ -42,7 +39,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\bnc\\b.*\\s-e\\s"
   match_on: command
   title: "Reverse shell via netcat -e"
@@ -53,7 +49,6 @@
   category: tool
   severity: critical
   confidence: 0.85
-  action: block
   pattern: "bash\\s+-i\\s+>\\s*&\\s*/dev/"
   match_on: command
   title: "Interactive reverse shell via bash"
@@ -65,7 +60,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\brm\\s+(-[a-zA-Z]*f[a-zA-Z]*\\s+)?(-[a-zA-Z]*r[a-zA-Z]*\\s+)?/(\\s|$|[;&|*])|\\brm\\s+(-[a-zA-Z]*r[a-zA-Z]*\\s+)?(-[a-zA-Z]*f[a-zA-Z]*\\s+)?/(\\s|$|[;&|*])|\\brm\\s+-[a-zA-Z]*rf[a-zA-Z]*\\s+/(\\s|$|[;&|*])"
   match_on: command
   title: "Recursive forced deletion from root"
@@ -76,7 +70,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\bmkfs\\b"
   match_on: command
   title: "Filesystem format command"
@@ -85,9 +78,8 @@
 
 - id: "CLT-CMD-008"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   pattern: "\\bdd\\s+if=.*of=/dev/"
   match_on: command
   title: "Direct disk write via dd"
@@ -98,7 +90,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\bshred\\b"
   match_on: command
   title: "Secure file destruction via shred"
@@ -110,7 +101,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(curl|wget)\\s[\\s\\S]*?(&&|;)\\s*chmod\\s+\\+x"
   match_on: command
   title: "Download and execute chain"
@@ -120,9 +110,8 @@
 # --- Privilege escalation ---
 - id: "CLT-CMD-011"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bchmod\\s+777\\b"
   match_on: command
   title: "Overly permissive file permissions"
@@ -131,9 +120,8 @@
 
 - id: "CLT-CMD-012"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "NOPASSWD"
   match_on: command
   title: "Passwordless sudo configuration"
@@ -143,9 +131,8 @@
 # --- Data exfiltration ---
 - id: "CLT-CMD-013"
   category: network_egress
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "curl\\s[^|;]*(-d|--data|--data-binary)\\s\\S*(/etc/passwd|/etc/shadow|\\.ssh/|id_rsa|credentials|secrets)"
   match_on: command
   title: "Possible data exfiltration of sensitive files"
@@ -157,7 +144,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\bsudo\\s+(curl|wget)\\s[^|]*\\|\\s*(bash|sh|zsh|ksh|dash)"
   match_on: command
   title: "Privileged pipe-to-shell (sudo curl/wget piped to shell)"
@@ -171,9 +157,8 @@
 # bounded non-greedy quantifier to avoid catastrophic backtracking.
 - id: "CLT-CMD-015"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "python[3]?\\s+-c\\s+[\"'][\\s\\S]{0,2048}?(?:os\\.(?:system|popen|exec[lv]?[ep]?e?)|subprocess\\.(?:run|call|Popen|check_output|check_call|getoutput|getstatusoutput)|__import__)\\s*\\("
   match_on: command
   title: "Python one-liner invoking shell/exec/subprocess call"
@@ -185,7 +170,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\bbash\\s+<\\(\\s*(curl|wget)\\b"
   match_on: command
   title: "Process substitution executing remote content"
@@ -194,9 +178,8 @@
 
 - id: "CLT-CMD-017"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   pattern: "\\beval\\b[^;|]*\\b(curl|wget)\\b"
   match_on: command
   title: "Eval executing remote download command"
@@ -205,13 +188,12 @@
 
 - id: "CLT-CMD-018"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   # The lookarounds prevent matching short-option flags like `du -sh` or
   # identifiers like `shell`/`bashrc`; only standalone command invocations
   # (preceded by whitespace, `/`, etc.) are flagged.
-  pattern: "\\bxargs\\b[^|;]*(?<![-\\w])(curl|wget|bash|sh)(?![-\\w])"
+  pattern: "\\bxargs\\b[^|;\\r\\n]{0,400}(?:(?<![-\\w])(bash|sh)(?![-\\w])(?:\\s+-[\\w]*c\\b\\s+(?:\"(?!\\s*(?:head|cat|wc)\\b)[^\"\\r\\n]{0,240}(?:\\{\\}|\\$[@*]|\\$\\d)[^\"\\r\\n]{0,240}\"|'(?!\\s*(?:head|cat|wc)\\b)[^'\\r\\n]{0,240}(?:\\{\\}|\\$[@*]|\\$\\d)[^'\\r\\n]{0,240}')|(?!\\s+-[\\w]*c\\b))|(?<![-\\w])(curl|wget)(?![-\\w])[^|;\\r\\n]{0,400}(?:-d|--data|--data-binary|--upload-file|-T|--post-file|--post-data|--body-file)\\b)"
   match_on: command
   title: "xargs dispatching download or shell execution"
   expires_at: null
@@ -219,9 +201,8 @@
 
 - id: "CLT-CMD-019"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   pattern: "\\bfind\\b[^|;]*-exec\\s+(bash|sh|curl|wget)\\b"
   match_on: command
   title: "find -exec executing shell or download commands"
@@ -231,9 +212,8 @@
 # --- DNS exfiltration ---
 - id: "CLT-CMD-020"
   category: network_egress
-  severity: high
+  severity: warning
   confidence: 0.80
-  action: block
   pattern: "\\b(nslookup|dig|host)\\b[^|;]*\\$\\([^)]+\\)\\.[a-zA-Z]"
   match_on: command
   title: "DNS exfiltration via command substitution as subdomain label"
@@ -242,9 +222,8 @@
 
 - id: "CLT-CMD-021"
   category: network_egress
-  severity: high
+  severity: warning
   confidence: 0.80
-  action: block
   pattern: "\\b(nslookup|dig|host)\\b[^|;]*`[^`]+`\\.[a-zA-Z]"
   match_on: command
   title: "DNS exfiltration via backtick substitution as subdomain label"
@@ -254,9 +233,8 @@
 # --- Loop-based indirect execution ---
 - id: "CLT-CMD-022"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.80
-  action: block
   pattern: "\\b(while|for)\\b[^;]*;\\s*do[^;]*(\\b(bash|sh)\\s+-c\\b|\\b(curl|wget)\\b[^;]*\\|\\s*(?:sudo\\s+)?(?:env\\s+)?(?:[^\\s\"']*[\\\\/])?(bash|sh|zsh|ksh|dash)\\b|\\b(curl|wget)\\b[^;]*(?:(-d|--data|--data-binary)\\s+['\\\"]?@\\S+|(--upload-file|-T)\\s+['\\\"]?\\S+))"
   match_on: command
   title: "Loop executing shell or download commands"
@@ -270,7 +248,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "python[23]?\\s+-c.*socket.*connect.*(\\/bin\\/zsh|\\/bin\\/sh|\\/bin\\/bash)"
   match_on: command
   title: "Python reverse shell via socket"
@@ -282,7 +259,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "ruby\\s+-e.*TCPSocket.*exec.*(\\/bin\\/zsh|\\/bin\\/sh)"
   match_on: command
   title: "Ruby reverse shell via TCPSocket"
@@ -294,7 +270,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\bzsh\\s+-c\\b.*\\b(exec|socket|/dev/tcp)\\b"
   match_on: command
   title: "Zsh reverse shell pattern"
@@ -306,7 +281,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\brm\\s+(-[a-zA-Z]+\\s+)*-[a-zA-Z]*[rR][a-zA-Z]*(\\s+-[a-zA-Z]+)*\\s+/(home|Users|etc|usr|var|boot|bin|sbin|lib|lib64|opt|root|System|Applications|Library|Volumes|private|mnt)\\b/?(\\s|$|[;&|])"
   match_on: command
   title: "Recursive deletion of critical system directory"
@@ -316,9 +290,8 @@
 # --- Deletion of .env files ---
 - id: "CLT-CMD-027"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\brm\\s+(-{1,2}[\\w-]+(=\\S+)?\\s+)*(\\S+[\\\\/])?\\.env(?!\\S*\\.(example|sample|template|dist)\\b)(\\.(local|production|prod|staging|stage|development|dev|test))?\\b"
   match_on: command
   title: "Deletion of .env file"
@@ -328,9 +301,8 @@
 # --- Deletion of database files ---
 - id: "CLT-CMD-028"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\brm\\s+(-{1,2}[\\w-]+(=\\S+)?\\s+)*\\S+\\.(db|sqlite|sqlite3)\\b"
   match_on: command
   title: "Deletion of database file"
@@ -340,9 +312,8 @@
 # --- Deletion of .git directory ---
 - id: "CLT-CMD-029"
   category: tool
-  severity: high
-  confidence: 0.90
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\b(rm|del|rmdir|rd|Remove-Item|unlink)\\b.*(\\s|[\\\\/])\\.git(\\s|[\\\\/]|$)"
   case_insensitive: true
   match_on: command

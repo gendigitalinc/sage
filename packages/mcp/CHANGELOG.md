@@ -1,5 +1,16 @@
 # @gendigital/sage-mcp
 
+## 0.11.0
+
+### Minor Changes
+
+- Add 13 threat rules from [ATR (Agent Threat Rules)](https://github.com/Agent-Threat-Rule/agent-threat-rules) under MIT (ATR project). In `prompt-injection.yaml`: 4 rules (CLT-PI-052 MCP IMPORTANT-tag shadowing, CLT-PI-091 HTML-comment delivery, CLT-PI-092 jailbreak persona, CLT-PI-093 CJK pivot). In `agent-layer.yaml`: 9 rules covering MCP path traversal (CLT-MCP-004), skill-package compromise (CLT-SKL-001/002/004/005/006/008: mandatory override, base64 payload, hidden comment exfil, Unicode Tag smuggling, compound archival exfil, auto-approve rider), PEM key leak (CLT-CTX-003), and MCP filesystem typosquatting (CLT-SUPPLY-002). All rules match `content` artifacts (Write/Edit content and plugin/skill file scans).
+
+### Patch Changes
+
+- Updated dependencies:
+  - Updated dependency `@gendigital/sage-core` to `0.11.0`
+
 ## 0.10.0
 
 ### Minor Changes

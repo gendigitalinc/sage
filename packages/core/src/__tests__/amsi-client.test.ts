@@ -74,6 +74,10 @@ function mockScanResult(proc: MockProcess, result: string): void {
 	});
 }
 
+function flushMicrotasks(): Promise<void> {
+	return Promise.resolve();
+}
+
 const mockLogger: Logger = {
 	debug: vi.fn(),
 	info: vi.fn(),
@@ -191,6 +195,83 @@ describe("AmsiClient", () => {
 		expect(result?.isDetected).toBe(false);
 		expect(result?.isBlockedByAdmin).toBe(true);
 		client.close();
+	});
+
+	it("serializes concurrent PowerShell scans on the persistent backend", async () => {
+		vi.spyOn(process, "platform", "get").mockReturnValue("win32" as NodeJS.Platform);
+		const proc = createMockProcess();
+		mockSpawn.mockReturnValue(proc as never);
+		emitReady(proc);
+
+		const client = new AmsiClient(mockLogger);
+		await client.init();
+
+		const writes: string[] = [];
+		let firstResponse: (() => void) | null = null;
+		let secondResponse: (() => void) | null = null;
+		proc.stdin.write.mockImplementation((data: string) => {
+			writes.push(data);
+			const request = JSON.parse(data.trim()) as { contentName: string };
+			if (request.contentName.includes("first")) {
+				firstResponse = () => proc.stdout.emit("data", Buffer.from("0\n"));
+			} else if (request.contentName.includes("second")) {
+				secondResponse = () => proc.stdout.emit("data", Buffer.from("32768\n"));
+			}
+			return true;
+		});
+
+		const firstScan = client.scanString("Bash", "first", "safe content");
+		const secondScan = client.scanString("Bash", "second", "malicious content");
+
+		await flushMicrotasks();
+		expect(writes).toHaveLength(1);
+		expect(writes[0]).toContain("[Sage:Bash]:first");
+		expect(firstResponse).toBeTypeOf("function");
+		firstResponse?.();
+
+		const firstResult = await firstScan;
+		await flushMicrotasks();
+		expect(writes).toHaveLength(2);
+		expect(writes[1]).toContain("[Sage:Bash]:second");
+		expect(secondResponse).toBeTypeOf("function");
+		secondResponse?.();
+
+		const secondResult = await secondScan;
+		expect(firstResult?.amsiResult).toBe(0);
+		expect(secondResult?.amsiResult).toBe(32768);
+		client.close();
+	});
+
+	it("tears down the persistent backend when a scan times out", async () => {
+		vi.spyOn(process, "platform", "get").mockReturnValue("win32" as NodeJS.Platform);
+		const proc = createMockProcess();
+		mockSpawn.mockReturnValue(proc as never);
+		emitReady(proc);
+
+		const client = new AmsiClient(mockLogger);
+		await client.init();
+		expect(client.isAvailable).toBe(true);
+
+		vi.useFakeTimers();
+		try {
+			// The process never answers this request.
+			const scan = client.scanString("Bash", "test:hang", "content");
+			await flushMicrotasks();
+			await vi.advanceTimersByTimeAsync(15_000);
+			await expect(scan).resolves.toBeNull();
+		} finally {
+			vi.useRealTimers();
+		}
+
+		// The wedged process is killed so a late reply cannot be misattributed
+		// to a later scan.
+		expect(proc.kill).toHaveBeenCalled();
+		expect(client.isAvailable).toBe(false);
+
+		proc.stdout.emit("data", Buffer.from("0\n"));
+		const next = await client.scanString("Bash", "test:after-timeout", "content");
+		expect(next).toBeNull();
+		expect(proc.stdin.write).toHaveBeenCalledTimes(1);
 	});
 
 	it("PowerShell scanString returns null on scan failure", async () => {

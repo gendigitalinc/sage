@@ -127,9 +127,7 @@ describe("isCached / getCached / storeResult", () => {
 			{
 				threat_id: "T1",
 				title: "Bad",
-				severity: "high",
-				confidence: 0.9,
-				action: "block",
+				severity: "warning",
 				artifact: "x",
 				source_file: "y",
 			},

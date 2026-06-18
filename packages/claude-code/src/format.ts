@@ -55,10 +55,11 @@ export function formatBlockReason(verdict: Verdict, branding: Branding = default
 		if (verdict.source === "pi_check") {
 			lines.push("");
 			lines.push("Do NOT attempt to fetch this URL again or access it through alternative tools.");
-			lines.push(
-				"If this is a false positive, use the sage_report_false_positive MCP tool to report it.",
-			);
 		}
+		lines.push("");
+		lines.push(
+			"If this is a false positive, use the sage_report_false_positive MCP tool to report it.",
+		);
 		return lines.join("\n");
 	}
 

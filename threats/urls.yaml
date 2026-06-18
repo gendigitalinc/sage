@@ -1,14 +1,13 @@
 # URL/domain threat patterns for Sage
 # Author: Gen Digital Inc.
 # License: DRL-1.1 (see threats/LICENSE)
-# Schema: id, category, severity, confidence, action, pattern, match_on, title, expires_at, revoked
+# Schema: id, category, severity, confidence, pattern, match_on, title, expires_at, revoked, flags
 
 # --- Known malware hosting patterns ---
 - id: "CLT-URL-001"
   category: network_egress
   severity: critical
   confidence: 0.85
-  action: block
   pattern: "raw\\.githubusercontent\\.com/.*/malware"
   match_on: url
   title: "Known malware hosting pattern on GitHub raw"
@@ -18,9 +17,8 @@
 # --- Paste sites used for C2 ---
 - id: "CLT-URL-002"
   category: network_egress
-  severity: high
-  confidence: 0.75
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "pastebin\\.com/raw/"
   match_on: url
   title: "Pastebin raw content (commonly used for C2 payloads)"
@@ -29,9 +27,8 @@
 
 - id: "CLT-URL-003"
   category: network_egress
-  severity: high
-  confidence: 0.75
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "paste\\.ee/r/"
   match_on: url
   title: "paste.ee raw content (commonly used for C2 payloads)"
@@ -44,9 +41,8 @@
 # which are common in local development and rarely indicate C2 traffic.
 - id: "CLT-URL-004"
   category: network_egress
-  severity: medium
-  confidence: 0.65
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "https?://(?!(?:127|10|0)\\.|192\\.168\\.|169\\.254\\.|172\\.(?:1[6-9]|2\\d|3[01])\\.)\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}[:/]"
   match_on: url
   title: "Direct public IP address URL (potential C2 or staging server)"
@@ -56,9 +52,8 @@
 # --- Executable downloads ---
 - id: "CLT-URL-005"
   category: network_egress
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "/[^/\\s]{1,255}\\.(exe|msi|bat|cmd|ps1|vbs|scr|pif|hta|inf)([?#]|$)"
   match_on: url
   title: "URL pointing to executable file download"

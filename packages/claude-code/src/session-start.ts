@@ -11,15 +11,16 @@ import { basename, join, resolve } from "node:path";
 import {
 	atomicWriteJson,
 	type Branding,
+	checkAllowlistMigration,
 	createOperationalLogger,
 	discoverPlugins,
+	formatAllowlistMigrationWarning,
 	formatConfigurationWarnings,
-	formatMigrationNotice,
+	getClaudeConfigDir,
 	getConfigurationWarnings,
 	initSessionStatus,
 	type Logger,
 	loadConfig,
-	needsMarketplaceMigration,
 	nullLogger,
 	pruneSessionStatusFiles,
 	resolveBranding,
@@ -27,6 +28,7 @@ import {
 } from "@gendigital/sage-core";
 import { pruneStaleSessionFiles } from "./approval-tracker.js";
 import { STATUSLINE_MARKER } from "./constants.js";
+import { resolveClaudeCodeVersion } from "./runtime-version.js";
 
 let logger: Logger = nullLogger;
 
@@ -124,9 +126,7 @@ async function scriptReferencesMarker(command: string, home: string): Promise<bo
  */
 async function configureStatusLine(pluginRoot: string, branding: Branding): Promise<string | null> {
 	const home = process.env.HOME ?? "";
-	if (!home) return null;
-
-	const settingsPath = join(home, ".claude", "settings.json");
+	const settingsPath = join(getClaudeConfigDir(), "settings.json");
 	const settings = await readSettingsJson(settingsPath);
 	if (settings === null) {
 		return `${branding.name}: ${settingsPath} appears corrupt — skipping status line auto-configuration.`;
@@ -195,7 +195,7 @@ async function main(): Promise<void> {
 
 	const pluginRoot = getPluginRoot();
 	const threatsDir = join(pluginRoot, "threats");
-	const allowlistsDir = join(pluginRoot, "allowlists");
+	const trustedDomainsDir = join(pluginRoot, "trusted-domains");
 	const manifest = getPluginManifest(pluginRoot);
 
 	// Discover plugins and filter out self
@@ -210,11 +210,13 @@ async function main(): Promise<void> {
 		"session",
 		plugins,
 		threatsDir,
-		allowlistsDir,
+		trustedDomainsDir,
 		manifest.version,
 		"claude-code",
 		branding,
 		resolve(__dirname, "model-download-worker.cjs"),
+		"verbose",
+		resolveClaudeCodeVersion(),
 	);
 
 	// Initialize status file before registering the status line so the
@@ -233,9 +235,11 @@ async function main(): Promise<void> {
 		// Best-effort — don't block session start
 	}
 
-	// TODO: Remove marketplace migration check after v0.7.x // gitleaks:allow
-	const migrationNeeded = await needsMarketplaceMigration();
-	let finalMsg = migrationNeeded ? `${statusMsg}\n${formatMigrationNotice(branding)}` : statusMsg;
+	const allowlistMigration = await checkAllowlistMigration();
+	let finalMsg = statusMsg;
+	if (allowlistMigration.needed) {
+		finalMsg = `${formatAllowlistMigrationWarning(allowlistMigration.entryTypes, branding)}\n${finalMsg}`;
+	}
 	if (warningMessage) {
 		finalMsg = `${warningMessage}\n${finalMsg}`;
 	}
@@ -244,7 +248,6 @@ async function main(): Promise<void> {
 	}
 	process.stdout.write(`${JSON.stringify({ systemMessage: finalMsg })}\n`);
 	await completeHook("completed", {
-		migrationNeeded,
 		statusLineHintShown: !!statusLineHint,
 	});
 }

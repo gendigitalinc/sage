@@ -12,7 +12,6 @@
   category: prompt_injection
   severity: critical
   confidence: 0.90
-  action: block
   case_insensitive: true
   pattern: "ignore\\s+(all\\s+)?(previous|prior|above|earlier)\\s+(instructions?|directives?|rules?|guidelines?|prompts?|directions?)"
   match_on: content
@@ -24,7 +23,6 @@
   category: prompt_injection
   severity: critical
   confidence: 0.90
-  action: block
   case_insensitive: true
   pattern: "disregard\\s+(all\\s+)?(previous|prior|above|your)\\s+(instructions?|directives?|rules?|guidelines?|safety)"
   match_on: content
@@ -36,7 +34,6 @@
   category: prompt_injection
   severity: critical
   confidence: 0.90
-  action: block
   case_insensitive: true
   pattern: "forget\\s+(all\\s+)?(your\\s+)?(previous\\s+)?(instructions?|rules?|guidelines?|restrictions?|constraints?|context)"
   match_on: content
@@ -48,7 +45,6 @@
   category: prompt_injection
   severity: critical
   confidence: 0.90
-  action: block
   case_insensitive: true
   pattern: "override\\s+(the\\s+)?(system\\s+)?(prompt|instructions?|rules?|guidelines?)"
   match_on: content
@@ -58,9 +54,8 @@
 
 - id: "CLT-PI-005"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   case_insensitive: true
   pattern: "(new|updated?|revised?|changed?)\\s+instructions?:\\s*"
   match_on: content
@@ -75,7 +70,6 @@
   category: prompt_injection
   severity: critical
   confidence: 0.90
-  action: block
   case_insensitive: true
   pattern: "you\\s+are\\s+now\\s+(a\\s+)?(different|new|the|my|an?\\s+unrestricted|an?\\s+unfiltered)"
   match_on: content
@@ -85,21 +79,22 @@
 
 - id: "CLT-PI-011"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   case_insensitive: true
   pattern: "\\bDAN\\b.*?(do\\s+anything|jailbreak|no\\s+restrictions)"
   match_on: content
   title: "Role override: DAN jailbreak"
   expires_at: null
   revoked: false
+  # Intentional layering with CLT-PI-092 (ATR): this rule requires an explicit
+  # qualifier (jailbreak/no restrictions) after DAN; CLT-PI-092 instead requires
+  # an activation prefix (pretend/act as/you are) before the persona name.
 
 - id: "CLT-PI-012"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   case_insensitive: true
   pattern: "developer\\s+mode\\s+(is\\s+)?(now\\s+)?(enabled?|activated?|on).{0,50}(comply|content\\s+polic|no\\s+restrict|without\\s+restrict|any\\s+request)"
   match_on: content
@@ -109,9 +104,8 @@
 
 - id: "CLT-PI-013"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   case_insensitive: true
   pattern: "act\\s+(as|like)\\s+(a\\s+)?(system|admin|root|superuser)"
   match_on: content
@@ -126,7 +120,6 @@
   category: prompt_injection
   severity: critical
   confidence: 0.85
-  action: block
   case_insensitive: true
   pattern: "(bypass|disable)\\s+(the\\s+)?(security|safety|guardrails?|filters?|restrictions?)"
   match_on: content
@@ -136,9 +129,8 @@
 
 - id: "CLT-PI-021"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   case_insensitive: true
   pattern: "ignore\\s+(the\\s+)?(safety|security|ethical)\\s+(guidelines?|rules?|restrictions?)"
   match_on: content
@@ -148,9 +140,8 @@
 
 - id: "CLT-PI-022"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.80
-  action: block
   case_insensitive: true
   pattern: "skip\\s+(all\\s+)?security\\s+checks"
   match_on: content
@@ -162,7 +153,6 @@
   category: prompt_injection
   severity: critical
   confidence: 0.90
-  action: block
   case_insensitive: true
   pattern: "system\\s+override.{0,50}(execut|disabl|bypass|security|safet|comply|filter)"
   match_on: content
@@ -177,7 +167,6 @@
   category: prompt_injection
   severity: critical
   confidence: 0.90
-  action: block
   case_insensitive: true
   pattern: "do\\s+not\\s+(tell|inform|mention|reveal|show|disclose)\\s+(the\\s+)?(user|human|operator|developer)"
   match_on: content
@@ -190,9 +179,8 @@
 
 - id: "CLT-PI-040"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   case_insensitive: true
   pattern: "reveal\\s+(your\\s+)?(system\\s+)?prompt"
   match_on: content
@@ -202,9 +190,8 @@
 
 - id: "CLT-PI-041"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   case_insensitive: true
   pattern: "show\\s+(me\\s+)?(your\\s+)?(initial|original|system|hidden)\\s+instructions?"
   match_on: content
@@ -214,9 +201,8 @@
 
 - id: "CLT-PI-042"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   case_insensitive: true
   pattern: "repeat\\s+(back\\s+)?(everything|all|your\\s+instructions?)"
   match_on: content
@@ -226,9 +212,8 @@
 
 - id: "CLT-PI-043"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   case_insensitive: true
   pattern: "output\\s+(your\\s+)?(initialization|system\\s+prompt|initial\\s+instructions?)"
   match_on: content
@@ -241,21 +226,22 @@
 
 - id: "CLT-PI-050"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   case_insensitive: true
   pattern: "<!--\\s*(?:system|ignore|instruction|prompt|important|override|execute).*?-->"
   match_on: content
   title: "Structural injection: HTML comment with injection keywords"
   expires_at: null
   revoked: false
+  # Intentional layering with CLT-PI-091 (ATR): this rule matches injection
+  # keywords anywhere in the comment body; CLT-PI-091 adds a distinct signal
+  # for keywords appearing within 20 chars of the opening tag.
 
 - id: "CLT-PI-051"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   case_insensitive: true
   # Require a reasonably long hidden link target/title plus a high-signal PI phrase.
   pattern: "\\[[^\\]]*\\]\\((?=[^)]{40,}\\))[^)]*(?:ignore\\s+previous\\s+instructions|forget\\s+instructions|system\\s+prompt|override\\s+instructions)[^)]*\\)"
@@ -264,14 +250,28 @@
   expires_at: null
   revoked: false
 
+- id: "CLT-PI-052"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  case_insensitive: true
+  pattern: "<important>[\\s\\S]{0,600}?\\b(send|exec|fetch|invoke|extract|pass|forward|upload)\\b[\\s\\S]{0,300}?</important>"
+  match_on: content
+  title: "Structural injection: MCP IMPORTANT-tag cross-tool shadowing"
+  expires_at: null
+  revoked: false
+  # Adapted from ATR-2026-00161: uses ATR Layer 1 only (upstream has 5 detection
+  # layers); dropped verbs read/include/must to reduce FP on benign documentation.
+  # Fires in pre-hook (Write/Edit content blocking) and post-hook advisory
+  # output scanning (Read/Bash/WebFetch); also caught by session-start plugin scan.
+
 # ── Role Marker Injection ──────────────────────────────────────────
 # Fake conversation turn markers to confuse the model.
 
 - id: "CLT-PI-060"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   case_insensitive: true
   pattern: "\\n\\s*\\n\\s*(Human|User|Assistant|System)\\s*:"
   match_on: content
@@ -281,9 +281,8 @@
 
 - id: "CLT-PI-061"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   case_insensitive: true
   pattern: "\\[INST\\]|\\[/INST\\]"
   match_on: content
@@ -296,9 +295,8 @@
 
 - id: "CLT-PI-070"
   category: prompt_injection
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   case_insensitive: true
   pattern: "1gn0r3|f0rg3t|byp4ss|syst3m|4dm1n"
   match_on: content
@@ -312,9 +310,8 @@
 
 - id: "CLT-PI-080"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.80
-  action: block
   case_insensitive: true
   pattern: "cat\\s+~/\\.(env|ssh|aws|gnupg).*\\|.*curl"
   match_on: content
@@ -324,12 +321,64 @@
 
 - id: "CLT-PI-081"
   category: prompt_injection
-  severity: high
+  severity: warning
   confidence: 0.80
-  action: block
   case_insensitive: true
   pattern: "output\\s+(all\\s+)?(the\\s+)?environment\\s+variables.{0,50}(send|post|upload|exfiltrat|curl|fetch)"
   match_on: content
   title: "Credential exfiltration: dump env vars and send"
   expires_at: null
   revoked: false
+
+# ── ATR Delivery Variants ──────────────────────────────────────────────────
+# Rules below are adapted from the ATR project
+# (https://github.com/Agent-Threat-Rule/agent-threat-rules),
+# Copyright (c) 2026 ATR Contributors, MIT License.
+# Included in Sage under the ATR MIT license per issue #30.
+# See threats/agent-layer.yaml for companion non-PI rules from the same contribution.
+# Sage-specific modifications to each rule are noted in its comment block.
+
+- id: "CLT-PI-091"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  pattern: "<!--[\\s\\S]{0,20}?(ignore|disregard|override|new\\s+instructions?|you\\s+must|you\\s+are\\s+now|forget\\s+previous|send\\s+to|exfiltrate)\\b"
+  match_on: content
+  case_insensitive: true
+  title: "Indirect prompt injection hidden in HTML comment"
+  expires_at: null
+  revoked: false
+  # Adapted from ATR-2026-00002: extracted HTML-comment delivery condition only;
+  # narrowed keyword list (dropped reveal, disclose, output, execute, perform)
+  # to reduce FP; changed [^>] to [\s\S] so comparisons (a>b) before the keyword
+  # don't cause false negatives. Intentional layering with CLT-PI-050 (which
+  # matches keywords anywhere in the comment body): this rule adds a near-tag
+  # precision signal.
+
+- id: "CLT-PI-092"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  pattern: "(?:(?:pretend|Pretend|act(?:ing)?\\s+as|Act(?:ing)?\\s+as|you\\s+are(?:\\s+now)?|You\\s+are(?:\\s+now)?|be(?:come)|Be(?:come))\\s+(?:(?:a|the|in|into|on)\\s+)?\\b(DAN|D\\.A\\.N|STAN|DUDE|AIM|UCAR|BH|BetterDAN|Evil\\s*Confidant|God\\s*Mode|Jailbreak\\s*Mode|Unrestricted\\s*Mode|Sudo\\s*Mode|Root\\s*Mode|Admin\\s*Mode)\\b)"
+  match_on: content
+  case_insensitive: false
+  title: "Jailbreak persona activation attempt (DAN/STAN/God-Mode family)"
+  expires_at: null
+  revoked: false
+  # Adapted from ATR-2026-00003: curated 16 highest-signal personas from ATR's
+  # 20+ (dropped KEVIN, Maximum, Omega, EvilGPT etc.); added space-separated
+  # mode names (God Mode, Jailbreak Mode). Case-sensitive (ATR is case-insensitive)
+  # to avoid FP on the common first name "Dan"; activation verbs include
+  # capitalized variants (Act/You/Pretend/Be) to cover sentence-start phrasing.
+
+- id: "CLT-PI-093"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  pattern: "(?:忽略|无视|無視|忘记|忘記|跳过|跳過|绕过|繞過|覆盖|覆蓋|不要遵守|不要遵循)(?:之前|先前|以前|上述|上面)?(?:的)?(?:所有|一切|全部)?(?:指令|命令|指示|要求|规则|規則|系统|系統|提示|提醒|对话|對話)|(?:無視して|忘れて|無効にし)(?:以前|先の|上記)の(?:指示|命令|ルール|システム)|(?:이전|전의|앞의)(?:\\s*)(?:명령|지시|규칙|시스템|프롬프트)(?:을|를|은|는)?(?:\\s*)(?:무시|잊|건너뛰|우회)"
+  match_on: content
+  case_insensitive: false
+  title: "CJK prompt-injection override (Chinese/Japanese/Korean)"
+  expires_at: null
+  revoked: false
+  # Source: ATR-2026-00097 (pattern unchanged from upstream). Covers zh-CN, zh-TW, ja, ko.

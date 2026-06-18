@@ -5,6 +5,7 @@ vi.mock("@gendigital/sage-core", () => ({
 	ApprovalStore: class {
 		cleanup() {}
 	},
+	checkAllowlistMigration: vi.fn(() => Promise.resolve({ needed: false, entryTypes: [] })),
 	createOperationalLogger: vi.fn(() => ({
 		forComponent: vi.fn(() => ({
 			debug() {},
@@ -13,6 +14,7 @@ vi.mock("@gendigital/sage-core", () => ({
 			error() {},
 		})),
 	})),
+	formatAllowlistMigrationWarning: vi.fn(() => "allowlist migration warning"),
 	formatConfigurationWarnings: vi.fn(() => "config warnings"),
 	getConfigurationWarningsSync: vi.fn(() => []),
 	loadConfigSync: vi.fn(() => ({})),
@@ -20,7 +22,10 @@ vi.mock("@gendigital/sage-core", () => ({
 }));
 
 vi.mock("../bundled-dirs.js", () => ({
-	getBundledDataDirs: vi.fn(() => ({ threatsDir: "/threats", allowlistsDir: "/allowlists" })),
+	getBundledDataDirs: vi.fn(() => ({
+		threatsDir: "/threats",
+		trustedDomainsDir: "/trusted-domains",
+	})),
 }));
 
 vi.mock("../startup-scan.js", () => ({
@@ -69,17 +74,17 @@ function createMockApi() {
 }
 
 describe("OpenClaw plugin registration", () => {
-	it("keeps configuration warnings while replacing stale scan findings", () => {
+	it("keeps configuration warnings while replacing stale scan findings", async () => {
 		const { api, handlers } = createMockApi();
 		plugin.register(api);
 
 		handlers.get("gateway_start")?.();
 		handlers.get("session_start")?.();
 
-		const result = handlers.get("before_agent_start")?.();
+		const result = await handlers.get("before_agent_start")?.();
 		expect(result).toEqual({ prependContext: "config warnings\n\nsession scan" });
 
-		const secondResult = handlers.get("before_agent_start")?.();
+		const secondResult = await handlers.get("before_agent_start")?.();
 		expect(secondResult).toBeUndefined();
 	});
 });

@@ -7,7 +7,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\bosascript\\b.*do shell script"
   case_insensitive: true
   match_on: command
@@ -20,7 +19,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\bosascript\\b.*-l\\s+JavaScript.*-e"
   case_insensitive: true
   match_on: command
@@ -33,7 +31,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "base64\\s+(-d|-D|--decode).*\\|.*osascript"
   match_on: command
   title: "Base64 decode piped to osascript (encoded payload execution)"
@@ -45,7 +42,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "DYLD_INSERT_LIBRARIES=.*\\.(dylib|so)"
   match_on: command
   title: "Dynamic library injection via DYLD_INSERT_LIBRARIES"
@@ -55,9 +51,8 @@
 # Quarantine attribute removal (evasion)
 - id: "CLT-MAC-OBFUS-005"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bxattr\\b.*(-d|-c).*com\\.apple\\.quarantine"
   match_on: command
   title: "Quarantine attribute removal (Gatekeeper evasion)"
@@ -69,9 +64,8 @@
 # plutil plist manipulation (payload hiding)
 - id: "CLT-MAC-OBFUS-006"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bplutil\\b.*-convert\\s+(binary1|raw)"
   match_on: command
   title: "Plist conversion to binary (payload obfuscation)"
@@ -81,9 +75,8 @@
 # Swift/swiftc inline execution
 - id: "CLT-MAC-OBFUS-007"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bswift\\b\\s+-e\\s+[\"'].*\\b(Process|NSTask|URLSession|shell)\\b"
   case_insensitive: true
   match_on: command

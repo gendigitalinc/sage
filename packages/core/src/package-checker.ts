@@ -110,7 +110,7 @@ export class PackageChecker {
 				packageName: pkg.name,
 				registry: pkg.registry,
 				verdict: "not_found",
-				confidence: 0.9,
+				confidence: 0.95,
 				details: `Package '${pkg.name}@${pkg.version}' version not found on ${pkg.registry} (hallucinated or unpublished)`,
 			};
 		}
@@ -152,7 +152,7 @@ export class PackageChecker {
 				packageName: pkg.name,
 				registry: pkg.registry,
 				verdict: "suspicious_age",
-				confidence: 0.75,
+				confidence: 0.6,
 				details: `Package '${pkg.name}' first published ${Math.floor(ageDays)} days ago (suspicious age)`,
 				ageDays,
 			};

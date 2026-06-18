@@ -1,11 +1,11 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("vscode", () => ({}));
 
-import { assertSafePathForShim, createHookShim } from "../hook_installer_shared.js";
+import { assertSafePathForShim, createHookShim, isShimCurrent } from "../hook_installer_shared.js";
 
 describe("createHookShim", () => {
 	let hooksDir: string;
@@ -69,5 +69,50 @@ describe("createHookShim", () => {
 			/App root path contains unsupported characters/,
 		);
 		expect(() => assertSafePathForShim("/safe/path", "App root")).not.toThrow();
+	});
+});
+
+describe("isShimCurrent", () => {
+	let hooksDir: string;
+	const runnerPath = "/opt/runner.cjs";
+
+	beforeEach(async () => {
+		hooksDir = await mkdtemp(path.join(tmpdir(), "sage-shim-"));
+	});
+
+	afterEach(async () => {
+		await rm(hooksDir, { recursive: true, force: true });
+	});
+
+	it("treats a freshly written shim (runner + SAGE_APP_ROOT) as current", async () => {
+		await createHookShim(hooksDir, "/usr/bin/node", runnerPath, "/opt/cursor/resources/app");
+		const shimPath = path.join(hooksDir, "sage-hook");
+		expect(await isShimCurrent(shimPath, runnerPath)).toBe(true);
+	});
+
+	it("treats a legacy shim without SAGE_APP_ROOT as stale", async () => {
+		const shimPath = path.join(hooksDir, "sage-hook");
+		await writeFile(
+			shimPath,
+			`#!/usr/bin/env sh\nexport ELECTRON_RUN_AS_NODE=1\n"/usr/bin/node" "${runnerPath}" "$@"\n`,
+			"utf8",
+		);
+		expect(await isShimCurrent(shimPath, runnerPath)).toBe(false);
+	});
+
+	it("treats a shim pointing at a different runner as stale", async () => {
+		await createHookShim(hooksDir, "/usr/bin/node", "/old/runner.cjs", "/opt/cursor/resources/app");
+		const shimPath = path.join(hooksDir, "sage-hook");
+		expect(await isShimCurrent(shimPath, runnerPath)).toBe(false);
+	});
+
+	it("returns false when the runner path is unknown", async () => {
+		await createHookShim(hooksDir, "/usr/bin/node", runnerPath, "/opt/cursor/resources/app");
+		const shimPath = path.join(hooksDir, "sage-hook");
+		expect(await isShimCurrent(shimPath, undefined)).toBe(false);
+	});
+
+	it("returns false when the shim file does not exist", async () => {
+		expect(await isShimCurrent(path.join(hooksDir, "missing"), runnerPath)).toBe(false);
 	});
 });

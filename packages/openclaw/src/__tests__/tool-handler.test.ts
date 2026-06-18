@@ -35,7 +35,7 @@ describe("createToolCallHandler", () => {
 
 	function setup() {
 		approvalStore = new ApprovalStore();
-		handler = createToolCallHandler(approvalStore, nullLogger, "/threats", "/allowlists");
+		handler = createToolCallHandler(approvalStore, nullLogger, "/threats", "/trusted-domains");
 		vi.clearAllMocks();
 	}
 

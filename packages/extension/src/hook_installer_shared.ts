@@ -1,4 +1,4 @@
-import { access, chmod, mkdir, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import * as vscode from "vscode";
@@ -91,6 +91,28 @@ export async function createHookShim(
 	);
 
 	return process.platform === "win32" ? windowsShim : posixShim;
+}
+
+/**
+ * A shim is "current" only when it invokes the expected runner AND injects
+ * `SAGE_APP_ROOT`. Requiring `SAGE_APP_ROOT` forces shims written before that
+ * env injection shipped to be treated as stale so the startup self-heal
+ * rewrites them — without it those shims keep reporting an "unknown" agent
+ * runtime version forever (the runner path alone can match an outdated shim).
+ */
+export async function isShimCurrent(
+	shimPath: string,
+	runnerPath: string | undefined,
+): Promise<boolean> {
+	if (!runnerPath) {
+		return false;
+	}
+	try {
+		const content = await readFile(shimPath, "utf8");
+		return content.includes(`"${runnerPath}"`) && content.includes("SAGE_APP_ROOT=");
+	} catch {
+		return false;
+	}
 }
 
 export function isManagedEntry(entry: HookEntry, marker: string): boolean {

@@ -16,7 +16,7 @@
  *   - Fail-open: every error path logs and returns `false`; the model
  *     simply stays unavailable until a future session succeeds.
  *
- * See `docs/model-update.md` §3.5 for the full design.
+ * Downloads to a temp path, verifies, then atomically renames into place.
  */
 
 import { createHash, randomBytes } from "node:crypto";

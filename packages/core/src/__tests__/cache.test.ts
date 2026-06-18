@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { VerdictCache } from "../cache.js";
 import type { CacheConfig, CachedVerdict } from "../types.js";
-import { hashCommand, normalizeUrl } from "../url-utils.js";
+import { normalizeUrl } from "../url-utils.js";
 import { makeTmpDir } from "./test-utils.js";
 
 function makeConfig(overrides: Partial<CacheConfig> = {}): CacheConfig {
@@ -25,21 +25,6 @@ function makeVerdict(overrides: Partial<CachedVerdict> = {}): CachedVerdict {
 		...overrides,
 	};
 }
-
-describe("hashCommand", () => {
-	it("returns SHA-256 hex digest", () => {
-		const hash = hashCommand("test command");
-		expect(hash).toMatch(/^[0-9a-f]{64}$/);
-	});
-
-	it("produces consistent hashes", () => {
-		expect(hashCommand("foo")).toBe(hashCommand("foo"));
-	});
-
-	it("produces different hashes for different inputs", () => {
-		expect(hashCommand("foo")).not.toBe(hashCommand("bar"));
-	});
-});
 
 describe("VerdictCache", () => {
 	let dir: string;
@@ -75,16 +60,6 @@ describe("VerdictCache", () => {
 		expect(cache.getUrl("http://evil.com")).toBeNull();
 	});
 
-	it("stores and retrieves command verdict", async () => {
-		const cache = new VerdictCache(makeConfig({ path: join(dir, "cache.json") }));
-		await cache.load();
-		const hash = hashCommand("dangerous command");
-		cache.putCommand(hash, makeVerdict({ verdict: "deny" }));
-		const result = cache.getCommand(hash);
-		expect(result).not.toBeNull();
-		expect(result?.verdict).toBe("deny");
-	});
-
 	it("persists to disk", async () => {
 		const cachePath = join(dir, "cache.json");
 		const cache = new VerdictCache(makeConfig({ path: cachePath }));
@@ -115,7 +90,6 @@ describe("VerdictCache", () => {
 						expiresAt: farFuture,
 					},
 				},
-				commands: {},
 			}),
 		);
 
@@ -170,7 +144,6 @@ describe("VerdictCache", () => {
 						sageVersion: "0.5.0",
 					},
 				},
-				commands: {},
 				packages: {},
 			}),
 		);
@@ -197,7 +170,6 @@ describe("VerdictCache", () => {
 						sageVersion: "0.5.0",
 					},
 				},
-				commands: {},
 				packages: {},
 			}),
 		);
@@ -225,7 +197,6 @@ describe("VerdictCache", () => {
 						expiresAt: farFuture,
 					},
 				},
-				commands: {},
 				packages: {},
 			}),
 		);
@@ -247,34 +218,6 @@ describe("VerdictCache", () => {
 		expect(data.urls["http://test.com/"].sageVersion).toBe("0.6.0");
 	});
 
-	it("ignores stale command entries from older version", async () => {
-		const cachePath = join(dir, "cache.json");
-		const farFuture = "9999-12-31T23:59:59+00:00";
-		const hash = hashCommand("dangerous command");
-		await writeFile(
-			cachePath,
-			JSON.stringify({
-				urls: {},
-				commands: {
-					[hash]: {
-						verdict: "deny",
-						severity: "critical",
-						reasons: ["old threat"],
-						source: "heuristic",
-						checkedAt: new Date().toISOString(),
-						expiresAt: farFuture,
-						sageVersion: "0.4.0",
-					},
-				},
-				packages: {},
-			}),
-		);
-
-		const cache = new VerdictCache(makeConfig({ path: cachePath }), undefined, "0.5.0");
-		await cache.load();
-		expect(cache.getCommand(hash)).toBeNull();
-	});
-
 	it("ignores stale package entries from older version", async () => {
 		const cachePath = join(dir, "cache.json");
 		const farFuture = "9999-12-31T23:59:59+00:00";
@@ -282,7 +225,6 @@ describe("VerdictCache", () => {
 			cachePath,
 			JSON.stringify({
 				urls: {},
-				commands: {},
 				packages: {
 					"npm:evil-pkg": {
 						verdict: "deny",
@@ -319,7 +261,6 @@ describe("VerdictCache", () => {
 						sageVersion: "0.5.0",
 					},
 				},
-				commands: {},
 				packages: {},
 			}),
 		);
@@ -370,27 +311,6 @@ describe("VerdictCache", () => {
 		expect(data.urls["http://evil.com/"].urlSignalLabels).toStrictEqual(["URL:Mal"]);
 	});
 
-	it("strips urlSignalLabels from putCommand (URL-cache only field)", async () => {
-		const cachePath = join(dir, "cache.json");
-		const cache = new VerdictCache(makeConfig({ path: cachePath }));
-		await cache.load();
-		const hash = hashCommand("dangerous");
-		cache.putCommand(
-			hash,
-			makeVerdict({ verdict: "deny", urlSignalLabels: ["should-not-be-stored"] }),
-		);
-		await cache.save();
-
-		const raw = await readFile(cachePath, "utf-8");
-		const data = JSON.parse(raw);
-		expect(data.commands[hash]).toBeDefined();
-		expect(data.commands[hash]).not.toHaveProperty("urlSignalLabels");
-
-		const result = cache.getCommand(hash);
-		expect(result?.verdict).toBe("deny");
-		expect(result).not.toHaveProperty("urlSignalLabels");
-	});
-
 	it("strips urlSignalLabels from putPackage (URL-cache only field)", async () => {
 		const cachePath = join(dir, "cache.json");
 		const cache = new VerdictCache(makeConfig({ path: cachePath }));
@@ -438,7 +358,6 @@ describe("VerdictCache", () => {
 						sageVersion: "0.5.0",
 					},
 				},
-				commands: {},
 				packages: {},
 			}),
 		);

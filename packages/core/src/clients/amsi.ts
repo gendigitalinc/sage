@@ -376,6 +376,7 @@ class PersistentPowershellAmsiBackend implements AmsiBackend {
 		reject: (err: Error) => void;
 		timer: ReturnType<typeof setTimeout>;
 	} | null = null;
+	private scanQueue: Promise<void> = Promise.resolve();
 
 	constructor(logger: Logger) {
 		this.logger = logger;
@@ -394,6 +395,21 @@ class PersistentPowershellAmsiBackend implements AmsiBackend {
 
 			this.pendingResponse = { resolve, reject, timer };
 		});
+	}
+
+	private async enqueueScan<T>(operation: () => Promise<T>): Promise<T> {
+		const previous = this.scanQueue;
+		let release!: () => void;
+		this.scanQueue = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+
+		await previous;
+		try {
+			return await operation();
+		} finally {
+			release();
+		}
 	}
 
 	async init(): Promise<void> {
@@ -480,33 +496,43 @@ class PersistentPowershellAmsiBackend implements AmsiBackend {
 	async scanString(content: string, contentName: string): Promise<AmsiCheckResult | null> {
 		if (!this.available || !this.process) return null;
 
-		const truncated =
-			content.length > MAX_SCAN_LENGTH ? content.slice(0, MAX_SCAN_LENGTH) : content;
+		return this.enqueueScan(async () => {
+			const process = this.process;
+			if (!this.available || !process) return null;
 
-		try {
-			const req = JSON.stringify({ content: truncated, contentName });
-			this.process.stdin?.write(`${req}\n`);
+			const truncated =
+				content.length > MAX_SCAN_LENGTH ? content.slice(0, MAX_SCAN_LENGTH) : content;
 
-			const line = await this.waitForLine(PS_TIMEOUT);
-			const amsiResult = parseInt(line, 10);
+			try {
+				const req = JSON.stringify({ content: truncated, contentName });
+				process.stdin?.write(`${req}\n`);
 
-			if (Number.isNaN(amsiResult) || amsiResult < 0) {
-				if (!this.invalidResultLogged) {
-					this.invalidResultLogged = true;
-					this.logger.warn("AMSI: PowerShell scan returned invalid result", {
-						stdout: line.slice(0, 100),
-						contentName,
-					});
+				const line = await this.waitForLine(PS_TIMEOUT);
+				const amsiResult = parseInt(line, 10);
+
+				if (Number.isNaN(amsiResult) || amsiResult < 0) {
+					if (!this.invalidResultLogged) {
+						this.invalidResultLogged = true;
+						this.logger.warn("AMSI: PowerShell scan returned invalid result", {
+							stdout: line.slice(0, 100),
+							contentName,
+						});
+					}
+					return null;
 				}
+
+				this.logger.debug("AMSI: PowerShell scan result", { contentName, amsiResult });
+				return interpretAmsiResult(amsiResult, content, contentName);
+			} catch (e) {
+				this.logger.warn("AMSI: PowerShell scan failed", { error: String(e), contentName });
+				// A failed scan (timeout, process exit) leaves the request/response
+				// stream desynced: a late reply to this request would be attributed
+				// to the next queued scan. Tear the backend down instead; owners
+				// re-initialize a fresh client on the next evaluation.
+				this.close();
 				return null;
 			}
-
-			this.logger.debug("AMSI: PowerShell scan result", { contentName, amsiResult });
-			return interpretAmsiResult(amsiResult, content, contentName);
-		} catch (e) {
-			this.logger.warn("AMSI: PowerShell scan failed", { error: String(e), contentName });
-			return null;
-		}
+		});
 	}
 
 	close(): void {

@@ -7,12 +7,12 @@ const extensionRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(extensionRoot, "..", "..");
 
 const sourceThreats = join(repoRoot, "threats");
-const sourceAllowlists = join(repoRoot, "allowlists");
+const sourceAllowlists = join(repoRoot, "trusted-domains");
 const sourceSkills = join(repoRoot, "skills");
 
 const resourcesDir = join(extensionRoot, "resources");
 const targetThreats = join(resourcesDir, "threats");
-const targetAllowlists = join(resourcesDir, "allowlists");
+const targetAllowlists = join(resourcesDir, "trusted-domains");
 const targetSkills = join(resourcesDir, "skills");
 
 await assertReadableDir(sourceThreats);
@@ -25,7 +25,7 @@ await cp(sourceThreats, targetThreats, { recursive: true, force: true });
 await cp(sourceAllowlists, targetAllowlists, { recursive: true, force: true });
 await cp(sourceSkills, targetSkills, { recursive: true, force: true });
 
-console.log("Synced openclaw assets (threats + allowlists + skills).");
+console.log("Synced openclaw assets (threats + trusted-domains + skills).");
 
 async function assertReadableDir(path) {
 	try {

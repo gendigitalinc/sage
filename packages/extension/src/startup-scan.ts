@@ -8,6 +8,7 @@ import {
 	type Logger,
 } from "@gendigital/sage-core";
 import type * as vscode from "vscode";
+import { resolveAgentRuntimeVersion } from "./agent_runtime_version.js";
 import { discoverExtensionPlugins } from "./plugin-discovery.js";
 
 export function createExtensionScanHandler(
@@ -23,10 +24,11 @@ export function createExtensionScanHandler(
 			: join(homedir(), ".vscode", "extensions");
 
 	const threatsDir = join(context.extensionPath, "resources", "threats");
-	const allowlistsDir = join(context.extensionPath, "resources", "allowlists");
+	const trustedDomainsDir = join(context.extensionPath, "resources", "trusted-domains");
 	const version =
 		((context.extension.packageJSON as Record<string, unknown>).version as string) ?? "0.0.0";
 	const selfPrefix = `${(context.extension.packageJSON as Record<string, unknown>).name}@`;
+	const agentRuntime = hostName === "Cursor" ? "cursor" : "vscode";
 
 	return coreScanHandler({
 		logger,
@@ -34,9 +36,10 @@ export function createExtensionScanHandler(
 		discoverPlugins: () => discoverExtensionPlugins(logger, extensionsDir, branding),
 		selfPrefix,
 		threatsDir,
-		allowlistsDir,
+		trustedDomainsDir,
 		version,
-		agentRuntime: hostName === "Cursor" ? "cursor" : "vscode",
+		agentRuntime,
+		agentRuntimeVersion: resolveAgentRuntimeVersion(agentRuntime),
 		branding,
 		onResult,
 		modelDownloadWorkerPath: context.asAbsolutePath(join("dist", "model-download-worker.cjs")),

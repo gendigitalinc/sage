@@ -49,13 +49,31 @@ function getProcEnv() {
 function getHomeDir() {
   return getProcEnv().HOME || (0, import_node_os.homedir)();
 }
+async function renameWithRetry(from, to, attempts = 5) {
+  if (process.platform !== "win32") {
+    await fsPromises.rename(from, to);
+    return;
+  }
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await fsPromises.rename(from, to);
+      return;
+    } catch (err) {
+      const code = err.code;
+      const transient = code === "EPERM" || code === "EACCES" || code === "EBUSY";
+      if (!transient || i === attempts - 1)
+        throw err;
+      await new Promise((resolve5) => setTimeout(resolve5, 10 * 2 ** i));
+    }
+  }
+}
 async function atomicWriteJson(path, data) {
   await fsPromises.mkdir((0, import_node_path.dirname)(path), { recursive: true });
   const tmp = `${path}.${(0, import_node_crypto.randomBytes)(6).toString("hex")}.tmp`;
   try {
     await fsPromises.writeFile(tmp, `${JSON.stringify(data, null, 2)}
 `, { mode: 384 });
-    await fsPromises.rename(tmp, path);
+    await renameWithRetry(tmp, path);
   } catch (err) {
     try {
       await fsPromises.unlink(tmp);
@@ -4233,7 +4251,7 @@ var init_zod = __esm({
 });
 
 // ../core/dist/types.js
-var nullLogger, ArtifactTypeSchema, ArtifactSchema, SeveritySchema, ActionSchema, ThreatSchema, DecisionSchema, VerdictSeveritySchema, SensitivitySchema, UrlCheckConfigSchema, CacheConfigSchema, AllowlistConfigSchema, LoggingConfigSchema, OperationalLogLevelSchema, OperationalLoggingConfigSchema, FileCheckConfigSchema, PackageCheckConfigSchema, AmsiCheckConfigSchema, DEFAULT_PI_HIGH_RISK_THRESHOLD, DEFAULT_PI_MEDIUM_RISK_THRESHOLD, PiCheckConfigSchema, ExceptionDecisionSchema, ExceptionMatchSchema, ExceptionRuleSchema, ExceptionsFileSchema, ExceptionsConfigSchema, ConfigSchema, HookTypeSchema;
+var nullLogger, ArtifactTypeSchema, ArtifactSchema, VerdictSeveritySchema, ThreatSchema, DecisionSchema, SensitivitySchema, UrlCheckConfigSchema, CacheConfigSchema, LoggingConfigSchema, OperationalLogLevelSchema, OperationalLoggingConfigSchema, FileCheckConfigSchema, PackageCheckConfigSchema, AmsiCheckConfigSchema, DEFAULT_PI_HIGH_RISK_THRESHOLD, DEFAULT_PI_MEDIUM_RISK_THRESHOLD, PiCheckConfigSchema, ExceptionDecisionSchema, ExceptionMatchSchema, ExceptionRuleSchema, ExceptionsFileSchema, ExceptionsConfigSchema, ConfigSchema, HookTypeSchema;
 var init_types2 = __esm({
   "../core/dist/types.js"() {
     "use strict";
@@ -4254,23 +4272,21 @@ var init_types2 = __esm({
       value: external_exports.string(),
       context: external_exports.string().optional()
     });
-    SeveritySchema = external_exports.enum(["critical", "high", "medium", "low"]);
-    ActionSchema = external_exports.enum(["block", "require_approval", "log"]);
+    VerdictSeveritySchema = external_exports.enum(["info", "warning", "critical"]);
     ThreatSchema = external_exports.object({
       id: external_exports.string(),
       version: external_exports.number().int().optional(),
       category: external_exports.string(),
-      severity: SeveritySchema,
+      severity: VerdictSeveritySchema,
       confidence: external_exports.number(),
-      action: ActionSchema,
       pattern: external_exports.string(),
       match_on: external_exports.union([external_exports.string(), external_exports.array(external_exports.string())]),
       title: external_exports.string(),
       expires_at: external_exports.string().nullable().optional(),
-      revoked: external_exports.boolean().optional().default(false)
+      revoked: external_exports.boolean().optional().default(false),
+      flags: external_exports.array(external_exports.string()).optional().default([])
     });
     DecisionSchema = external_exports.enum(["allow", "deny", "ask"]);
-    VerdictSeveritySchema = external_exports.enum(["info", "warning", "critical"]);
     SensitivitySchema = external_exports.enum(["paranoid", "balanced", "relaxed"]);
     UrlCheckConfigSchema = external_exports.object({
       endpoint: external_exports.string().optional(),
@@ -4282,9 +4298,6 @@ var init_types2 = __esm({
       ttl_malicious_seconds: external_exports.number().default(3600),
       ttl_clean_seconds: external_exports.number().default(86400),
       path: external_exports.string().default("~/.sage/cache.json")
-    });
-    AllowlistConfigSchema = external_exports.object({
-      path: external_exports.string().default("~/.sage/allowlist.json")
     });
     LoggingConfigSchema = external_exports.object({
       enabled: external_exports.boolean().default(true),
@@ -4347,7 +4360,6 @@ var init_types2 = __esm({
       pi_check: PiCheckConfigSchema.default({}),
       heuristics_enabled: external_exports.boolean().default(true),
       cache: CacheConfigSchema.default({}),
-      allowlist: AllowlistConfigSchema.default({}),
       exceptions: ExceptionsConfigSchema.default({}),
       logging: LoggingConfigSchema.default({}),
       operational_logging: OperationalLoggingConfigSchema.default({}),
@@ -4377,9 +4389,6 @@ function defaultConfigPath() {
 function defaultCachePath() {
   return (0, import_node_path2.join)(resolvedSageDir(), "cache.json");
 }
-function defaultAllowlistPath() {
-  return (0, import_node_path2.join)(resolvedSageDir(), "allowlist.json");
-}
 function defaultExceptionsPath() {
   return (0, import_node_path2.join)(resolvedSageDir(), "exceptions.json");
 }
@@ -4395,6 +4404,12 @@ function resolvePath(pathStr) {
     return (0, import_node_path2.join)(home, pathStr.slice(1));
   }
   return pathStr;
+}
+function getClaudeConfigDir() {
+  const envDir = process.env.CLAUDE_CONFIG_DIR;
+  if (envDir)
+    return resolvePath(envDir);
+  return resolvePath("~/.claude");
 }
 function isWithinDirectory(baseDir, targetPath) {
   const rel = (0, import_node_path2.relative)(baseDir, targetPath);
@@ -4445,7 +4460,6 @@ function sanitizeBrandKey(data, logger2) {
 }
 function sanitizeConfigPaths(config, logger2) {
   const cachePath = defaultCachePath();
-  const allowlistPath = defaultAllowlistPath();
   const exceptionsPath = defaultExceptionsPath();
   const auditPath = defaultAuditPath();
   const operationalLogPath = defaultOperationalLogPath();
@@ -4454,10 +4468,6 @@ function sanitizeConfigPaths(config, logger2) {
     cache: {
       ...config.cache,
       path: normalizeStateFilePath(config.cache.path, cachePath, "cache", logger2)
-    },
-    allowlist: {
-      ...config.allowlist,
-      path: normalizeStateFilePath(config.allowlist.path, allowlistPath, "allowlist", logger2)
     },
     exceptions: {
       ...config.exceptions,
@@ -13745,16 +13755,58 @@ var require_dist = __commonJS({
 
 // src/session-start.ts
 var import_node_fs3 = require("node:fs");
-var import_promises10 = require("node:fs/promises");
+var import_promises9 = require("node:fs/promises");
 var import_node_path14 = require("node:path");
 
-// ../core/dist/allowlist.js
+// ../core/dist/allowlist-migration.js
+var import_node_path3 = require("node:path");
+
+// ../core/dist/brands.js
+var defaultBranding = { name: "Sage", short_name: "Sage" };
+var BRANDS = {
+  norton: { name: "Norton AI Agent Protection", short_name: "Norton" }
+};
+function resolveBranding(brandKey, logger2) {
+  if (!brandKey)
+    return defaultBranding;
+  const entry = BRANDS[brandKey];
+  if (!entry) {
+    logger2?.warn(`Unknown brand_key "${brandKey}" in config \u2014 using default branding`);
+    return defaultBranding;
+  }
+  return { ...entry, brand_key: brandKey };
+}
+
+// ../core/dist/allowlist-migration.js
 init_config();
 init_file_utils();
-init_types2();
-
-// ../core/dist/url-utils.js
-init_file_utils();
+function defaultAllowlistPath() {
+  return (0, import_node_path3.join)(resolvePath("~/.sage"), "allowlist.json");
+}
+async function checkAllowlistMigration() {
+  try {
+    const raw = await getFileContent(defaultAllowlistPath());
+    const data = JSON.parse(raw);
+    if (typeof data !== "object" || data === null || Array.isArray(data)) {
+      return { needed: false, entryTypes: [] };
+    }
+    const record = data;
+    const found = ["urls", "commands", "file_paths"].filter((key) => typeof record[key] === "object" && record[key] !== null && Object.keys(record[key]).length > 0);
+    return { needed: found.length > 0, entryTypes: found };
+  } catch {
+    return { needed: false, entryTypes: [] };
+  }
+}
+function formatAllowlistMigrationWarning(entryTypes, branding = defaultBranding) {
+  const typeList = entryTypes.join(", ");
+  const lines = [
+    `${branding.name}: legacy allowlist.json detected with ${typeList} entries.`,
+    "  - URL and file_path entries can be migrated manually to ~/.sage/exceptions.json",
+    "  - Command entries are stored as SHA-256 hashes and cannot be recovered",
+    "  - See https://github.com/gendigitalinc/sage for migration instructions"
+  ];
+  return lines.join("\n");
+}
 
 // ../core/dist/approval-store.js
 var PENDING_STALE_MS = 60 * 60 * 1e3;
@@ -13766,7 +13818,7 @@ init_file_utils();
 
 // ../core/dist/jsonl-log-writer.js
 var import_promises = require("node:fs/promises");
-var import_node_path3 = require("node:path");
+var import_node_path4 = require("node:path");
 var import_promises2 = require("node:timers/promises");
 init_config();
 var writeQueues = /* @__PURE__ */ new Map();
@@ -13841,7 +13893,7 @@ async function rotateIfNeeded(filePath, maxBytes, maxFiles) {
   }
 }
 async function appendJsonlEntryNow(path, config, entry) {
-  await (0, import_promises.mkdir)((0, import_node_path3.dirname)(path), { recursive: true });
+  await (0, import_promises.mkdir)((0, import_node_path4.dirname)(path), { recursive: true });
   await rotateIfNeeded(path, config.max_bytes, config.max_files);
   await (0, import_promises.appendFile)(path, `${JSON.stringify(entry)}
 `);
@@ -13883,26 +13935,13 @@ async function logPluginScan(config, pluginKey, pluginVersion, findings) {
   }
 }
 
-// ../core/dist/brands.js
-var defaultBranding = { name: "Sage", short_name: "Sage" };
-var BRANDS = {
-  norton: { name: "Norton AI Agent Protection", short_name: "Norton" }
-};
-function resolveBranding(brandKey, logger2) {
-  if (!brandKey)
-    return defaultBranding;
-  const entry = BRANDS[brandKey];
-  if (!entry) {
-    logger2?.warn(`Unknown brand_key "${brandKey}" in config \u2014 using default branding`);
-    return defaultBranding;
-  }
-  return { ...entry, brand_key: brandKey };
-}
-
 // ../core/dist/cache.js
 init_config();
 init_file_utils();
 init_types2();
+
+// ../core/dist/url-utils.js
+init_file_utils();
 
 // ../core/dist/clients/amsi.js
 init_types2();
@@ -14188,6 +14227,7 @@ var PersistentPowershellAmsiBackend = class {
   invalidResultLogged = false;
   stdoutBuffer = "";
   pendingResponse = null;
+  scanQueue = Promise.resolve();
   constructor(logger2) {
     this.logger = logger2;
   }
@@ -14202,6 +14242,19 @@ var PersistentPowershellAmsiBackend = class {
       }, timeout);
       this.pendingResponse = { resolve: resolve5, reject, timer };
     });
+  }
+  async enqueueScan(operation) {
+    const previous = this.scanQueue;
+    let release;
+    this.scanQueue = new Promise((resolve5) => {
+      release = resolve5;
+    });
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
   }
   async init() {
     try {
@@ -14275,29 +14328,35 @@ var PersistentPowershellAmsiBackend = class {
   async scanString(content, contentName) {
     if (!this.available || !this.process)
       return null;
-    const truncated = content.length > MAX_SCAN_LENGTH ? content.slice(0, MAX_SCAN_LENGTH) : content;
-    try {
-      const req = JSON.stringify({ content: truncated, contentName });
-      this.process.stdin?.write(`${req}
+    return this.enqueueScan(async () => {
+      const process2 = this.process;
+      if (!this.available || !process2)
+        return null;
+      const truncated = content.length > MAX_SCAN_LENGTH ? content.slice(0, MAX_SCAN_LENGTH) : content;
+      try {
+        const req = JSON.stringify({ content: truncated, contentName });
+        process2.stdin?.write(`${req}
 `);
-      const line = await this.waitForLine(PS_TIMEOUT);
-      const amsiResult = parseInt(line, 10);
-      if (Number.isNaN(amsiResult) || amsiResult < 0) {
-        if (!this.invalidResultLogged) {
-          this.invalidResultLogged = true;
-          this.logger.warn("AMSI: PowerShell scan returned invalid result", {
-            stdout: line.slice(0, 100),
-            contentName
-          });
+        const line = await this.waitForLine(PS_TIMEOUT);
+        const amsiResult = parseInt(line, 10);
+        if (Number.isNaN(amsiResult) || amsiResult < 0) {
+          if (!this.invalidResultLogged) {
+            this.invalidResultLogged = true;
+            this.logger.warn("AMSI: PowerShell scan returned invalid result", {
+              stdout: line.slice(0, 100),
+              contentName
+            });
+          }
+          return null;
         }
+        this.logger.debug("AMSI: PowerShell scan result", { contentName, amsiResult });
+        return interpretAmsiResult(amsiResult, content, contentName);
+      } catch (e) {
+        this.logger.warn("AMSI: PowerShell scan failed", { error: String(e), contentName });
+        this.close();
         return null;
       }
-      this.logger.debug("AMSI: PowerShell scan result", { contentName, amsiResult });
-      return interpretAmsiResult(amsiResult, content, contentName);
-    } catch (e) {
-      this.logger.warn("AMSI: PowerShell scan failed", { error: String(e), contentName });
-      return null;
-    }
+    });
   }
   close() {
     if (this.process) {
@@ -14442,15 +14501,15 @@ init_types2();
 init_types2();
 
 // ../core/dist/version.js
-var import_node_path4 = require("node:path");
+var import_node_path5 = require("node:path");
 var import_node_url = require("node:url");
 init_file_utils();
 var import_meta = {};
 function resolveVersion() {
   if (true)
-    return "0.10.0";
+    return "0.11.0";
   try {
-    const pkgPath = (0, import_node_path4.join)((0, import_node_path4.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
+    const pkgPath = (0, import_node_path5.join)((0, import_node_path5.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
     const pkg = JSON.parse(getFileContentSync(pkgPath));
     if (typeof pkg.version === "string")
       return pkg.version;
@@ -14595,7 +14654,7 @@ var FileCheckClient = class {
 
 // ../core/dist/model-storage.js
 var import_node_fs = require("node:fs");
-var import_node_path5 = require("node:path");
+var import_node_path6 = require("node:path");
 init_config();
 var MODEL_SCHEMA_VERSION = "v1";
 var REQUIRED_MODELS_BY_SCHEMA = {
@@ -14612,17 +14671,17 @@ var REQUIRED_MODEL_FILES = {
   ]
 };
 function getModelStorageRoot(sageDir = resolvePath("~/.sage")) {
-  return (0, import_node_path5.join)(resolvePath(sageDir), "models");
+  return (0, import_node_path6.join)(resolvePath(sageDir), "models");
 }
 function getModelDir(modelName, schema = MODEL_SCHEMA_VERSION, sageDir) {
-  return (0, import_node_path5.join)(getModelStorageRoot(sageDir), schema, modelName);
+  return (0, import_node_path6.join)(getModelStorageRoot(sageDir), schema, modelName);
 }
 function isModelPresent(modelName, schema = MODEL_SCHEMA_VERSION, sageDir) {
   const dir = getModelDir(modelName, schema, sageDir);
   const files = REQUIRED_MODEL_FILES[modelName];
   if (!files || files.length === 0)
     return false;
-  return files.every((f) => (0, import_node_fs.existsSync)((0, import_node_path5.resolve)(dir, f)));
+  return files.every((f) => (0, import_node_fs.existsSync)((0, import_node_path6.resolve)(dir, f)));
 }
 function missingRequiredModels(schema = MODEL_SCHEMA_VERSION, sageDir) {
   const required = REQUIRED_MODELS_BY_SCHEMA[schema] ?? [];
@@ -14985,7 +15044,7 @@ function safeTruncate(value, maxLen) {
 // ../core/dist/extended-info.js
 var import_promises3 = require("node:fs/promises");
 var import_node_os2 = require("node:os");
-var import_node_path6 = require("node:path");
+var import_node_path7 = require("node:path");
 init_file_utils();
 init_types2();
 var EXTENDED_INFO_FILE_MAX_BYTES = 1024;
@@ -15051,8 +15110,8 @@ function sanitizeDocument(parsed, logger2) {
   return out;
 }
 async function loadExtendedInfo(sageDirPath, logger2 = nullLogger) {
-  const sageDir = sageDirPath ?? (0, import_node_path6.join)((0, import_node_os2.homedir)(), ".sage");
-  const filePath = (0, import_node_path6.join)(sageDir, EXTENDED_INFO_FILENAME);
+  const sageDir = sageDirPath ?? (0, import_node_path7.join)((0, import_node_os2.homedir)(), ".sage");
+  const filePath = (0, import_node_path7.join)(sageDir, EXTENDED_INFO_FILENAME);
   const cached = cache.get(filePath);
   if (cached)
     return cached.value;
@@ -15152,12 +15211,12 @@ function mergeExtendedInfo(envelope, extendedInfo) {
 // ../core/dist/installation-id.js
 var import_node_crypto2 = require("node:crypto");
 var import_promises4 = require("node:fs/promises");
-var import_node_path7 = require("node:path");
+var import_node_path8 = require("node:path");
 init_config();
 init_file_utils();
 async function getInstallationId(sageDirPath) {
   const sageDir = sageDirPath ?? resolvePath("~/.sage");
-  const idPath = (0, import_node_path7.join)(sageDir, "installation-id");
+  const idPath = (0, import_node_path8.join)(sageDir, "installation-id");
   let fileExists = false;
   try {
     const existing = await getFileContent(idPath, "utf-8");
@@ -15186,6 +15245,9 @@ async function getInstallationId(sageDirPath) {
 }
 
 // ../core/dist/detection-telemetry.js
+init_types2();
+
+// ../core/dist/policy.js
 init_types2();
 
 // ../core/dist/engine.js
@@ -15368,7 +15430,7 @@ init_types2();
 
 // ../core/dist/statusline.js
 var fsPromises2 = __toESM(require("node:fs/promises"), 1);
-var import_node_path8 = require("node:path");
+var import_node_path9 = require("node:path");
 init_config();
 init_file_utils();
 var STATUS_PREFIX = "statusline-";
@@ -15377,7 +15439,7 @@ function sanitizeSessionId(sessionId) {
   return sessionId.replace(/[^a-zA-Z0-9-]/g, "_");
 }
 function statusFilePath(sessionId) {
-  return (0, import_node_path8.join)(resolvePath(SAGE_DIR), `${STATUS_PREFIX}${sanitizeSessionId(sessionId)}${STATUS_SUFFIX}`);
+  return (0, import_node_path9.join)(resolvePath(SAGE_DIR), `${STATUS_PREFIX}${sanitizeSessionId(sessionId)}${STATUS_SUFFIX}`);
 }
 function emptyStatus() {
   return {
@@ -15405,7 +15467,7 @@ async function pruneSessionStatusFiles(maxAgeMs = 24 * 60 * 60 * 1e3) {
       if (!entry.startsWith(STATUS_PREFIX) || !entry.endsWith(STATUS_SUFFIX))
         continue;
       try {
-        const fullPath = (0, import_node_path8.join)(dir, entry);
+        const fullPath = (0, import_node_path9.join)(dir, entry);
         const s = await fsPromises2.stat(fullPath);
         if (now - s.mtimeMs > maxAgeMs) {
           await fsPromises2.unlink(fullPath);
@@ -15433,9 +15495,9 @@ var PAD = 12;
 var SEPARATOR_WIDTH = 48;
 function severityEmoji(severity) {
   const s = severity.toLowerCase();
-  if (s === "critical" || s === "high")
+  if (s === "critical")
     return "\u{1F6A8}";
-  if (s === "medium" || s === "warn" || s === "warning")
+  if (s === "warning")
     return "\u26A0\uFE0F";
   return "\u2139\uFE0F";
 }
@@ -15456,20 +15518,20 @@ ${formatUpdateNotice(versionCheck)}`;
   }
   return base;
 }
-function totalHighCrit(results) {
+function totalNonInfo(results) {
   let n = 0;
   for (const r of results) {
     for (const f of r.findings) {
-      if (f.severity === "critical" || f.severity === "high")
+      if (f.severity !== "info")
         n++;
     }
   }
   return n;
 }
-function findFirstHighCrit(results) {
+function findFirstNonInfo(results) {
   for (const r of results) {
     for (const f of r.findings) {
-      if (f.severity === "critical" || f.severity === "high") {
+      if (f.severity !== "info") {
         return { plugin: r.plugin, finding: f };
       }
     }
@@ -15482,10 +15544,10 @@ function formatThreatBannerVerbose(version, results, versionCheck, branding) {
   const MAX_FINDINGS = 5;
   let first = true;
   for (const result of results) {
-    const highCrit = result.findings.filter((f) => f.severity === "critical" || f.severity === "high");
-    if (highCrit.length === 0)
+    const nonInfo = result.findings.filter((f) => f.severity !== "info");
+    if (nonInfo.length === 0)
       continue;
-    for (const f of highCrit.slice(0, MAX_FINDINGS)) {
+    for (const f of nonInfo.slice(0, MAX_FINDINGS)) {
       if (!first)
         lines.push("");
       first = false;
@@ -15497,8 +15559,6 @@ function formatThreatBannerVerbose(version, results, versionCheck, branding) {
         lines.push(kv("Artifact", f.artifact));
       }
       lines.push(kv("Source", f.sourceFile));
-      const actionLabel = f.action === "block" ? "Blocked" : "Flagged";
-      lines.push(kv("Action", actionLabel));
       if (f.recommendations && f.recommendations.length > 0) {
         lines.push(kv("Recommendations", ""));
         for (const rec of f.recommendations) {
@@ -15506,7 +15566,7 @@ function formatThreatBannerVerbose(version, results, versionCheck, branding) {
         }
       }
     }
-    const overflow = highCrit.length - MAX_FINDINGS;
+    const overflow = nonInfo.length - MAX_FINDINGS;
     if (overflow > 0) {
       lines.push("");
       lines.push(`   ... and ${overflow} more findings`);
@@ -15519,8 +15579,8 @@ function formatThreatBannerVerbose(version, results, versionCheck, branding) {
   return lines.join("\n");
 }
 function formatThreatBannerCompact(version, results, versionCheck, branding) {
-  const total = totalHighCrit(results);
-  const first = findFirstHighCrit(results);
+  const total = totalNonInfo(results);
+  const first = findFirstNonInfo(results);
   if (!first || total === 0) {
     return formatStartupClean(version, versionCheck, branding);
   }
@@ -15551,39 +15611,10 @@ function formatSessionStartMessage(version, result, branding = defaultBranding, 
   }
   return formatStartupClean(version, result.versionCheck, branding);
 }
-function formatMigrationNotice(branding = defaultBranding) {
-  return `\u26A0\uFE0F  ${branding.name} has moved \u2192 run: /plugin marketplace remove sage && /plugin marketplace add https://github.com/gendigitalinc/sage.git`;
-}
 
 // ../core/dist/guard.js
 init_config();
 init_types2();
-
-// ../core/dist/marketplace-migration.js
-var import_promises5 = require("node:fs/promises");
-var import_node_path9 = require("node:path");
-init_config();
-async function needsMarketplaceMigration(marketplacesPath) {
-  try {
-    const filePath = marketplacesPath ?? (0, import_node_path9.join)(resolvePath("~/.claude"), "plugins", "known_marketplaces.json");
-    const raw = await (0, import_promises5.readFile)(filePath, "utf-8");
-    const data = JSON.parse(raw);
-    if (typeof data !== "object" || data === null || Array.isArray(data))
-      return false;
-    return Object.values(data).some((entry) => {
-      if (typeof entry !== "object" || entry === null)
-        return false;
-      const rec = entry;
-      const source = rec.source;
-      if (typeof source !== "object" || source === null)
-        return false;
-      const url = source.url;
-      return typeof url === "string" && url.includes("avast/sage");
-    });
-  } catch {
-    return false;
-  }
-}
 
 // ../core/dist/model-download.js
 init_types2();
@@ -15706,12 +15737,13 @@ function createOperationalLogger(config, runtime) {
 
 // ../core/dist/plugin-scan-cache.js
 var import_node_crypto4 = require("node:crypto");
-var import_promises6 = require("node:fs/promises");
+var import_promises5 = require("node:fs/promises");
 var import_node_path10 = require("node:path");
 init_file_utils();
 init_types2();
 var DEFAULT_CACHE_PATH = (0, import_node_path10.join)(getHomeDir(), ".sage", "plugin_scan_cache.json");
-var CACHE_TTL_DAYS = 7;
+var CACHE_TTL_DAYS = 1;
+var SCHEMA_VERSION = 3;
 function cacheKey(pluginKey, version, lastUpdated) {
   return `${pluginKey}:${version}:${lastUpdated}`;
 }
@@ -15722,7 +15754,7 @@ async function computeConfigHash(sageVersion, ...dirs) {
   for (const dir of dirs) {
     let files;
     try {
-      files = (await (0, import_promises6.readdir)(dir)).filter((f) => f.endsWith(".yaml")).sort();
+      files = (await (0, import_promises5.readdir)(dir)).filter((f) => f.endsWith(".yaml")).sort();
     } catch {
       continue;
     }
@@ -15745,6 +15777,14 @@ async function loadScanCache(configHash = "", cachePath = DEFAULT_CACHE_PATH, lo
   }
   try {
     const data = JSON.parse(raw);
+    const storedVersion = data.schema_version ?? 1;
+    if (storedVersion !== SCHEMA_VERSION) {
+      logger2.debug("Schema version changed, invalidating plugin scan cache", {
+        from: storedVersion,
+        to: SCHEMA_VERSION
+      });
+      return { configHash, entries: {} };
+    }
     const storedHash = data.config_hash ?? "";
     if (configHash && storedHash !== configHash) {
       logger2.debug("Config hash changed, invalidating plugin scan cache", {
@@ -15772,6 +15812,7 @@ async function loadScanCache(configHash = "", cachePath = DEFAULT_CACHE_PATH, lo
 async function saveScanCache(cache2, cachePath = DEFAULT_CACHE_PATH, logger2 = nullLogger) {
   try {
     const data = {
+      schema_version: SCHEMA_VERSION,
       config_hash: cache2.configHash,
       entries: Object.fromEntries(Object.entries(cache2.entries).map(([key, entry]) => [
         key,
@@ -15819,13 +15860,14 @@ function storeResult(cache2, pluginKey, version, lastUpdated, findings) {
 
 // ../core/dist/plugin-scanner.js
 var import_node_crypto6 = require("node:crypto");
-var import_promises8 = require("node:fs/promises");
+var import_promises7 = require("node:fs/promises");
 var import_node_path12 = require("node:path");
+init_config();
 init_file_utils();
 
 // ../core/dist/skill-id.js
 var import_node_crypto5 = require("node:crypto");
-var import_promises7 = require("node:fs/promises");
+var import_promises6 = require("node:fs/promises");
 var import_node_path11 = require("node:path");
 var SKIP_DIRS = /* @__PURE__ */ new Set(["node_modules", ".git", "__pycache__"]);
 function isContained(childReal, rootReal) {
@@ -15841,22 +15883,22 @@ function normalizePath(p) {
 }
 async function entriesFromDirectory(dirPath) {
   const absDir = (0, import_node_path11.resolve)(dirPath);
-  const rootReal = await (0, import_promises7.realpath)(absDir);
+  const rootReal = await (0, import_promises6.realpath)(absDir);
   const entries = [];
   const visited = /* @__PURE__ */ new Set();
   async function walk(currentPath) {
-    const real = await (0, import_promises7.realpath)(currentPath);
+    const real = await (0, import_promises6.realpath)(currentPath);
     if (visited.has(real))
       return;
     if (!isContained(real, rootReal))
       return;
     visited.add(real);
-    const items = await (0, import_promises7.readdir)(currentPath);
+    const items = await (0, import_promises6.readdir)(currentPath);
     const dirs = [];
     const files = [];
     for (const item of items) {
       const fullPath = (0, import_node_path11.join)(currentPath, item);
-      const st = await (0, import_promises7.stat)(fullPath);
+      const st = await (0, import_promises6.stat)(fullPath);
       if (st.isDirectory())
         dirs.push(item);
       else if (st.isFile())
@@ -15872,14 +15914,14 @@ async function entriesFromDirectory(dirPath) {
     }
     for (const f of files) {
       const fullPath = (0, import_node_path11.join)(currentPath, f);
-      const fileReal = await (0, import_promises7.realpath)(fullPath);
+      const fileReal = await (0, import_promises6.realpath)(fullPath);
       if (!isContained(fileReal, rootReal))
         continue;
       const relPath = (0, import_node_path11.relative)(absDir, fullPath).replace(/\\/g, "/");
       entries.push({
         entryPath: relPath,
         isDir: false,
-        content: await (0, import_promises7.readFile)(fullPath)
+        content: await (0, import_promises6.readFile)(fullPath)
       });
     }
   }
@@ -15920,10 +15962,10 @@ async function findSkillPackages(rootDir) {
   const found = [];
   let rootReal;
   try {
-    const rootStat = await (0, import_promises7.stat)(rootDir);
+    const rootStat = await (0, import_promises6.stat)(rootDir);
     if (!rootStat.isDirectory())
       return found;
-    rootReal = await (0, import_promises7.realpath)((0, import_node_path11.resolve)(rootDir));
+    rootReal = await (0, import_promises6.realpath)((0, import_node_path11.resolve)(rootDir));
   } catch {
     return found;
   }
@@ -15931,7 +15973,7 @@ async function findSkillPackages(rootDir) {
   async function walk(dir) {
     let real;
     try {
-      real = await (0, import_promises7.realpath)(dir);
+      real = await (0, import_promises6.realpath)(dir);
     } catch {
       return;
     }
@@ -15942,14 +15984,14 @@ async function findSkillPackages(rootDir) {
     visited.add(real);
     let items;
     try {
-      items = await (0, import_promises7.readdir)(dir);
+      items = await (0, import_promises6.readdir)(dir);
     } catch {
       return;
     }
     items.sort();
     if (items.includes("SKILL.md")) {
       try {
-        const st = await (0, import_promises7.stat)((0, import_node_path11.join)(dir, "SKILL.md"));
+        const st = await (0, import_promises6.stat)((0, import_node_path11.join)(dir, "SKILL.md"));
         if (st.isFile())
           found.push(dir);
       } catch {
@@ -15961,7 +16003,7 @@ async function findSkillPackages(rootDir) {
       const fullPath = (0, import_node_path11.join)(dir, item);
       let st;
       try {
-        st = await (0, import_promises7.stat)(fullPath);
+        st = await (0, import_promises6.stat)(fullPath);
       } catch {
         continue;
       }
@@ -15989,7 +16031,9 @@ async function computeSkillIdsForRoot(rootDir) {
 
 // ../core/dist/plugin-scanner.js
 init_types2();
-var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path12.join)(getHomeDir(), ".claude", "plugins", "installed_plugins.json");
+function defaultPluginsRegistry() {
+  return (0, import_node_path12.join)(getClaudeConfigDir(), "plugins", "installed_plugins.json");
+}
 var SCANNABLE_EXTENSIONS2 = /* @__PURE__ */ new Set([
   ".py",
   ".js",
@@ -16010,7 +16054,7 @@ var SCANNABLE_EXTENSIONS2 = /* @__PURE__ */ new Set([
   ".conf"
 ]);
 var MAX_FILE_SIZE = 512 * 1024;
-async function discoverPlugins(registryPath = DEFAULT_PLUGINS_REGISTRY, logger2 = nullLogger) {
+async function discoverPlugins(registryPath = defaultPluginsRegistry(), logger2 = nullLogger) {
   let raw;
   try {
     raw = await getFileContent(registryPath);
@@ -16045,7 +16089,7 @@ async function walkPluginFiles(installPath, logger2) {
   async function walk(dirOrFile) {
     let stats;
     try {
-      stats = await (0, import_promises8.stat)(dirOrFile);
+      stats = await (0, import_promises7.stat)(dirOrFile);
     } catch {
       return;
     }
@@ -16058,7 +16102,7 @@ async function walkPluginFiles(installPath, logger2) {
     if (stats.isDirectory()) {
       let entries;
       try {
-        entries = await (0, import_promises8.readdir)(dirOrFile);
+        entries = await (0, import_promises7.readdir)(dirOrFile);
       } catch {
         return;
       }
@@ -16106,8 +16150,6 @@ async function scanPlugin(plugin, options = {}) {
             threatId: "AMSI_SCAN",
             title: `AMSI detection (result=${amsiResult.amsiResult})`,
             severity: "critical",
-            confidence: 1,
-            action: "block",
             artifact: content.slice(0, 200),
             sourceFile: (0, import_node_path12.relative)(plugin.installPath, filePath)
           });
@@ -16140,8 +16182,6 @@ async function scanPlugin(plugin, options = {}) {
             threatId: "URL_CHECK",
             title: `Malicious URL (${findingDetails})`,
             severity: "critical",
-            confidence: 1,
-            action: "block",
             artifact: ur.url.slice(0, 200),
             sourceFile: "URL check"
           });
@@ -16163,8 +16203,6 @@ async function scanPlugin(plugin, options = {}) {
               threatId: "FILE_CHECK",
               title: `Malicious file (${fr.detectionNames.join(", ") || "unknown"})`,
               severity: "critical",
-              confidence: 1,
-              action: "block",
               artifact: fr.sha256,
               sourceFile: (0, import_node_path12.relative)(plugin.installPath, filePath)
             });
@@ -16192,13 +16230,11 @@ async function runSkillCheck(plugin, findings, logger2) {
       const risk = (verdict.overallRiskLevel ?? "").toUpperCase();
       if (risk !== "HIGH" && risk !== "CRITICAL")
         continue;
-      const severity = risk === "CRITICAL" ? "critical" : "high";
+      const severity = risk === "CRITICAL" ? "critical" : "warning";
       findings.push({
         threatId: "SKILL_CHECK",
         title: verdict.summary?.trim() || `Risky skill detected (${risk})`,
         severity,
-        confidence: 1,
-        action: "log",
         artifact: skillId.slice(0, 16),
         sourceFile: (0, import_node_path12.relative)(plugin.installPath, folder) || ".",
         recommendations: verdict.recommendations.length > 0 ? verdict.recommendations : void 0
@@ -16223,8 +16259,6 @@ function fromCachedFinding(finding) {
     threatId: finding.threat_id,
     title: finding.title,
     severity: finding.severity,
-    confidence: finding.confidence,
-    action: finding.action,
     artifact: finding.artifact,
     sourceFile: finding.source_file,
     recommendations: finding.recommendations
@@ -16235,16 +16269,13 @@ function toFindingData(finding) {
     threat_id: finding.threatId,
     title: finding.title,
     severity: finding.severity,
-    confidence: finding.confidence,
-    action: finding.action,
     artifact: finding.artifact,
     source_file: finding.sourceFile,
     recommendations: finding.recommendations
   };
 }
 function toAuditFindingData(finding) {
-  const { action: _, ...rest } = toFindingData(finding);
-  return rest;
+  return { ...toFindingData(finding) };
 }
 async function runSessionStartScan(context) {
   const logger2 = context.logger ?? nullLogger;
@@ -16289,7 +16320,7 @@ async function runSessionStartScan(context) {
   }
 }
 async function scanAllPlugins(context, config, plugins, exceptions, amsiClient, logger2) {
-  const configHash = await computeConfigHash(context.sageVersion ?? "", context.threatsDir, context.allowlistsDir);
+  const configHash = await computeConfigHash(context.sageVersion ?? "", context.threatsDir, context.trustedDomainsDir);
   const cache2 = await loadScanCache(configHash, context.scanCachePath, logger2);
   const resultsWithFindings = [];
   let cacheModified = false;
@@ -16315,8 +16346,6 @@ async function scanAllPlugins(context, config, plugins, exceptions, amsiClient, 
             threatId: "EXCEPTION-DENY",
             title: `Denied by exception: ${denyMatch.pattern}${denyMatch.reason ? ` \u2014 ${denyMatch.reason}` : ""}`,
             severity: "critical",
-            confidence: 1,
-            action: "block",
             artifact: plugin.key,
             sourceFile: "~/.sage/exceptions.json"
           }
@@ -16464,7 +16493,7 @@ async function runSessionStart(ctx) {
     runSessionStartScan({
       plugins: ctx.plugins,
       threatsDir: ctx.threatsDir,
-      allowlistsDir: ctx.allowlistsDir,
+      trustedDomainsDir: ctx.trustedDomainsDir,
       sageVersion: ctx.version,
       logger: logger2,
       configPath: ctx.configPath,
@@ -16564,20 +16593,21 @@ function spawnModelDownloadWorker(args) {
 }
 
 // ../core/dist/scan-handler.js
-async function runPluginScan(logger2, context, plugins, threatsDir, allowlistsDir, version, agentRuntime, branding = defaultBranding, modelDownloadWorkerPath, style = "verbose") {
+async function runPluginScan(logger2, context, plugins, threatsDir, trustedDomainsDir, version, agentRuntime, branding = defaultBranding, modelDownloadWorkerPath, style = "verbose", agentRuntimeVersion) {
   logger2.debug(`${branding.name} plugin scan started (${context})`, {
     agentRuntime,
     pluginsCount: plugins.length,
     threatsDir,
-    allowlistsDir
+    trustedDomainsDir
   });
   const result = await runSessionStart({
     plugins,
     threatsDir,
-    allowlistsDir,
+    trustedDomainsDir,
     version,
     logger: logger2,
     agentRuntime,
+    agentRuntimeVersion,
     modelDownloadWorkerPath
   });
   const findingsCount = result.scanResults.reduce((total, scanResult) => total + scanResult.findings.length, 0);
@@ -16622,7 +16652,7 @@ var CANONICAL_SET = new Set(CANONICAL_TOOLS);
 init_types2();
 
 // src/approval-tracker.ts
-var import_promises9 = require("node:fs/promises");
+var import_promises8 = require("node:fs/promises");
 var import_node_path13 = require("node:path");
 var PENDING_STALE_MS2 = 60 * 60 * 1e3;
 var CONSUMED_TTL_MS = 10 * 60 * 1e3;
@@ -16642,7 +16672,7 @@ async function saveOrDelete(path, data) {
   const resolved = resolvePath(path);
   if (Object.keys(data).length === 0) {
     try {
-      await (0, import_promises9.unlink)(resolved);
+      await (0, import_promises8.unlink)(resolved);
     } catch {
     }
   } else {
@@ -16672,7 +16702,7 @@ function pruneExpiredConsumed(store) {
 async function pruneStaleSessionFiles(logger2 = nullLogger) {
   try {
     const dir = resolvedSageDir2();
-    const entries = await (0, import_promises9.readdir)(dir);
+    const entries = await (0, import_promises8.readdir)(dir);
     const now = Date.now();
     for (const file of entries) {
       if (!(file.startsWith("pending-approvals-") || file.startsWith("consumed-approvals-")) || !file.endsWith(".json")) {
@@ -16680,7 +16710,7 @@ async function pruneStaleSessionFiles(logger2 = nullLogger) {
       }
       try {
         const fullPath = (0, import_node_path13.join)(dir, file);
-        const info = await (0, import_promises9.stat)(fullPath);
+        const info = await (0, import_promises8.stat)(fullPath);
         if (now - info.mtimeMs < STALE_FILE_MS) continue;
         const path = (0, import_node_path13.join)(dir, file);
         if (file.startsWith("pending-approvals-")) {
@@ -16702,6 +16732,27 @@ async function pruneStaleSessionFiles(logger2 = nullLogger) {
 
 // src/constants.ts
 var STATUSLINE_MARKER = "sage-statusline.cjs";
+
+// src/runtime-version.ts
+var VERSIONS_DIR_RE = /[\\/]versions[\\/](\d+\.\d+\.\d+[^\\/]*)/;
+var AI_AGENT_RE = /^claude-code[_-](\d+)[._-](\d+)[._-](\d+)/;
+function resolveClaudeCodeVersion(env = process.env) {
+  const execPath = env.CLAUDE_CODE_EXECPATH;
+  if (execPath) {
+    const match = execPath.match(VERSIONS_DIR_RE);
+    if (match) {
+      return match[1];
+    }
+  }
+  const aiAgent = env.AI_AGENT;
+  if (aiAgent) {
+    const match = aiAgent.match(AI_AGENT_RE);
+    if (match) {
+      return `${match[1]}.${match[2]}.${match[3]}`;
+    }
+  }
+  return void 0;
+}
 
 // src/session-start.ts
 var logger = nullLogger;
@@ -16732,7 +16783,7 @@ function getSessionId() {
 async function readSettingsJson(path) {
   let raw;
   try {
-    raw = await (0, import_promises10.readFile)(path, "utf8");
+    raw = await (0, import_promises9.readFile)(path, "utf8");
   } catch {
     return {};
   }
@@ -16753,9 +16804,9 @@ async function scriptReferencesMarker(command, home) {
   if (!scriptToken) return false;
   const resolved = scriptToken.replace(/^~/, home);
   try {
-    const info = await (0, import_promises10.stat)(resolved);
+    const info = await (0, import_promises9.stat)(resolved);
     if (!info.isFile()) return false;
-    const handle = await (0, import_promises10.open)(resolved, "r");
+    const handle = await (0, import_promises9.open)(resolved, "r");
     try {
       const len = Math.min(info.size, SCRIPT_READ_LIMIT);
       const buf = Buffer.alloc(len);
@@ -16770,8 +16821,7 @@ async function scriptReferencesMarker(command, home) {
 }
 async function configureStatusLine(pluginRoot, branding) {
   const home = process.env.HOME ?? "";
-  if (!home) return null;
-  const settingsPath = (0, import_node_path14.join)(home, ".claude", "settings.json");
+  const settingsPath = (0, import_node_path14.join)(getClaudeConfigDir(), "settings.json");
   const settings = await readSettingsJson(settingsPath);
   if (settings === null) {
     return `${branding.name}: ${settingsPath} appears corrupt \u2014 skipping status line auto-configuration.`;
@@ -16823,7 +16873,7 @@ async function main() {
   });
   const pluginRoot = getPluginRoot();
   const threatsDir = (0, import_node_path14.join)(pluginRoot, "threats");
-  const allowlistsDir = (0, import_node_path14.join)(pluginRoot, "allowlists");
+  const trustedDomainsDir = (0, import_node_path14.join)(pluginRoot, "trusted-domains");
   const manifest = getPluginManifest(pluginRoot);
   let plugins = await discoverPlugins(void 0, logger);
   if (manifest.name) {
@@ -16835,11 +16885,13 @@ async function main() {
     "session",
     plugins,
     threatsDir,
-    allowlistsDir,
+    trustedDomainsDir,
     manifest.version,
     "claude-code",
     branding,
-    (0, import_node_path14.resolve)(__dirname, "model-download-worker.cjs")
+    (0, import_node_path14.resolve)(__dirname, "model-download-worker.cjs"),
+    "verbose",
+    resolveClaudeCodeVersion()
   );
   try {
     await initSessionStatus(sessionId);
@@ -16850,9 +16902,12 @@ async function main() {
     statusLineHint = await configureStatusLine(pluginRoot, branding);
   } catch {
   }
-  const migrationNeeded = await needsMarketplaceMigration();
-  let finalMsg = migrationNeeded ? `${statusMsg}
-${formatMigrationNotice(branding)}` : statusMsg;
+  const allowlistMigration = await checkAllowlistMigration();
+  let finalMsg = statusMsg;
+  if (allowlistMigration.needed) {
+    finalMsg = `${formatAllowlistMigrationWarning(allowlistMigration.entryTypes, branding)}
+${finalMsg}`;
+  }
   if (warningMessage) {
     finalMsg = `${warningMessage}
 ${finalMsg}`;
@@ -16864,7 +16919,6 @@ ${statusLineHint}`;
   process.stdout.write(`${JSON.stringify({ systemMessage: finalMsg })}
 `);
   await completeHook("completed", {
-    migrationNeeded,
     statusLineHintShown: !!statusLineHint
   });
 }

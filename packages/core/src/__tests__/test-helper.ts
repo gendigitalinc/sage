@@ -16,13 +16,13 @@ export function makeThreat(overrides: Partial<Threat> = {}): Threat {
 		category: "tool",
 		severity: "critical",
 		confidence: 0.95,
-		action: "block",
 		pattern: "test",
 		compiledPattern: new RegExp(overrides.pattern ?? "test"),
 		matchOn: new Set(["command"]),
 		title: "Test threat",
 		expiresAt: null,
 		revoked: false,
+		flags: [],
 		...overrides,
 	};
 }

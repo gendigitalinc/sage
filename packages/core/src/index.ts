@@ -1,7 +1,10 @@
 // @gendigital/sage-core public API
 
-// Allowlist
-export { emptyAllowlist, isAllowlisted, loadAllowlist } from "./allowlist.js";
+// Allowlist migration warning
+export {
+	checkAllowlistMigration,
+	formatAllowlistMigrationWarning,
+} from "./allowlist-migration.js";
 export type { ApprovedEntry, PendingEntry } from "./approval-store.js";
 // Approval store
 export { ApprovalStore } from "./approval-store.js";
@@ -51,6 +54,7 @@ export {
 export { resolveEndpoint, UrlCheckClient } from "./clients/url-check.js";
 // Config
 export {
+	getClaudeConfigDir,
 	HOOK_TIMEOUT_SECONDS,
 	loadConfig,
 	loadConfigSync,
@@ -83,9 +87,10 @@ export {
 	sendCommunityIqDetection,
 } from "./detection-telemetry.js";
 // Decision engine
-export { CONFIDENCE_THRESHOLD, DecisionEngine } from "./engine.js";
+export { DecisionEngine } from "./engine.js";
 // Runtime evaluator
 export {
+	type AmsiClientLease,
 	allowVerdict,
 	evaluateToolCall,
 	evaluateToolOutput,
@@ -145,7 +150,6 @@ export {
 } from "./file-utils.js";
 // Format (shared alert formatting)
 export {
-	formatMigrationNotice,
 	formatPiWarning,
 	formatSessionStartMessage,
 	formatStartupClean,
@@ -170,8 +174,6 @@ export {
 export { HeuristicsEngine } from "./heuristics.js";
 // Installation ID
 export { getInstallationId } from "./installation-id.js";
-// Marketplace migration (TODO: remove after v0.7.x) // gitleaks:allow
-export { needsMarketplaceMigration } from "./marketplace-migration.js";
 // Background model download orchestration
 export {
 	type EnsureModelsAvailableArgs,
@@ -212,6 +214,7 @@ export {
 } from "./plugin-scan-cache.js";
 // Plugin scanner
 export { discoverPlugins, isPluginInstalledSync, scanPlugin } from "./plugin-scanner.js";
+export { applyPolicy, SENSITIVITY_POLICY } from "./policy.js";
 // Product version (host product.json reader)
 export { readProductJsonVersion } from "./product-version.js";
 // Sage Proxy (shared envelope / env)
@@ -275,9 +278,6 @@ export {
 } from "./trusted-domains.js";
 export type {
 	AgentRuntime,
-	Allowlist,
-	AllowlistConfig,
-	AllowlistEntry,
 	AmsiCheckConfig,
 	AmsiCheckResult,
 	AmsiScanType,
@@ -324,8 +324,6 @@ export type {
 } from "./types.js";
 // Types
 export {
-	ActionSchema,
-	AllowlistConfigSchema,
 	ArtifactSchema,
 	ArtifactTypeSchema,
 	CacheConfigSchema,
@@ -345,13 +343,12 @@ export {
 	PackageCheckConfigSchema,
 	PiCheckConfigSchema,
 	SensitivitySchema,
-	SeveritySchema,
 	ThreatSchema,
 	UrlCheckConfigSchema,
 	VerdictSeveritySchema,
 } from "./types.js";
 // URL utilities
-export { hashCommand, normalizeFilePath, normalizeUrl } from "./url-utils.js";
+export { normalizeFilePath, normalizeUrl } from "./url-utils.js";
 export type { VersionCheckContext, VersionCheckResult } from "./version-check.js";
 // Version check
 export { checkForUpdate, isNewerVersion } from "./version-check.js";

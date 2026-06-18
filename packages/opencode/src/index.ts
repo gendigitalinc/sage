@@ -3,10 +3,14 @@
  * Intercepts tool calls and uses @gendigital/sage-core to enforce security verdicts.
  */
 
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
 	ApprovalStore,
 	approveAction,
+	checkAllowlistMigration,
 	createOperationalLogger,
+	formatAllowlistMigrationWarning,
 	formatConfigurationWarnings,
 	getConfigurationWarnings,
 	loadConfig,
@@ -38,7 +42,20 @@ export const SagePlugin: Plugin = async ({ client, directory }) => {
 			})
 			.catch(() => {});
 	}
-	const { threatsDir, allowlistsDir } = getBundledDataDirs();
+	const allowlistMigration = await checkAllowlistMigration();
+	if (allowlistMigration.needed) {
+		client.tui
+			.showToast({
+				body: {
+					title: branding.name,
+					message: formatAllowlistMigrationWarning(allowlistMigration.entryTypes, branding),
+					variant: "warning",
+					duration: 8000,
+				},
+			})
+			.catch(() => {});
+	}
+	const { threatsDir, trustedDomainsDir } = getBundledDataDirs();
 	const approvalStore = new ApprovalStore();
 
 	// State: track findings per session for one-shot injection
@@ -56,7 +73,7 @@ export const SagePlugin: Plugin = async ({ client, directory }) => {
 		toolLogger,
 		approvalStore,
 		threatsDir,
-		allowlistsDir,
+		trustedDomainsDir,
 		{
 			showToast: (msg, variant) => {
 				client.tui
@@ -70,6 +87,30 @@ export const SagePlugin: Plugin = async ({ client, directory }) => {
 	);
 
 	return {
+		/**
+		 * Register the Sage MCP server so sage_report_false_positive /
+		 * sage_list_audit_entries are available as agent tools. OpenCode runs
+		 * config hooks before MCP init, so mutating cfg.mcp here is sufficient.
+		 * ??= ensures a user-supplied override in opencode.json is never clobbered.
+		 */
+		config: async (cfg) => {
+			const dir = dirname(fileURLToPath(import.meta.url));
+			const serverPath = join(dir, "mcp-server.cjs");
+			// biome-ignore lint/suspicious/noExplicitAny: OpenCode Config.mcp types not exported
+			const mcp = (cfg as any).mcp as Record<string, unknown> | undefined;
+			if (mcp?.sage) return;
+			// biome-ignore lint/suspicious/noExplicitAny: assigning McpLocalConfig without importing its type
+			(cfg as any).mcp = {
+				...mcp,
+				sage: {
+					type: "local",
+					command: [process.execPath, serverPath],
+					environment: { BUN_BE_BUN: "1", SAGE_AGENT_RUNTIME: "opencode" },
+					enabled: true,
+				},
+			};
+		},
+
 		"tool.execute.before": toolHandlers["tool.execute.before"],
 
 		/**

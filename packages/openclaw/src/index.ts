@@ -6,7 +6,9 @@
 
 import {
 	ApprovalStore,
+	checkAllowlistMigration,
 	createOperationalLogger,
+	formatAllowlistMigrationWarning,
 	formatConfigurationWarnings,
 	getConfigurationWarningsSync,
 	loadConfigSync,
@@ -44,7 +46,7 @@ export default {
 		const toolLogger = operationalLogger.forComponent("tool-handler");
 		const scanLogger = operationalLogger.forComponent("startup-scan");
 		const approvalStore = new ApprovalStore();
-		const { threatsDir, allowlistsDir } = getBundledDataDirs();
+		const { threatsDir, trustedDomainsDir } = getBundledDataDirs();
 
 		const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 		const interval = setInterval(() => approvalStore.cleanup(), CLEANUP_INTERVAL_MS);
@@ -54,6 +56,18 @@ export default {
 		let pendingConfigurationWarnings =
 			formatConfigurationWarnings(getConfigurationWarningsSync(undefined, logger), branding) ??
 			null;
+		// Store the promise so before_agent_start can await it — avoids a race where
+		// before_agent_start fires before the file read completes and the notice is lost.
+		const migrationCheckPromise = checkAllowlistMigration()
+			.then((result) => {
+				if (result.needed) {
+					const notice = formatAllowlistMigrationWarning(result.entryTypes, branding);
+					pendingConfigurationWarnings = pendingConfigurationWarnings
+						? `${pendingConfigurationWarnings}\n\n${notice}`
+						: notice;
+				}
+			})
+			.catch(() => {});
 		let pendingScanFindings: string | null = null;
 		const onFindings = (msg: string) => {
 			pendingScanFindings = msg;
@@ -61,24 +75,26 @@ export default {
 		const getPendingFindings = () =>
 			[pendingConfigurationWarnings, pendingScanFindings].filter(Boolean).join("\n\n") || null;
 
+		const beforeAgentStartHandler = createBeforeAgentStartHandler(
+			getPendingFindings,
+			() => {
+				pendingConfigurationWarnings = null;
+				pendingScanFindings = null;
+			},
+			logger,
+			branding,
+		);
+
 		api.on(
 			"before_tool_call",
-			createToolCallHandler(approvalStore, toolLogger, threatsDir, allowlistsDir, branding),
+			createToolCallHandler(approvalStore, toolLogger, threatsDir, trustedDomainsDir, branding),
 			{ priority: 100 },
 		);
 		api.on("gateway_start", createStartupScanHandler(scanLogger, branding, onFindings));
 		api.on("session_start", createSessionScanHandler(scanLogger, branding, onFindings));
-		api.on(
-			"before_agent_start",
-			createBeforeAgentStartHandler(
-				getPendingFindings,
-				() => {
-					pendingConfigurationWarnings = null;
-					pendingScanFindings = null;
-				},
-				logger,
-				branding,
-			),
-		);
+		api.on("before_agent_start", async () => {
+			await migrationCheckPromise;
+			return beforeAgentStartHandler();
+		});
 	},
 };

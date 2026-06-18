@@ -10,7 +10,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\b([Ii][Rr][Mm]|[Ii][Ww][Rr]|curl|wget|[Ii]nvoke-[Ww]eb[Rr]equest|[Ii]nvoke-[Rr]est[Mm]ethod)\\b.*\\|\\s*([Ii][Ee][Xx]|[Ii]nvoke-[Ee]xpression)\\b"
   match_on: command
   title: "PowerShell download piped to Invoke-Expression"
@@ -22,7 +21,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\b([Ii][Ee][Xx]|[Ii]nvoke-[Ee]xpression)\\s*\\(?\\s*\\(?\\s*(\\b([Ii][Rr][Mm]|[Ii][Ww][Rr])\\b|[Nn]ew-[Oo]bject|[Ii]nvoke-[Ww]eb[Rr]equest|[Ii]nvoke-[Rr]est[Mm]ethod)"
   match_on: command
   title: "Invoke-Expression wrapping remote download"
@@ -32,9 +30,8 @@
 # Start-Process with executable
 - id: "CLT-WIN-CMD-003"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "[Ss]tart-[Pp]rocess.*-[Ff]ile[Pp]ath.*\\.(exe|bat|cmd|ps1)"
   match_on: command
   title: "Start-Process launching executable file"
@@ -46,7 +43,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\b(curl|wget|[Ii][Rr][Mm]|[Ii][Ww][Rr]|[Ii]nvoke-[Ww]eb[Rr]equest|[Ii]nvoke-[Rr]est[Mm]ethod)\\b[^|]*(-[Oo]\\w*\\s+|-[Oo]ut[Ff]ile\\s+)\\S+\\.(cmd|bat|ps1|exe|msi).*(&&|;)"
   match_on: command
   title: "Download file then chain-execute"
@@ -58,7 +54,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "[Nn]ew-[Oo]bject\\s+[Nn]et\\.[Ww]eb[Cc]lient.*[Dd]ownload(String|File)"
   match_on: command
   title: ".NET WebClient download (DownloadString/DownloadFile)"
@@ -68,9 +63,8 @@
 # Start-BitsTransfer cmdlet
 - id: "CLT-WIN-CMD-006"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "[Ss]tart-[Bb]its[Tt]ransfer"
   match_on: command
   title: "PowerShell BITS transfer download"
@@ -84,7 +78,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "[Cc][Ee][Rr][Tt][Uu][Tt][Ii][Ll].*(-urlcache|-split|-decode)"
   match_on: command
   title: "certutil used for download or decode (LOLBin)"
@@ -96,7 +89,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "[Bb][Ii][Tt][Ss][Aa][Dd][Mm][Ii][Nn].*/transfer"
   match_on: command
   title: "bitsadmin file transfer (LOLBin)"
@@ -108,7 +100,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "[Mm][Ss][Hh][Tt][Aa]\\s+.*https?://"
   match_on: command
   title: "mshta executing remote HTA file (LOLBin)"
@@ -120,7 +111,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "[Rr][Ee][Gg][Ss][Vv][Rr]32.*/[SsIi].*\\.(dll|sct)"
   match_on: command
   title: "regsvr32 loading DLL/scriptlet (LOLBin)"
@@ -132,7 +122,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "[Rr][Uu][Nn][Dd][Ll][Ll]32.*javascript:"
   match_on: command
   title: "rundll32 executing JavaScript (LOLBin)"
@@ -142,9 +131,8 @@
 # cmstp INF install (UAC bypass)
 - id: "CLT-WIN-CMD-012"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   pattern: "[Cc][Mm][Ss][Tt][Pp].*/[AaUuSs].*\\.inf"
   match_on: command
   title: "cmstp INF install (UAC bypass LOLBin)"
@@ -156,7 +144,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\b[Ww][Mm][Ii][Cc]\\b.*\\bprocess\\s+call\\s+create\\b"
   match_on: command
   title: "wmic process call create (LOLBin)"
@@ -168,7 +155,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\b[Mm][Ss][Ii][Ee][Xx][Ee][Cc]\\b.*/[QqIi].*https?://"
   match_on: command
   title: "msiexec remote MSI install (LOLBin)"
@@ -178,9 +164,8 @@
 # forfiles command execution
 - id: "CLT-WIN-CMD-015"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   pattern: "\\b[Ff][Oo][Rr][Ff][Ii][Ll][Ee][Ss]\\b.*/[Cc].*\\b(cmd|powershell)\\b"
   match_on: command
   title: "forfiles dispatching cmd/powershell (LOLBin)"
@@ -190,9 +175,8 @@
 # pcalua execution
 - id: "CLT-WIN-CMD-016"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   pattern: "\\b[Pp][Cc][Aa][Ll][Uu][Aa]\\b.*-a.*\\.(exe|dll)"
   match_on: command
   title: "pcalua executing binary (LOLBin)"
@@ -202,9 +186,8 @@
 # installutil abuse
 - id: "CLT-WIN-CMD-017"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   pattern: "\\b[Ii]nstall[Uu]til\\b.*/[Ll]og[Ff]ile="
   match_on: command
   title: "installutil .NET execution (LOLBin)"
@@ -214,9 +197,8 @@
 # regasm/regsvcs
 - id: "CLT-WIN-CMD-018"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   pattern: "\\b[Rr]eg[Aa]sm\\b.*/[Uu]|\\b[Rr]eg[Ss]vcs\\b"
   match_on: command
   title: "regasm/regsvcs .NET assembly execution (LOLBin)"
@@ -230,7 +212,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\b[Ff][Oo][Rr][Mm][Aa][Tt]\\s+[A-Za-z]:"
   match_on: command
   title: "Format drive command"
@@ -242,7 +223,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\b(rd|rmdir)\\b\\s+/[Ss]\\s+/[Qq]\\s+[A-Za-z]:\\\\"
   match_on: command
   title: "Recursive forced deletion from drive root"
@@ -254,7 +234,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\b[Dd][Ee][Ll]\\b\\s+/[Ff].*\\s+/[Ss].*\\s+[A-Za-z]:\\\\"
   match_on: command
   title: "Force delete all files from drive root"
@@ -266,7 +245,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\bdiskpart\\b"
   match_on: command
   title: "diskpart disk partition manipulation"
@@ -280,7 +258,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "[Nn]ew-[Oo]bject\\s+[Ss]ystem\\.[Nn]et\\.[Ss]ockets\\.[Tt][Cc][Pp][Cc]lient"
   match_on: command
   title: "PowerShell TCP reverse shell via .NET socket"
@@ -292,7 +269,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "[Nn]ew-[Oo]bject\\s+[Ss]ystem\\.[Nn]et\\.[Ss]ockets\\.[Uu][Dd][Pp][Cc]lient"
   match_on: command
   title: "PowerShell UDP reverse shell via .NET socket"
@@ -304,9 +280,8 @@
 # runas
 - id: "CLT-WIN-CMD-025"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\b[Rr][Uu][Nn][Aa][Ss]\\s+/user:"
   match_on: command
   title: "runas with alternate user credentials"
@@ -316,9 +291,8 @@
 # Set-ExecutionPolicy Bypass/Unrestricted
 - id: "CLT-WIN-CMD-026"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "[Ss]et-[Ee]xecution[Pp]olicy\\s+([Bb]ypass|[Uu]nrestricted)"
   match_on: command
   title: "Disabling PowerShell execution policy"
@@ -328,9 +302,8 @@
 # fodhelper UAC bypass
 - id: "CLT-WIN-CMD-027"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.80
-  action: block
   pattern: "\\b[Ff]od[Hh]elper\\b"
   match_on: command
   title: "fodhelper.exe UAC bypass"
@@ -344,8 +317,8 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
-  pattern: "\\bRemove-Item\\b.*-Recurse.*-Force|\\bRemove-Item\\b.*-Force.*-Recurse"
+  pattern: "\\bRemove-Item\\b(?=[^;&|#\\r\\n]*\\s-(?:Recurse|r)\\b)(?=[^;&|#\\r\\n]*\\s-(?:Force|f)\\b)[^;&|#\\r\\n]*?(?:[A-Za-z]:\\\\(?:Windows|ProgramData|Users\\\\Public|Program Files(?: \\(x86\\))?)(?=\\\\|\\s|[\"']|$)|(?:\\$env:(?:SystemRoot|ProgramData|windir)|\\$\\{env:(?:SystemRoot|ProgramData|windir)\\})(?=\\\\|\\s|[\"']|$))"
+  case_insensitive: true
   match_on: command
   title: "PowerShell recursive forced deletion (Remove-Item -Recurse -Force)"
   expires_at: null
@@ -354,9 +327,8 @@
 # Clear-RecycleBin -Force
 - id: "CLT-WIN-CMD-029"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bClear-RecycleBin\\b.*-Force"
   match_on: command
   title: "PowerShell destructive recycle bin cleanup"
@@ -370,7 +342,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\bncat\\b.*\\s-e\\s+(cmd|powershell|cmd\\.exe|powershell\\.exe)"
   match_on: command
   title: "Reverse shell via ncat -e cmd/powershell"
@@ -384,7 +355,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\bvssadmin\\b.*\\bdelete\\s+shadows\\b"
   case_insensitive: true
   match_on: command
@@ -397,7 +367,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\bwmic\\b.*\\bshadowcopy\\b.*\\bdelete\\b"
   match_on: command
   title: "Shadow copy deletion via wmic (ransomware indicator)"
@@ -409,7 +378,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\bbcdedit\\b.*/set\\b.*\\b(recoveryenabled\\b.*\\b(No|no|NO|false|0)|bootems\\s+off|advancedoptions\\s+off|optionsedit\\s+off)\\b|\\breg\\b.*\\bdelete\\b.*\\bSYSTEM\\\\.*CurrentControlSet\\\\Control\\\\SafeBoot\\b|\\breg\\b.*\\badd\\b.*\\bSOFTWARE\\\\.*Microsoft\\\\Windows NT\\\\.*CurrentVersion\\\\Winlogon\\b.*/v.*Userinit"
   match_on: command
   title: "Recovery/boot disable via bcdedit, SafeBoot reg delete, or Winlogon Userinit (ransomware indicator)"
@@ -421,7 +389,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\b(Get-WmiObject|Get-CimInstance)\\b.*\\bWin32_ShadowCopy\\b.*\\b(Remove-WmiObject|Remove-CimInstance|Delete)\\b"
   match_on: command
   title: "PowerShell shadow copy deletion (ransomware indicator)"
@@ -435,7 +402,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\bwevtutil\\b.*\\b(cl|clear-log)\\b"
   match_on: command
   title: "Windows event log clearing via wevtutil (anti-forensics)"
@@ -447,7 +413,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\b(Clear-EventLog|Remove-EventLog)\\b"
   match_on: command
   title: "PowerShell event log clearing (anti-forensics)"
@@ -459,7 +424,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\b(Set|Add)-MpPreference\\b.*(-Disable|-Exclusion)"
   match_on: command
   title: "Windows Defender settings modification via Set/Add-MpPreference"
@@ -471,7 +435,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\b(sc\\s+(stop|config)|net\\s+stop|Stop-Service)\\b.*\\b(WinDefend|MpsSvc|wscsvc|SecurityHealthService)\\b"
   match_on: command
   title: "Security service tampering (WinDefend/firewall service stop/disable)"
@@ -483,7 +446,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\bnetsh\\b.*\\badvfirewall\\b.*\\bstate\\s+off\\b"
   match_on: command
   title: "Windows Firewall disabling via netsh"
@@ -495,9 +457,8 @@
 # Password-protected archive creation
 - id: "CLT-WIN-CMD-040"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\b(rar|winrar)(\\.exe)?\\b.*\\s-h?p|\\b(7z|7za)(\\.exe)?\\b.*\\s-p|\\bzip\\b.*\\s(-P\\s|--password\\b)"
   match_on: command
   title: "Password-protected archive creation (potential data exfiltration)"
@@ -507,9 +468,8 @@
 # Bulk document archiving with wildcards
 - id: "CLT-WIN-CMD-041"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\b(rar|winrar|7z|7za|zip|tar)(\\.exe)?\\b.*\\*\\.(docx?|xlsx?|pptx?|pdf|csv)\\b"
   match_on: command
   title: "Bulk document archiving with wildcards (data exfiltration indicator)"
@@ -523,7 +483,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "/AutoIt3ExecuteScript"
   case_insensitive: true
   match_on: command
@@ -536,9 +495,8 @@
 # wscript/cscript executing scripts from C:\Users\Public (world-writable staging)
 - id: "CLT-WIN-CMD-043"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(wscript|cscript)(\\.exe)?\\b.*\\\\Users\\\\Public\\\\"
   case_insensitive: true
   match_on: command
@@ -553,7 +511,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "regsvr32(\\.exe)?\\b.*/[Ii]:[^\\s]*https?://"
   case_insensitive: true
   match_on: command
@@ -564,9 +521,8 @@
 # cmdl32.exe Connection Manager Profile Installer abuse
 - id: "CLT-WIN-CMD-045"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bcmdl32(\\.exe)?\\b"
   case_insensitive: true
   match_on: command
@@ -581,7 +537,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\b(curl|wget)\\b[^&]*(--(output|o\\b)|-o\\b)[^&]*&\\s*(start\\b|cmd)"
   case_insensitive: true
   match_on: command
@@ -594,7 +549,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(vssadmin.*resize.*shadowstorage|net.*stop.*swprv|reg.*add.*HKLM.*SOFTWARE.*Microsoft.*Windows NT.*CurrentVersion.*SystemRestore.*/v.*DisableSR.*/t.*REG_DWORD.*/d.*1.*/f|reg.*add.*HKLM.*SYSTEM.*CurrentControlSet.*services.*VSS.*/v.*Start.*/t.*REG_DWORD.*/d.*4.*/f|wbadmin.*delete.*catalog|wbadmin.*delete.*systemstatebackup)"
   case_insensitive: true
   match_on: command
@@ -605,9 +559,8 @@
 # Legacy firewall disable via netsh opmode (ex CLT-TECH-007, MpsSvc parts covered by CLT-WIN-CMD-038)
 - id: "CLT-WIN-CMD-048"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "netsh\\s+firewall\\s+set\\s+opmode\\s+mode[= ]+DISABLE"
   case_insensitive: true
   match_on: command
@@ -618,9 +571,8 @@
 # Firewall exclusion: add allowed program (ex CLT-TECH-008)
 - id: "CLT-WIN-CMD-049"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(netsh\\s+firewall.+add.+allowedprogram.+ENABLE|netsh.+advfirewall.+firewall.+add.+rule.+name.+program|netsh\\s+advfirewall\\s+firewall.+allow.+program.+enable[= ]+yes)"
   case_insensitive: true
   match_on: command
@@ -631,9 +583,8 @@
 # AppLocker bypass via regsvr32 /i:http (ex CLT-TECH-006)
 - id: "CLT-WIN-CMD-050"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "regsvr32.+i:\\s*http"
   case_insensitive: true
   match_on: command
@@ -646,7 +597,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(\\\\|/)Mavinject(64|32)\\.exe"
   case_insensitive: true
   match_on: command
@@ -659,7 +609,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(\\\\|/)inject_dll_(x86|amd64)\\.exe"
   case_insensitive: true
   match_on: command
@@ -670,9 +619,8 @@
 # PowerShdll execution (ex CLT-TECH-028)
 - id: "CLT-WIN-CMD-053"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(rundll32\\.exe PowerShdll\\.dll,main|POWERSHDLL\\.(DLL|EXE))"
   case_insensitive: true
   match_on: command
@@ -683,9 +631,8 @@
 # SyncAppvPublishingServer execution (ex CLT-TECH-030)
 - id: "CLT-WIN-CMD-054"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "SyncAppvPublishingServer\\.vbs \".*(iwr|iex)"
   case_insensitive: true
   match_on: command
@@ -698,7 +645,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(sdclt\\.exe|CompMgmtLauncher\\.exe)"
   case_insensitive: true
   match_on: command
@@ -709,9 +655,8 @@
 # PowerShell fileless execution via iex $env (ex CLT-TECH-017)
 - id: "CLT-WIN-CMD-056"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "powershell.*iex.*\\$env"
   case_insensitive: true
   match_on: command
@@ -722,9 +667,8 @@
 # PowerShell version downgrade (ex CLT-TECH-018)
 - id: "CLT-WIN-CMD-057"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "powershell.*-Version"
   case_insensitive: true
   match_on: command
@@ -737,7 +681,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(powershell.*(iex|invoke-expression).*downloadstring|powershell.*Start-BitsTransfer.*(iex|invoke-expression)|powershell.*xmlhttp.*send.*(iex|invoke-expression))"
   case_insensitive: true
   match_on: command
@@ -748,9 +691,8 @@
 # PowerShell Reflection.Assembly Load (ex CLT-TECH-024)
 - id: "CLT-WIN-CMD-059"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "powershell.+\\[Reflection\\.Assembly\\]::Load"
   case_insensitive: true
   match_on: command
@@ -761,9 +703,8 @@
 # PowerShell certificate validation bypass (ex CLT-TECH-025)
 - id: "CLT-WIN-CMD-060"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "powershell.+ServerCertificateValidationCallback\\s*=\\s*\\{\\s*\\$true\\s*\\}"
   case_insensitive: true
   match_on: command
@@ -774,9 +715,8 @@
 # PowerShell GetTypeFromCLSID (ex CLT-TECH-029)
 - id: "CLT-WIN-CMD-061"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "powershell.+GetTypeFromCLSID"
   case_insensitive: true
   match_on: command

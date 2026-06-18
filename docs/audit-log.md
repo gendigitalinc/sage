@@ -1,6 +1,6 @@
 # Audit Log
 
-Sage appends one [JSON Lines](https://jsonlines.org/) entry per event to `~/.sage/audit.jsonl` (configurable via [`logging.path`](configuration.md#logging)). The file is for forensics, debugging, and the [`sage_report_false_positive`](mcp.md#sage_report_false_positive) MCP tool — Sage itself only writes; nothing in the runtime path reads it.
+Sage appends one [JSON Lines](https://jsonlines.org/) entry per event to `~/.sage/audit.jsonl` (configurable via [`logging.path`](user-guide.md#logging)). The file is for forensics, debugging, and the [`sage_report_false_positive`](mcp.md#sage_report_false_positive) MCP tool — Sage itself only writes; nothing in the runtime path reads it.
 
 ## Conventions
 
@@ -12,7 +12,7 @@ Sage appends one [JSON Lines](https://jsonlines.org/) entry per event to `~/.sag
 
 ## Rotation
 
-Classic logrotate semantics, configured under [`logging`](configuration.md#logging):
+Classic logrotate semantics, configured under [`logging`](user-guide.md#logging):
 
 | Field | Default | Meaning |
 |-------|---------|---------|
@@ -33,7 +33,7 @@ Every entry carries:
 
 ## Runtime verdict entries (`type: "runtime_verdict"`)
 
-Written by `logVerdict` for every tool-call evaluation that produces a `deny`, `ask`, or user-overridden verdict. `allow` verdicts are written only when [`logging.log_clean`](configuration.md#logging) is true or `user_override` is true.
+Written by `logVerdict` for every tool-call evaluation that produces a `deny`, `ask`, or user-overridden verdict. `allow` verdicts are written only when [`logging.log_clean`](user-guide.md#logging) is true or `user_override` is true.
 
 | Field | Type | Required | Description |
 |-------|------|:--------:|-------------|
@@ -48,7 +48,7 @@ Written by `logVerdict` for every tool-call evaluation that produces a `deny`, `
 | `verdict` | string | yes | `"allow"`, `"ask"`, or `"deny"`. |
 | `severity` | string | yes | `"info"`, `"warning"`, or `"critical"`. |
 | `reasons` | string[] | yes | Human-readable explanations attached to the verdict (e.g. `"URL flagged as malware"`). May be empty for `allow`. |
-| `source` | string | yes | Which subsystem produced the verdict (e.g. `"engine"`, `"cache"`, `"allowlist"`, `"exceptions"`). |
+| `source` | string | yes | Which subsystem produced the verdict (e.g. `"engine"`, `"cache"`, `"exception"`). |
 | `user_override` | boolean | yes | `true` when the entry records a user's "Allow" decision overriding a previous `deny`/`ask`. |
 | `signals` | object | optional | Structured detection signal data — see [Signals](#signals-runtime_verdictsignals). Omitted when no signals fired. |
 | `content` | object | optional | Sanitized snapshot of the tool input — see [Content snapshot](#content-snapshot-runtime_verdictcontent). Omitted (not written as `null`) when the evaluator produced no snapshot. |
@@ -63,7 +63,7 @@ Each subkey is a homogeneous array of detection records. All subkeys are optiona
 | `url_checks` | `{ detection_name: string, url: string }` | Malicious URL responses from the URL reputation client. Cached deny entries are reconstructed from the cached label list so cache hits look identical to live responses. |
 | `file_checks` | `{ detection_name: string, file_sha256: string }` | File reputation hits (npm/PyPI tarball SHA-256 matches). |
 | `package_checks` | `{ detection_name: string, package_name: string, package_version?: string, package_registry: string }` | Package supply-chain signals. `detection_name` is synthesized (e.g. `"PKG|malicious|<reason>"`). |
-| `pi_checks` | `{ risk: number, model_id: string, content_name: string }` | Prompt-injection (PI) ML model results, gated by [`pi_check.enabled`](configuration.md#pi_check). `risk` is the model's score in `[0, 1]`. `model_id` is the model directory basename (e.g. `"pi-model"`). `content_name` labels what was scanned (`"Bash:command"`, `"Bash:stdout"`, `"Write:<path>"`, `"Edit:<path>"`, `"Read:output"`, `"WebFetch:output"`). Emitted whenever the model is invoked and produces a result — including PostToolUse output scans whose risk score crosses [`pi_check.high_risk_threshold`](configuration.md#pi_check). Tier 1 heuristic prompt-injection rules surface separately under `heuristics`. |
+| `pi_checks` | `{ risk: number, model_id: string, content_name: string }` | Prompt-injection (PI) ML model results, gated by [`pi_check.enabled`](user-guide.md#pi_check). `risk` is the model's score in `[0, 1]`. `model_id` is the model directory basename (e.g. `"pi-model"`). `content_name` labels what was scanned (`"Bash:command"`, `"Bash:stdout"`, `"Write:<path>"`, `"Edit:<path>"`, `"Read:output"`, `"WebFetch:output"`). Emitted whenever the model is invoked and produces a result — including PostToolUse output scans whose risk score crosses [`pi_check.high_risk_threshold`](user-guide.md#pi_check). Tier 1 heuristic prompt-injection rules surface separately under `heuristics`. |
 | `amsi_checks` | `{ detection_name: string, content_name: string, content_snippet?: string, amsi_result: number }` | Windows AMSI results (Windows / WSL only). `detection_name` is synthesized: `"AMSI|DETECTED"` for `amsi_result >= 32768`, `"AMSI|BLOCKED_BY_ADMIN"` for `16384 <= amsi_result < 32768`. `content_name` labels what was scanned (`"Bash:command"`, `"Write:<path>"`); home directories are scrubbed. `content_snippet` is capped at 200 chars and home-scrubbed. |
 
 ### Content snapshot (`content`)

@@ -62,7 +62,11 @@ On OpenCode, Sage relays flagged details through the conversation, making it sus
 
 ## False Positive Reporting
 
-If the user believes a Sage detection is incorrect (a wrong block, mistaken flag, or false alarm), you can report it using the MCP tools provided by Sage:
+If the user believes a Sage detection is incorrect (a wrong block, mistaken flag, or false alarm), you can report it using the MCP tools provided by Sage.
+
+**Platform availability:** The MCP tools are registered automatically on Claude Code, Cursor, and OpenCode. On VS Code, the user must start the MCP server first (`MCP: List Server` → `sage` → `Start server`). On OpenClaw, the user must add the Sage MCP server to their `mcp.servers` config manually (see the OpenClaw platform guide).
+
+With the server running:
 
 1. **`sage_list_audit_entries`** — Lists recent Sage audit log entries for the current conversation. Use this to find the `entry_id`s of the detections the user considers incorrect.
 2. **`sage_report_false_positive`** — Submits a false positive report to the Sage backend. Requires a `description` (what was wrongly detected) and `reasoning` (why it is a false positive). Optionally accepts `entry_ids` to scope the report to specific entries.

@@ -14,7 +14,6 @@ const REQUIRED_FIELDS = new Set([
 	"category",
 	"severity",
 	"confidence",
-	"action",
 	"pattern",
 	"match_on",
 	"title",
@@ -107,19 +106,30 @@ export async function loadThreats(
 				Array.isArray(rawMatchOn) ? rawMatchOn : [rawMatchOn as string],
 			);
 
+			const rawFlags = record.flags;
+			const flags: string[] = Array.isArray(rawFlags) ? rawFlags : [];
+
+			const confidence = Number(record.confidence);
+			if (!Number.isFinite(confidence) || confidence <= 0 || confidence > 1) {
+				logger.warn(`Skipping threat ${record.id}: invalid confidence value`, {
+					confidence: record.confidence,
+				});
+				continue;
+			}
+
 			threats.push({
 				id: record.id as string,
 				version: typeof record.version === "number" ? record.version : undefined,
 				category: record.category as string,
 				severity: record.severity as Threat["severity"],
-				confidence: Number(record.confidence),
-				action: record.action as Threat["action"],
+				confidence,
 				pattern: record.pattern as string,
 				compiledPattern,
 				matchOn,
 				title: record.title as string,
 				expiresAt: parseExpiresAt(record.expires_at as string | null | undefined),
 				revoked: false,
+				flags,
 			});
 		}
 	}

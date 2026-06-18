@@ -121,7 +121,7 @@ describe("PackageChecker", () => {
 		const checker = new PackageChecker();
 		const results = await checker.checkPackages([{ name: "new-pkg", registry: "npm" }]);
 		expect(results[0]?.verdict).toBe("suspicious_age");
-		expect(results[0]?.confidence).toBe(0.75);
+		expect(results[0]?.confidence).toBe(0.6);
 	});
 
 	it("returns clean for established package", async () => {

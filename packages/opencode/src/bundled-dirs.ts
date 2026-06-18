@@ -11,7 +11,7 @@ export function getBundledDataDirs(): {
 	pluginDir: string;
 	packageRoot: string;
 	threatsDir: string;
-	allowlistsDir: string;
+	trustedDomainsDir: string;
 } {
 	const pluginDir = dirname(fileURLToPath(import.meta.url));
 	const packageRoot = join(pluginDir, "..");
@@ -19,7 +19,7 @@ export function getBundledDataDirs(): {
 		pluginDir,
 		packageRoot,
 		threatsDir: join(packageRoot, "resources", "threats"),
-		allowlistsDir: join(packageRoot, "resources", "allowlists"),
+		trustedDomainsDir: join(packageRoot, "resources", "trusted-domains"),
 	};
 }
 

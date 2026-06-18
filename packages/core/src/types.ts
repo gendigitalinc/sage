@@ -44,23 +44,25 @@ export const ArtifactSchema = z.object({
 
 export type Artifact = z.infer<typeof ArtifactSchema>;
 
-// ── Threat ──────────────────────────────────────────────────────────
+// ── Severity ────────────────────────────────────────────────────────
 
-export const SeveritySchema = z.enum(["critical", "high", "medium", "low"]);
-export const ActionSchema = z.enum(["block", "require_approval", "log"]);
+export const VerdictSeveritySchema = z.enum(["info", "warning", "critical"]);
+export type VerdictSeverity = z.infer<typeof VerdictSeveritySchema>;
+
+// ── Threat ──────────────────────────────────────────────────────────
 
 export const ThreatSchema = z.object({
 	id: z.string(),
 	version: z.number().int().optional(),
 	category: z.string(),
-	severity: SeveritySchema,
+	severity: VerdictSeveritySchema,
 	confidence: z.number(),
-	action: ActionSchema,
 	pattern: z.string(),
 	match_on: z.union([z.string(), z.array(z.string())]),
 	title: z.string(),
 	expires_at: z.string().nullable().optional(),
 	revoked: z.boolean().optional().default(false),
+	flags: z.array(z.string()).optional().default([]),
 });
 
 /** Raw threat from YAML (before compilation). */
@@ -71,15 +73,15 @@ export interface Threat {
 	id: string;
 	version?: number;
 	category: string;
-	severity: "critical" | "high" | "medium" | "low";
+	severity: VerdictSeverity;
 	confidence: number;
-	action: "block" | "require_approval" | "log";
 	pattern: string;
 	compiledPattern: RegExp;
 	matchOn: Set<string>;
 	title: string;
 	expiresAt: Date | null;
 	revoked: boolean;
+	flags: string[];
 }
 
 // ── Heuristic match ─────────────────────────────────────────────────
@@ -107,10 +109,8 @@ export interface UrlCheckResult {
 // ── Verdict ─────────────────────────────────────────────────────────
 
 export const DecisionSchema = z.enum(["allow", "deny", "ask"]);
-export const VerdictSeveritySchema = z.enum(["info", "warning", "critical"]);
 
 export type Decision = z.infer<typeof DecisionSchema>;
-export type VerdictSeverity = z.infer<typeof VerdictSeveritySchema>;
 
 export interface Verdict {
 	decision: Decision;
@@ -246,10 +246,18 @@ export interface CachedVerdict {
 	 * `auditSignals.url_checks` on cached deny paths so the FP tool sees the same
 	 * signal data as on a live malicious URL response.
 	 *
-	 * Strictly URL-cache only — `cache.putCommand` and `cache.putPackage` strip
-	 * this field on write. Do not populate or read it for command/package entries.
+	 * Strictly URL-cache only — `cache.putPackage` strips this field on write.
+	 * Do not populate or read it for package entries.
 	 */
 	urlSignalLabels?: string[];
+	/**
+	 * Package-cache only: original `PackageCheckResult.verdict` before mapping to
+	 * the three-way Decision. Allows accurate audit naming and confidence replay
+	 * without losing the original classification (e.g. "not_found" vs "malicious").
+	 */
+	packageVerdict?: string;
+	/** Package-cache only: original `PackageCheckResult.confidence` for accurate replay. */
+	packageConfidence?: number;
 }
 
 export interface CachedEntry extends CachedVerdict {
@@ -262,7 +270,6 @@ export interface CachedEntry extends CachedVerdict {
 
 export interface CacheStore {
 	urls: Record<string, CachedEntry>;
-	commands: Record<string, CachedEntry>;
 	packages: Record<string, CachedEntry>;
 }
 
@@ -281,10 +288,6 @@ export const CacheConfigSchema = z.object({
 	ttl_malicious_seconds: z.number().default(3600),
 	ttl_clean_seconds: z.number().default(86400),
 	path: z.string().default("~/.sage/cache.json"),
-});
-
-export const AllowlistConfigSchema = z.object({
-	path: z.string().default("~/.sage/allowlist.json"),
 });
 
 export const LoggingConfigSchema = z.object({
@@ -384,7 +387,6 @@ export const ConfigSchema = z.object({
 	pi_check: PiCheckConfigSchema.default({}),
 	heuristics_enabled: z.boolean().default(true),
 	cache: CacheConfigSchema.default({}),
-	allowlist: AllowlistConfigSchema.default({}),
 	exceptions: ExceptionsConfigSchema.default({}),
 	logging: LoggingConfigSchema.default({}),
 	operational_logging: OperationalLoggingConfigSchema.default({}),
@@ -403,25 +405,10 @@ export type UrlCheckConfig = z.infer<typeof UrlCheckConfigSchema>;
 export type FileCheckConfig = z.infer<typeof FileCheckConfigSchema>;
 export type PackageCheckConfig = z.infer<typeof PackageCheckConfigSchema>;
 export type CacheConfig = z.infer<typeof CacheConfigSchema>;
-export type AllowlistConfig = z.infer<typeof AllowlistConfigSchema>;
 export type LoggingConfig = z.infer<typeof LoggingConfigSchema>;
 export type OperationalLogLevel = z.infer<typeof OperationalLogLevelSchema>;
 export type OperationalLoggingConfig = z.infer<typeof OperationalLoggingConfigSchema>;
 export type Config = z.infer<typeof ConfigSchema>;
-
-// ── Allowlist ───────────────────────────────────────────────────────
-
-export interface AllowlistEntry {
-	addedAt: string;
-	reason: string;
-	originalVerdict: string;
-}
-
-export interface Allowlist {
-	urls: Record<string, AllowlistEntry>;
-	commands: Record<string, AllowlistEntry>;
-	filePaths: Record<string, AllowlistEntry>;
-}
 
 // ── Trusted domains ─────────────────────────────────────────────────
 
@@ -442,9 +429,7 @@ export interface PluginInfo {
 export interface PluginFinding {
 	threatId: string;
 	title: string;
-	severity: string;
-	confidence: number;
-	action: string;
+	severity: VerdictSeverity;
 	artifact: string;
 	sourceFile: string;
 	recommendations?: string[];
@@ -467,9 +452,7 @@ export interface CachedPluginScanResult {
 export interface PluginFindingData {
 	threat_id: string;
 	title: string;
-	severity: string;
-	confidence: number;
-	action: string;
+	severity: VerdictSeverity;
 	artifact: string;
 	source_file: string;
 	recommendations?: string[];

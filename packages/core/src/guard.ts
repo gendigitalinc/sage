@@ -1,7 +1,7 @@
 /**
  * Guard orchestrator for soft-gated connectors (OpenCode, OpenClaw).
  * Wraps evaluateToolCall with approval store checks, paranoid promotion,
- * and shared message formatting / allowlist operations.
+ * and shared message formatting.
  */
 
 import { ApprovalStore } from "./approval-store.js";
@@ -63,25 +63,33 @@ function truncateValue(value: string): string {
 
 export function summarizeArtifacts(artifacts: Artifact[]): string {
 	if (artifacts.length === 0) return "none";
-	return artifacts
-		.slice(0, 3)
+	const maxArtifacts = 3;
+	const summary = artifacts
+		.slice(0, maxArtifacts)
 		.map((artifact) => `${artifact.type} '${truncateValue(artifact.value)}'`)
 		.join(", ");
+	const overflow = artifacts.length - maxArtifacts;
+	return overflow > 0 ? `${summary}, ... and ${overflow} more` : summary;
 }
 
 export function formatDenyMessage(verdict: Verdict, branding: Branding = defaultBranding): string {
+	const maxReasons = 5;
 	const reasons =
-		verdict.reasons.length > 0 ? verdict.reasons.slice(0, 5).join("; ") : verdict.category;
+		verdict.reasons.length > 0
+			? verdict.reasons.slice(0, maxReasons).join("; ") +
+				(verdict.reasons.length > maxReasons
+					? `; ... and ${verdict.reasons.length - maxReasons} more`
+					: "")
+			: verdict.category;
 
 	return [
 		`${branding.name} blocked this action.`,
 		`Severity: ${verdict.severity}`,
 		`Category: ${verdict.category}`,
 		`Reason: ${reasons}`,
+		`If this is a false positive, use the sage_report_false_positive MCP tool to report it.`,
 	].join("\n");
 }
-
-// ── Allowlist tool logic ───────────────────────────────────────────
 
 export async function approveAction(
 	store: ApprovalStore,

@@ -8,7 +8,6 @@
   category: secrets
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "(/etc/passwd|/etc/shadow|/etc/sudoers)"
   match_on: file_path
   title: "Access system authentication file"
@@ -20,7 +19,6 @@
   category: secrets
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "\\.ssh/authorized_keys"
   match_on: file_path
   title: "Access SSH authorized_keys (unauthorized access persistence)"
@@ -30,9 +28,8 @@
 # --- SSH private keys and config ---
 - id: "CLT-FILE-003"
   category: secrets
-  severity: high
-  confidence: 0.90
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\.ssh/(id_rsa|id_ed25519|id_ecdsa|id_dsa|config)$"
   match_on: file_path
   title: "Access SSH key or config file"
@@ -42,9 +39,8 @@
 # --- Shell RC files ---
 - id: "CLT-FILE-004"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\.(bashrc|zshrc|profile|bash_profile|zprofile|zshenv)$"
   match_on: file_path
   title: "Access shell RC file (persistence mechanism)"
@@ -54,9 +50,8 @@
 # --- Cron directories ---
 - id: "CLT-FILE-006"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(/etc/cron\\.(d|daily|hourly|weekly|monthly)/|/var/spool/cron/)"
   match_on: file_path
   title: "Access cron directory"
@@ -66,9 +61,8 @@
 # --- systemd unit files ---
 - id: "CLT-FILE-007"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "/etc/systemd/system/"
   match_on: file_path
   title: "Access systemd service unit file"
@@ -82,9 +76,8 @@
 # targeted than command-string matching.
 - id: "CLT-FILE-008"
   category: secrets
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "((^|[\\/\\\\])\\.env(\\.local|\\.production|\\.prod|\\.staging|\\.stage|\\.development|\\.dev|\\.test)?|\\.aws/credentials|\\.netrc|\\.pgpass)$"
   match_on: file_path
   title: "Access credential or environment file"
@@ -94,9 +87,8 @@
 # --- Git hooks ---
 - id: "CLT-FILE-009"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\.git/hooks/"
   match_on: file_path
   title: "Access git hook (potential code execution on git events)"
@@ -106,9 +98,8 @@
 # --- Android signing files ---
 - id: "CLT-FILE-010"
   category: secrets
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(key\\.properties|release\\.keystore|\\.jks|\\.keystore)$"
   match_on: file_path
   title: "Access Android signing file"
@@ -118,9 +109,8 @@
 # --- Firebase config files ---
 - id: "CLT-FILE-011"
   category: secrets
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(google-services\\.json|GoogleService-Info\\.plist)$"
   match_on: file_path
   title: "Access Firebase configuration file"
@@ -130,9 +120,8 @@
 # --- Cloud provider credential files ---
 - id: "CLT-FILE-012"
   category: secrets
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(application_default_credentials\\.json|\\.azure/(accessTokens|msal_token_cache)\\.json|\\.config/doctl/config\\.yaml)$"
   match_on: file_path
   title: "Access cloud provider credential file"
@@ -142,9 +131,8 @@
 # --- Package manager tokens ---
 - id: "CLT-FILE-013"
   category: secrets
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(\\.npmrc|\\.pypirc|\\.gem/credentials|\\.cargo/credentials\\.toml|\\.docker/config\\.json)$"
   match_on: file_path
   title: "Access package manager credential file"
@@ -154,9 +142,8 @@
 # --- Terraform state files ---
 - id: "CLT-FILE-014"
   category: secrets
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\.(tfstate(\\.backup)?|tfvars(\\.json)?)$"
   match_on: file_path
   title: "Access Terraform state or variables file"
@@ -166,9 +153,8 @@
 # --- Secrets/vault files ---
 - id: "CLT-FILE-015"
   category: secrets
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(master\\.key|credentials\\.yml\\.enc|secrets\\.yml|vault\\.yml|\\.vault-pass|\\.vault-token)$"
   match_on: file_path
   title: "Access secrets or vault file"
@@ -181,9 +167,8 @@
 # would miss private key exfiltration.
 - id: "CLT-FILE-016"
   category: secrets
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\.(pem|p12|pfx|p8)$"
   match_on: file_path
   title: "Access private key or certificate file"
@@ -193,9 +178,8 @@
 # --- Kubeconfig ---
 - id: "CLT-FILE-017"
   category: secrets
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(\\.kube/config|kubeconfig(\\.yaml|\\.yml)?)$"
   match_on: file_path
   title: "Access Kubernetes configuration file"
@@ -205,9 +189,8 @@
 # --- Build system credential files ---
 - id: "CLT-FILE-018"
   category: secrets
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(\\.m2/settings\\.xml|gradle\\.properties)$"
   match_on: file_path
   title: "Access build system credential file"
@@ -217,9 +200,8 @@
 # --- Shell/REPL history files ---
 - id: "CLT-FILE-019"
   category: secrets
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\.(bash_history|zsh_history|mysql_history|python_history|node_repl_history|psql_history|irb_history)$"
   match_on: file_path
   title: "Access shell or REPL history file"
@@ -229,9 +211,8 @@
 # --- JetBrains IDE database credentials ---
 - id: "CLT-FILE-020"
   category: secrets
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\.idea/dataSources(\\.xml|/)"
   match_on: file_path
   title: "Access JetBrains IDE database credential file"

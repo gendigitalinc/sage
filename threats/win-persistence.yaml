@@ -8,7 +8,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\b[Rr][Ee][Gg]\\b\\s+[Aa][Dd][Dd].*\\\\(Run|RunOnce)\\\\"
   match_on: command
   title: "Registry Run key persistence via reg add"
@@ -20,7 +19,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\b[Ss][Cc]\\b\\s+(create|config).*binpath"
   match_on: command
   title: "Windows service creation/modification via sc"
@@ -30,9 +28,8 @@
 # schtasks /create
 - id: "CLT-WIN-PERSIST-003"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\b[Ss][Cc][Hh][Tt][Aa][Ss][Kk][Ss]\\b.*/[Cc]reate"
   match_on: command
   title: "Scheduled task creation via schtasks"
@@ -42,9 +39,8 @@
 # PowerShell New-ScheduledTask
 - id: "CLT-WIN-PERSIST-004"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "[Nn]ew-[Ss]cheduled[Tt]ask"
   match_on: command
   title: "PowerShell scheduled task creation"
@@ -56,7 +52,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "[Ss]et-[Ii]tem[Pp]roperty.*\\\\(Run|RunOnce)\\\\"
   match_on: command
   title: "PowerShell Registry Run key persistence"
@@ -66,9 +61,8 @@
 # PowerShell New-Service
 - id: "CLT-WIN-PERSIST-006"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\b[Nn]ew-[Ss]ervice\\b"
   match_on: command
   title: "PowerShell Windows service creation"
@@ -78,9 +72,8 @@
 # Startup folder path
 - id: "CLT-WIN-PERSIST-007"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\\\(Startup|Start Menu\\\\Programs\\\\Startup)\\\\"
   match_on: command
   title: "Startup folder drop (persistence)"
@@ -92,7 +85,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\b(CommandLineEventConsumer|ActiveScriptEventConsumer)\\b"
   match_on: command
   title: "WMI event subscription persistence"

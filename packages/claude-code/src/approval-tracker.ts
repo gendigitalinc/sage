@@ -1,5 +1,5 @@
 /**
- * Approval tracker for Sage PostToolUse → MCP allowlist flow.
+ * Approval tracker for Sage PostToolUse → MCP approval flow.
  *
  * Per-session files:
  * - pending-approvals-{sessionId}.json: Written by PreToolUse on `ask`, keyed by tool_use_id.
@@ -173,103 +173,6 @@ export async function consumePendingApproval(
 	} catch (e) {
 		logger.warn("Failed to consume pending approval", { error: String(e) });
 		return null;
-	}
-}
-
-export async function findConsumedApproval(
-	sessionId: string,
-	artifactType: string,
-	artifact: string,
-	logger: Logger = nullLogger,
-): Promise<ConsumedApproval | null> {
-	try {
-		let store = (await loadJson<ConsumedStore>(consumedPath(sessionId))) ?? {};
-		store = pruneExpiredConsumed(store);
-		// Write back if pruning removed anything
-		await saveOrDelete(consumedPath(sessionId), store);
-
-		const key = consumedKey(artifactType, artifact);
-		return store[key] ?? null;
-	} catch (e) {
-		logger.warn("Failed to read consumed approvals", { error: String(e) });
-		return null;
-	}
-}
-
-export async function removeConsumedApproval(
-	sessionId: string,
-	artifactType: string,
-	artifact: string,
-	logger: Logger = nullLogger,
-): Promise<void> {
-	try {
-		let store = (await loadJson<ConsumedStore>(consumedPath(sessionId))) ?? {};
-		store = pruneExpiredConsumed(store);
-		const key = consumedKey(artifactType, artifact);
-		delete store[key];
-		await saveOrDelete(consumedPath(sessionId), store);
-	} catch (e) {
-		logger.warn("Failed to remove consumed approval", { error: String(e) });
-	}
-}
-
-// --- Cross-session functions (for MCP server, which has no session_id) ---
-
-async function listSessionFiles(prefix: string): Promise<string[]> {
-	try {
-		const entries = await readdir(resolvedSageDir());
-		return entries.filter((f) => f.startsWith(prefix) && f.endsWith(".json"));
-	} catch {
-		return [];
-	}
-}
-
-export async function findConsumedApprovalAcrossSessions(
-	artifactType: string,
-	artifact: string,
-	_logger: Logger = nullLogger,
-): Promise<ConsumedApproval | null> {
-	const files = await listSessionFiles("consumed-approvals-");
-	const key = consumedKey(artifactType, artifact);
-	const dir = resolvedSageDir();
-
-	for (const file of files) {
-		try {
-			const path = join(dir, file);
-			let store = (await loadJson<ConsumedStore>(path)) ?? {};
-			store = pruneExpiredConsumed(store);
-			await saveOrDelete(path, store);
-
-			const entry = store[key];
-			if (entry) return entry;
-		} catch {
-			// Best-effort — continue to next file
-		}
-	}
-	return null;
-}
-
-export async function removeConsumedApprovalAcrossSessions(
-	artifactType: string,
-	artifact: string,
-	_logger: Logger = nullLogger,
-): Promise<void> {
-	const files = await listSessionFiles("consumed-approvals-");
-	const key = consumedKey(artifactType, artifact);
-	const dir = resolvedSageDir();
-
-	for (const file of files) {
-		try {
-			const path = join(dir, file);
-			let store = (await loadJson<ConsumedStore>(path)) ?? {};
-			store = pruneExpiredConsumed(store);
-			if (key in store) {
-				delete store[key];
-				await saveOrDelete(path, store);
-			}
-		} catch {
-			// Best-effort — continue to next file
-		}
 	}
 }
 

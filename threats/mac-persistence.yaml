@@ -6,9 +6,8 @@
 # LaunchAgent/LaunchDaemon plist (migrated from persistence.yaml CLT-PERSIST-004)
 - id: "CLT-MAC-PERSIST-001"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.90
-  action: block
   pattern: "(LaunchAgents|LaunchDaemons)/.*\\.plist"
   match_on: command
   title: "macOS LaunchAgent/LaunchDaemon persistence"
@@ -18,9 +17,8 @@
 # Login Items via osascript
 - id: "CLT-MAC-PERSIST-002"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bosascript\\b.*login item"
   case_insensitive: true
   match_on: command
@@ -31,9 +29,8 @@
 # Login window manipulation via defaults
 - id: "CLT-MAC-PERSIST-003"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bdefaults\\b.*\\bwrite\\b.*loginwindow.*(AutoLaunch|LoginHook|LogoutHook)"
   case_insensitive: true
   match_on: command
@@ -46,7 +43,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "/Library/Security/SecurityAgentPlugins/"
   match_on: command
   title: "Authorization plugin drop in SecurityAgentPlugins"
@@ -56,9 +52,8 @@
 # Periodic script drop
 - id: "CLT-MAC-PERSIST-005"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "/etc/periodic/(daily|weekly|monthly)/"
   match_on: command
   title: "Periodic script persistence drop"
@@ -72,7 +67,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "/etc/emond\\.d/rules/"
   match_on: command
   title: "Event Monitor daemon rules persistence"
@@ -84,7 +78,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "DYLD_INSERT_LIBRARIES"
   match_on: command
   title: "DYLD_INSERT_LIBRARIES dylib injection (persistence/hijack)"
@@ -94,9 +87,8 @@
 # Folder Actions via osascript
 - id: "CLT-MAC-PERSIST-008"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\bosascript\\b.*folder action"
   case_insensitive: true
   match_on: command
@@ -107,9 +99,8 @@
 # launchctl load/bootstrap persistent agent
 - id: "CLT-MAC-PERSIST-009"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\blaunchctl\\b.*\\b(load|bootstrap)\\b"
   match_on: command
   title: "Load persistent launch agent/daemon via launchctl"

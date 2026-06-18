@@ -9,7 +9,7 @@ BASE_BRANCH="main"
 WATCHED_PATTERNS=(
   'packages/[^/]+/src/'
   'threats/'
-  'allowlists/'
+  'trusted-domains/'
   'hooks/'
   'skills/'
   '\.claude-plugin/'

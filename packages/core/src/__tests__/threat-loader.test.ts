@@ -19,7 +19,6 @@ describe("loadThreats", () => {
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "curl\\\\s.*\\\\|\\\\s*bash"
   match_on: command
   title: "Pipe to shell"
@@ -31,7 +30,7 @@ describe("loadThreats", () => {
 		expect(threats).toHaveLength(1);
 		expect(threats[0]?.id).toBe("CLT-CMD-001");
 		expect(threats[0]?.severity).toBe("critical");
-		expect(threats[0]?.action).toBe("block");
+		expect(threats[0]?.flags).toEqual([]);
 		expect(threats[0]?.compiledPattern).toBeInstanceOf(RegExp);
 	});
 
@@ -45,7 +44,6 @@ describe("loadThreats", () => {
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "bad_pattern"
   match_on: command
   title: "Revoked"
@@ -67,7 +65,6 @@ describe("loadThreats", () => {
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "expired_pattern"
   match_on: command
   title: "Expired"
@@ -103,7 +100,6 @@ describe("loadThreats", () => {
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "[invalid(regex"
   match_on: command
   title: "Bad regex"
@@ -136,7 +132,6 @@ describe("loadThreats", () => {
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "curl.*bash"
   match_on: command
   title: "Pipe to shell"
@@ -148,9 +143,8 @@ describe("loadThreats", () => {
 			`
 - id: "CLT-URL-001"
   category: network_egress
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   pattern: "pastebin.com/raw"
   match_on: url
   title: "Pastebin raw"
@@ -171,9 +165,8 @@ describe("loadThreats", () => {
 			`
 - id: "CLT-CI-001"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.90
-  action: block
   pattern: "\\\\binvoke-expression\\\\b"
   match_on: command
   title: "Case insensitive test"
@@ -198,9 +191,8 @@ describe("loadThreats", () => {
 			`
 - id: "CLT-CS-001"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.90
-  action: block
   pattern: "curl.*bash"
   match_on: command
   title: "Case sensitive test"
@@ -213,6 +205,27 @@ describe("loadThreats", () => {
 		expect(threats[0]?.compiledPattern.flags).not.toContain("i");
 		expect(threats[0]?.compiledPattern.test("curl | bash")).toBe(true);
 		expect(threats[0]?.compiledPattern.test("CURL | BASH")).toBe(false);
+	});
+
+	it("parses flags field when present", async () => {
+		const dir = await makeTmpDir();
+		await writeYaml(
+			dir,
+			"test.yaml",
+			`
+- id: "CLT-FLAG-001"
+  category: testing
+  severity: info
+  confidence: 0.10
+  pattern: "test_pattern"
+  match_on: command
+  title: "Flagged rule"
+  flags: ["report"]
+`,
+		);
+		const threats = await loadThreats(dir);
+		expect(threats).toHaveLength(1);
+		expect(threats[0]?.flags).toEqual(["report"]);
 	});
 
 	it("loads real threat files", async () => {

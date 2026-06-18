@@ -4,7 +4,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.10.0",
+  "version": "0.11.0",
   "type": "module",
   "description": "Safety for Agents - ADR layer for OpenCode",
   "homepage": "https://github.com/gendigitalinc/sage",
@@ -31,7 +31,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "pnpm -C ../core build && pnpm run clean && pnpm run sync:assets && tsc",
+    "build": "pnpm run clean && pnpm run sync:assets && tsc && node esbuild.config.mjs",
     "clean": "node ../../scripts/clean.mjs dist resources tsconfig.tsbuildinfo",
     "prepack": "node ../../scripts/check-workspace-refs.mjs",
     "sync:assets": "node scripts/sync-assets.mjs",
@@ -39,10 +39,12 @@
   },
   "dependencies": {
     "@gendigital/sage-core": "workspace:*",
+    "@gendigital/sage-mcp": "workspace:*",
     "@opencode-ai/plugin": "^1.14.48"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
     "typescript": "^5.9.0",
     "vitest": "^4.0.0"
   },

@@ -227,7 +227,7 @@ describe("operational log", () => {
 				},
 				{
 					threatsDir: join(dir, "threats"),
-					allowlistsDir: join(dir, "allowlists"),
+					trustedDomainsDir: join(dir, "trusted-domains"),
 					logger,
 				},
 			);

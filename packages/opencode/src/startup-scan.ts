@@ -34,7 +34,7 @@ export function createSessionScanHandler(
 	onResult?: (msg: string) => void,
 	branding: Branding = defaultBranding,
 ): () => Promise<void> {
-	const { threatsDir, allowlistsDir } = getBundledDataDirs();
+	const { threatsDir, trustedDomainsDir } = getBundledDataDirs();
 	const version = getSageVersion();
 
 	return coreScanHandler({
@@ -43,9 +43,10 @@ export function createSessionScanHandler(
 		discoverPlugins: () => discoverOpenCodePlugins(logger, projectDir, branding),
 		selfPrefix: "@gendigital/sage-opencode@",
 		threatsDir,
-		allowlistsDir,
+		trustedDomainsDir,
 		version,
 		agentRuntime: "opencode",
+		// No agentRuntimeVersion: the OpenCode plugin SDK exposes no host version synchronously.
 		branding,
 		onResult,
 		modelDownloadWorkerPath: resolveModelDownloadWorkerPath(),

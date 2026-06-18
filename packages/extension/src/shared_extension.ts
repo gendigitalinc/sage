@@ -6,7 +6,9 @@ import {
 	type AgentRuntime,
 	type Branding,
 	ConfigSchema,
+	checkAllowlistMigration,
 	createOperationalLogger,
+	formatAllowlistMigrationWarning,
 	formatConfigurationWarnings,
 	getConfigurationWarningsSync,
 	getRecentEntries,
@@ -54,6 +56,15 @@ export function activateManagedHooksExtension(
 	if (warningMessage) {
 		void vscode.window.showWarningMessage(warningMessage);
 	}
+	checkAllowlistMigration()
+		.then((result) => {
+			if (result.needed) {
+				void vscode.window.showWarningMessage(
+					formatAllowlistMigrationWarning(result.entryTypes, branding),
+				);
+			}
+		})
+		.catch(() => {});
 
 	// Watch ~/.sage/ for statusline file changes and show IDE notifications
 	setupStatusFileWatcher(context, branding);

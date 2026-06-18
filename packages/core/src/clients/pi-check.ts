@@ -220,7 +220,8 @@ export class BundledPiProvider implements PiCheckProvider {
 	 * Classify a single chunk. Returns P(injected) via softmax over two-class logits.
 	 */
 	private async classifyChunk(text: string): Promise<number> {
-		const tok = this.tokenizer!;
+		const tok = this.tokenizer;
+		if (!tok) throw new Error("PI tokenizer is not loaded");
 
 		const encoded = tok.call(text, {
 			truncation: true,
@@ -267,7 +268,8 @@ export class BundledPiProvider implements PiCheckProvider {
 	 * overlap are tuned to the model's input window.
 	 */
 	private chunkText(text: string): string[] {
-		const tok = this.tokenizer!;
+		const tok = this.tokenizer;
+		if (!tok) throw new Error("PI tokenizer is not loaded");
 
 		const encoded = tok.tokenize(text, {
 			addSpecialTokens: false,
@@ -276,7 +278,8 @@ export class BundledPiProvider implements PiCheckProvider {
 		});
 
 		const tokenIds = encoded.input_ids;
-		const offsets = encoded.offset_mapping!;
+		const offsets = encoded.offset_mapping;
+		if (!offsets) return [text];
 
 		if (tokenIds.length <= MAX_TOKENS) return [text];
 

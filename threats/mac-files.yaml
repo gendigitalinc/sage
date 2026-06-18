@@ -6,9 +6,8 @@
 # LaunchAgent/LaunchDaemon plist (migrated from files.yaml CLT-FILE-005)
 - id: "CLT-MAC-FILE-001"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.90
-  action: block
   pattern: "(LaunchAgents|LaunchDaemons)/.*\\.plist$"
   match_on: file_path
   title: "Access macOS LaunchAgent/LaunchDaemon plist"
@@ -20,7 +19,6 @@
   category: secrets
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "com\\.apple\\.TCC/TCC\\.db"
   match_on: file_path
   title: "Access TCC privacy permissions database"
@@ -32,7 +30,6 @@
   category: secrets
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "(/etc/authorization|/var/db/auth\\.db)"
   match_on: file_path
   title: "Access macOS authorization database"
@@ -44,7 +41,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "(/Library/Extensions/|/System/Library/Extensions/).*\\.kext"
   match_on: file_path
   title: "Access kernel extension (.kext)"
@@ -56,7 +52,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "/Library/Security/SecurityAgentPlugins/"
   match_on: file_path
   title: "Access SecurityAgentPlugins directory"
@@ -66,9 +61,8 @@
 # Periodic scripts directory
 - id: "CLT-MAC-FILE-006"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "/etc/periodic/(daily|weekly|monthly)/"
   match_on: file_path
   title: "Access macOS periodic scripts directory"
@@ -80,7 +74,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "/etc/emond\\.d/rules/"
   match_on: file_path
   title: "Access Event Monitor daemon rules directory"
@@ -92,7 +85,6 @@
   category: secrets
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "/Safari/(Cookies\\.binarycookies|LastSession\\.plist|Databases|LocalStorage)"
   match_on: file_path
   title: "Access Safari credential/cookie store"
@@ -102,9 +94,8 @@
 # Managed Preferences (MDM profiles)
 - id: "CLT-MAC-FILE-009"
   category: tool
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "/Library/Managed Preferences/"
   match_on: file_path
   title: "Access Managed Preferences (MDM profile injection)"
@@ -116,7 +107,6 @@
   category: secrets
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "/Library/Keychains/.*\\.keychain"
   match_on: file_path
   title: "Access system Keychain file"

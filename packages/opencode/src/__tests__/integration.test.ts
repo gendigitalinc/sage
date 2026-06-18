@@ -31,7 +31,6 @@ describe("OpenCode integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 	let prevXdgConfigHome: string | undefined;
 	let prevXdgCacheHome: string | undefined;
 	let hooks: Hooks;
-	let allowlistPath: string;
 
 	function makeContext(askBehavior: "approve" | "reject" = "approve") {
 		return {
@@ -78,21 +77,8 @@ describe("OpenCode integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 		process.env.XDG_CACHE_HOME = resolve(tmpHome, ".cache");
 
 		const sageDir = resolve(tmpHome, ".sage");
-		allowlistPath = resolve(sageDir, "allowlist.json");
 		await mkdir(sageDir, { recursive: true });
-		await writeFile(
-			resolve(sageDir, "config.json"),
-			JSON.stringify(
-				{
-					allowlist: {
-						path: allowlistPath,
-					},
-				},
-				null,
-				2,
-			),
-			"utf8",
-		);
+		await writeFile(resolve(sageDir, "config.json"), JSON.stringify({}, null, 2), "utf8");
 
 		const mod = (await import(PLUGIN_DIST)) as {
 			default: (input: Record<string, unknown>) => Promise<Hooks>;
@@ -152,11 +138,7 @@ describe("OpenCode integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 		const configPath = resolve(tmpHome, ".sage", "config.json");
 		const origConfig = await readFile(configPath, "utf8");
 
-		await writeFile(
-			configPath,
-			JSON.stringify({ sensitivity: "paranoid", allowlist: { path: allowlistPath } }, null, 2),
-			"utf8",
-		);
+		await writeFile(configPath, JSON.stringify({ sensitivity: "paranoid" }, null, 2), "utf8");
 
 		try {
 			await expect(runBefore("chmod 777 ./script.sh", "c-paranoid")).rejects.toThrow(
@@ -244,7 +226,7 @@ describe("OpenCode integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 		expect(result).toContain("Rejected");
 	});
 
-	it("does not expose allowlist tools (deprecated)", () => {
+	it("does not expose legacy allowlist tools", () => {
 		const tools = hooks.tool ?? {};
 		expect(tools.sage_allowlist_add).toBeUndefined();
 		expect(tools.sage_allowlist_remove).toBeUndefined();

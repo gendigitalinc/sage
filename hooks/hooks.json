@@ -5,8 +5,19 @@
         "matcher": "Bash|WebFetch|Write|Edit|Read",
         "hooks": [
           {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/packages/claude-code/dist/pre-tool-use.cjs\"",
+            "type": "mcp_tool",
+            "server": "plugin:sage:sage",
+            "tool": "sage_claude_pre_tool_use",
+            "input": {
+              "session_id": "${session_id}",
+              "transcript_path": "${transcript_path}",
+              "cwd": "${cwd}",
+              "permission_mode": "${permission_mode}",
+              "hook_event_name": "${hook_event_name}",
+              "tool_name": "${tool_name}",
+              "tool_use_id": "${tool_use_id}",
+              "tool_input": "${tool_input}"
+            },
             "timeout": 8,
             "statusMessage": "Sage: Checking for threats..."
           }
@@ -18,8 +29,21 @@
         "matcher": "Bash|WebFetch|Write|Edit|Read",
         "hooks": [
           {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/packages/claude-code/dist/post-tool-use.cjs\"",
+            "type": "mcp_tool",
+            "server": "plugin:sage:sage",
+            "tool": "sage_claude_post_tool_use",
+            "input": {
+              "session_id": "${session_id}",
+              "transcript_path": "${transcript_path}",
+              "cwd": "${cwd}",
+              "permission_mode": "${permission_mode}",
+              "hook_event_name": "${hook_event_name}",
+              "tool_name": "${tool_name}",
+              "tool_use_id": "${tool_use_id}",
+              "tool_input": "${tool_input}",
+              "tool_response": "${tool_response}",
+              "duration_ms": "${duration_ms}"
+            },
             "timeout": 8,
             "statusMessage": "Sage: Scanning output..."
           }

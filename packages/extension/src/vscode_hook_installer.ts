@@ -10,6 +10,7 @@ import {
 	createHookShim,
 	type HookMap,
 	isManagedEntry,
+	isShimCurrent,
 	quote,
 	resolveNodeRuntimePath,
 	resolveRunnerPath,
@@ -74,9 +75,7 @@ export async function getHookHealth(
 
 	const shimFile = process.platform === "win32" ? "sage-hook.cmd" : "sage-hook";
 	const shimPath = path.join(path.dirname(configPath), shimFile);
-	const shimCurrent = await readFile(shimPath, "utf8")
-		.then((content) => !!runnerPath && content.includes(`"${runnerPath}"`))
-		.catch(() => false);
+	const shimCurrent = await isShimCurrent(shimPath, runnerPath);
 
 	return {
 		configPath,

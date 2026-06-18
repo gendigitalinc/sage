@@ -80,7 +80,7 @@ Sage works out of the box with no configuration. To customize behavior, edit `~/
 }
 ```
 
-See [Configuration](https://github.com/gendigitalinc/sage/blob/main/docs/configuration.md) for all options.
+See [Configuration](https://github.com/gendigitalinc/sage/blob/main/docs/user-guide.md#configuration) for all options.
 
 ## VS Code vs Cursor
 
@@ -127,7 +127,7 @@ The VS Code hook runner intercepts tool names from two products that share the `
 ## Links
 
 - [User Guide](https://github.com/gendigitalinc/sage/blob/main/docs/user-guide.md) — verify install, handle alerts, manage false positives
-- [Configuration](https://github.com/gendigitalinc/sage/blob/main/docs/configuration.md) — all config options
-- [Exceptions](https://github.com/gendigitalinc/sage/blob/main/docs/exceptions.md) — pattern-based allow/deny rules
-- [Privacy](https://github.com/gendigitalinc/sage/blob/main/docs/privacy.md) — what data is sent, what stays local
+- [Configuration](https://github.com/gendigitalinc/sage/blob/main/docs/user-guide.md#configuration) — all config options
+- [Exceptions](https://github.com/gendigitalinc/sage/blob/main/docs/user-guide.md#exceptions) — pattern-based allow/deny rules
+- [Privacy](https://github.com/gendigitalinc/sage/blob/main/docs/user-guide.md#privacy) — what data is sent, what stays local
 - [GitHub](https://github.com/gendigitalinc/sage)

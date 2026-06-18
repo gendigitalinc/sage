@@ -69,49 +69,6 @@ export class ApprovalStore {
 		return true;
 	}
 
-	hasApprovedArtifact(type: string, value: string): boolean {
-		return this.findApprovedAction(type, value) !== null;
-	}
-
-	consumeApprovedArtifact(type: string, value: string): boolean {
-		const id = ApprovalStore.artifactId(type, value);
-		for (const [actionId, entry] of this.approved.entries()) {
-			if (Date.now() >= entry.expiresAt) {
-				this.approved.delete(actionId);
-				continue;
-			}
-			const idx = entry.artifacts.findIndex(
-				(a) => ApprovalStore.artifactId(a.type, a.value) === id,
-			);
-			if (idx !== -1) {
-				entry.artifacts.splice(idx, 1);
-				if (entry.artifacts.length === 0) {
-					this.approved.delete(actionId);
-				}
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private findApprovedAction(type: string, value: string): string | null {
-		const id = ApprovalStore.artifactId(type, value);
-		for (const [actionId, entry] of this.approved.entries()) {
-			if (Date.now() >= entry.expiresAt) {
-				this.approved.delete(actionId);
-				continue;
-			}
-			if (
-				entry.artifacts.some(
-					(artifact) => ApprovalStore.artifactId(artifact.type, artifact.value) === id,
-				)
-			) {
-				return actionId;
-			}
-		}
-		return null;
-	}
-
 	cleanup(now = Date.now()): void {
 		for (const [actionId, entry] of this.pending.entries()) {
 			if (now - entry.createdAt >= PENDING_STALE_MS) {

@@ -2,14 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	addPendingApproval,
-	consumePendingApproval,
-	findConsumedApproval,
-	findConsumedApprovalAcrossSessions,
-	removeConsumedApproval,
-	removeConsumedApprovalAcrossSessions,
-} from "../approval-tracker.js";
+import { addPendingApproval, consumePendingApproval } from "../approval-tracker.js";
 
 const SAGE_DIR = "~/.sage";
 const SESSION = "test-session-1";
@@ -56,69 +49,6 @@ describe("approval-tracker", () => {
 		expect(entry?.artifacts[0]?.value).toBe(sampleApproval.artifacts[0].value);
 	});
 
-	it("consumePendingApproval writes to consumed-approvals", async () => {
-		await addPendingApproval(SESSION, "tool-456", sampleApproval);
-		await consumePendingApproval(SESSION, "tool-456");
-
-		const consumed = await findConsumedApproval(
-			SESSION,
-			"command",
-			sampleApproval.artifacts[0].value,
-		);
-		expect(consumed).not.toBeNull();
-		expect(consumed?.threatId).toBe("CLT-CMD-001");
-	});
-
-	it("findConsumedApproval finds matching non-expired entry", async () => {
-		await addPendingApproval(SESSION, "tool-789", sampleApproval);
-		await consumePendingApproval(SESSION, "tool-789");
-
-		const found = await findConsumedApproval(SESSION, "command", sampleApproval.artifacts[0].value);
-		expect(found).not.toBeNull();
-		expect(found?.artifactType).toBe("command");
-	});
-
-	it("findConsumedApproval returns null for expired entry", async () => {
-		// Write a consumed entry with past expiry directly
-		const consumed = {
-			[`command:${sampleApproval.artifacts[0].value}`]: {
-				...sampleApproval.artifacts[0],
-				threatId: sampleApproval.threatId,
-				threatTitle: sampleApproval.threatTitle,
-				artifact: sampleApproval.artifacts[0].value,
-				artifactType: sampleApproval.artifacts[0].type,
-				approvedAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
-				expiresAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-			},
-		};
-		const filePath = join(tmpDir, `consumed-approvals-${SESSION}.json`);
-		await writeFile(filePath, JSON.stringify(consumed));
-
-		const found = await findConsumedApproval(SESSION, "command", sampleApproval.artifacts[0].value);
-		expect(found).toBeNull();
-	});
-
-	it("findConsumedApproval returns null for non-existent artifact", async () => {
-		const found = await findConsumedApproval(SESSION, "command", "nonexistent-command");
-		expect(found).toBeNull();
-	});
-
-	it("removeConsumedApproval removes entry", async () => {
-		await addPendingApproval(SESSION, "tool-rm", sampleApproval);
-		await consumePendingApproval(SESSION, "tool-rm");
-
-		// Verify it exists
-		expect(
-			await findConsumedApproval(SESSION, "command", sampleApproval.artifacts[0].value),
-		).not.toBeNull();
-
-		// Remove it
-		await removeConsumedApproval(SESSION, "command", sampleApproval.artifacts[0].value);
-		expect(
-			await findConsumedApproval(SESSION, "command", sampleApproval.artifacts[0].value),
-		).toBeNull();
-	});
-
 	it("prunes stale pending entries (>1h)", async () => {
 		// Write a stale pending entry directly
 		const staleEntry = {
@@ -138,9 +68,6 @@ describe("approval-tracker", () => {
 	it("returns null gracefully for missing files", async () => {
 		const entry = await consumePendingApproval(SESSION, "nonexistent");
 		expect(entry).toBeNull();
-
-		const found = await findConsumedApproval(SESSION, "command", "anything");
-		expect(found).toBeNull();
 	});
 
 	it("consumePendingApproval returns null for unknown tool_use_id", async () => {
@@ -149,33 +76,7 @@ describe("approval-tracker", () => {
 		expect(entry).toBeNull();
 	});
 
-	// --- New tests ---
-
-	it("prunes expired consumed entries on load", async () => {
-		const artifact = sampleApproval.artifacts[0];
-		const consumed = {
-			[`command:${artifact.value}`]: {
-				threatId: sampleApproval.threatId,
-				threatTitle: sampleApproval.threatTitle,
-				artifact: artifact.value,
-				artifactType: artifact.type,
-				approvedAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
-				expiresAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-			},
-		};
-		const filePath = join(tmpDir, `consumed-approvals-${SESSION}.json`);
-		await writeFile(filePath, JSON.stringify(consumed));
-
-		// findConsumedApproval triggers pruning and deletes empty file
-		const found = await findConsumedApproval(SESSION, "command", artifact.value);
-		expect(found).toBeNull();
-
-		// File should be deleted (empty store after pruning)
-		const { access } = await import("node:fs/promises");
-		await expect(access(filePath)).rejects.toThrow();
-	});
-
-	it("multi-artifact round-trip: 2 artifacts in → 2 consumed entries", async () => {
+	it("multi-artifact round-trip: all artifacts present in returned entry", async () => {
 		const multiApproval = {
 			threatId: "CLT-URL-001",
 			threatTitle: "Suspicious URL",
@@ -189,52 +90,5 @@ describe("approval-tracker", () => {
 		const entry = await consumePendingApproval(SESSION, "tool-multi");
 		expect(entry).not.toBeNull();
 		expect(entry?.artifacts).toHaveLength(2);
-
-		// Both artifacts should be in consumed store
-		const found1 = await findConsumedApproval(SESSION, "url", "http://evil.test/a");
-		const found2 = await findConsumedApproval(SESSION, "url", "http://evil.test/b");
-		expect(found1).not.toBeNull();
-		expect(found2).not.toBeNull();
-	});
-
-	it("cross-session find: consumed entries in different session files discoverable", async () => {
-		const session2 = "test-session-2";
-		await addPendingApproval(session2, "tool-cross", sampleApproval);
-		await consumePendingApproval(session2, "tool-cross");
-
-		// Should NOT find via session-scoped lookup with wrong session
-		const notFound = await findConsumedApproval(
-			SESSION,
-			"command",
-			sampleApproval.artifacts[0].value,
-		);
-		expect(notFound).toBeNull();
-
-		// Should find via cross-session lookup
-		const found = await findConsumedApprovalAcrossSessions(
-			"command",
-			sampleApproval.artifacts[0].value,
-		);
-		expect(found).not.toBeNull();
-		expect(found?.threatId).toBe("CLT-CMD-001");
-	});
-
-	it("cross-session remove: entry removed from correct session file", async () => {
-		const session2 = "test-session-2";
-		await addPendingApproval(session2, "tool-rm-cross", sampleApproval);
-		await consumePendingApproval(session2, "tool-rm-cross");
-
-		// Verify it exists across sessions
-		expect(
-			await findConsumedApprovalAcrossSessions("command", sampleApproval.artifacts[0].value),
-		).not.toBeNull();
-
-		// Remove across sessions
-		await removeConsumedApprovalAcrossSessions("command", sampleApproval.artifacts[0].value);
-
-		// Should be gone
-		expect(
-			await findConsumedApprovalAcrossSessions("command", sampleApproval.artifacts[0].value),
-		).toBeNull();
 	});
 });

@@ -5,9 +5,8 @@
 # Install-Module without -RequiredVersion
 - id: "CLT-WIN-SUPPLY-001"
   category: supply_chain
-  severity: medium
-  confidence: 0.65
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "[Ii]nstall-[Mm]odule\\s+(?!.*-[Rr]equired[Vv]ersion)"
   match_on: command
   title: "PowerShell Install-Module without -RequiredVersion"

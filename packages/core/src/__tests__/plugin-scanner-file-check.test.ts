@@ -69,7 +69,6 @@ describe("scanPlugin file hash check", () => {
 		const fileFindings = result.findings.filter((f) => f.threatId === "FILE_CHECK");
 		expect(fileFindings).toHaveLength(1);
 		expect(fileFindings[0].severity).toBe("critical");
-		expect(fileFindings[0].action).toBe("block");
 		expect(fileFindings[0].title).toContain("Trojan:JS/Test");
 		expect(fileFindings[0].sourceFile).toBe("evil.js");
 	});

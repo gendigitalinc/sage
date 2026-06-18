@@ -19,7 +19,7 @@ function createOpenClawScanHandler(
 	branding: Branding = defaultBranding,
 	onResult?: (msg: string) => void,
 ): () => Promise<void> {
-	const { threatsDir, allowlistsDir } = getBundledDataDirs();
+	const { threatsDir, trustedDomainsDir } = getBundledDataDirs();
 	const version = getSageVersion();
 
 	return coreScanHandler({
@@ -28,9 +28,10 @@ function createOpenClawScanHandler(
 		discoverPlugins: () => discoverOpenClawPlugins(logger, undefined, branding),
 		selfPrefix: "@gendigital/sage-openclaw@",
 		threatsDir,
-		allowlistsDir,
+		trustedDomainsDir,
 		version,
 		agentRuntime: "openclaw",
+		// No agentRuntimeVersion: the OpenClaw plugin API exposes no host version.
 		branding,
 		onResult,
 		modelDownloadWorkerPath: resolve(__dirname, "model-download-worker.cjs"),

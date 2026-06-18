@@ -13,7 +13,7 @@ pnpm build
 pnpm test
 ```
 
-Requires Node.js >= 18 and pnpm >= 9. See [Development](docs/development.md) for the full command reference.
+Requires Node.js >= 18 and pnpm >= 9. See [Development](docs/developer-guide.md#development) for the full command reference.
 
 ## Making Changes
 
@@ -38,23 +38,7 @@ agree that your contribution will be licensed under the applicable license:
 
 ## Contributing Threat Rules
 
-Threat rules live in `threats/*.yaml`. Each rule must include:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Unique identifier (e.g. `CLT-CMD-001`) |
-| `category` | string | `tool`, `network_egress`, `secrets`, or `supply_chain` |
-| `severity` | enum | `critical`, `high`, `medium`, or `low` |
-| `confidence` | float | 0.0-1.0 |
-| `action` | enum | `block`, `require_approval`, or `log` |
-| `pattern` | string | Regex pattern |
-| `match_on` | string or list | `command`, `url`, `file_path`, `content`, or `domain` |
-| `title` | string | Human-readable description |
-| `expires_at` | string or null | ISO 8601 date or `null` for permanent |
-| `revoked` | boolean | Set `true` to disable without removing |
-| `case_insensitive` | boolean | Match pattern case-insensitively (default: `false`) |
-
-See [Threat Rules](docs/threat-rules.md) for the full format reference and examples.
+Threat rules live in `threats/*.yaml`. See [Threat Rules](docs/developer-guide.md#threat-rules) for the full format reference and examples.
 
 ## Coding Conventions
 

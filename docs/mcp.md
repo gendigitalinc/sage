@@ -33,7 +33,7 @@ flowchart TD
 ### Packages involved
 
 - `packages/core` (`@gendigital/sage-core`)
-  - Detection engine, config, allowlist, and **audit log writer**.
+  - Detection engine, config, exceptions, and **audit log writer**.
   - Audit entries now include:
     - `entry_id` (UUID)
     - `conversation_id` (used for report scoping)
@@ -48,6 +48,8 @@ flowchart TD
 - Platform bundles (runnable scripts)
   - Claude Code: `packages/claude-code/dist/mcp-server.cjs`
   - Cursor/VS Code VSIX: `packages/extension/dist/mcp-server.cjs`
+  - OpenCode: `packages/opencode/dist/mcp-server.cjs`
+  - OpenClaw: `packages/openclaw/dist/mcp-server.cjs`
 
 ## Supported clients
 
@@ -69,6 +71,16 @@ For **MCP**, Sage registers an MCP server definition provider so that the server
 
 - VS Code requires a manual start. Use the command palette: `MCP: List Server` → `sage` → `Start server`.
 
+### OpenCode
+
+- The Sage plugin’s `config` hook injects `mcp.sage` into the resolved config before OpenCode’s MCP service initialises, so the server is auto-registered with no user configuration required.
+- `process.execPath` (the running Bun/opencode binary) is used as the server command with `BUN_BE_BUN=1`, so the server runs correctly regardless of whether a separate `node` binary is on PATH.
+
+### OpenClaw
+
+- OpenClaw’s native plugin API does not support programmatic MCP server registration.
+- Users must add the server manually to their OpenClaw `mcp.servers` config, pointing at `packages/openclaw/dist/mcp-server.cjs` with `node` as the runtime. See the [OpenClaw Platform Guide](user-guide.md#openclaw) for the exact config snippet.
+
 ## Tooling
 
 ### `sage_list_audit_entries`
@@ -87,7 +99,7 @@ Reports audit entries as false positives to Sage Proxy (`POST /v2/fp-report`).
 - **Entry selection**: callers should call `sage_list_audit_entries` first and pass the relevant `entry_id`(s) via the `entry_ids` parameter.
   - With `entry_ids` provided: at most **10** entries per call. Larger arrays are rejected with an actionable error.
   - With `entry_ids` omitted (fallback): `allow` verdicts are filtered out and only the **3** most recent `deny` / `ask` entries for the conversation are submitted, to avoid flooding the backend with unrelated verdicts.
-- **Payload**: one report per audit entry, shaped like the Sage FP Submit Structure (see `sage_fp_handling_implementation.md` in this branch for the full schema). The structured `content` field stored on the audit entry is forwarded verbatim — the tool does not reconstruct content from the truncated `tool_input_summary`.
+- **Payload**: one report per audit entry, shaped like the Sage FP Submit Structure. The structured `content` field stored on the audit entry is forwarded verbatim — the tool does not reconstruct content from the truncated `tool_input_summary`.
 
 ## Configuration
 
@@ -114,5 +126,5 @@ Environment overrides:
 
 ## Notes and constraints
 
-- **No copy/paste across connectors**: protocol + tool logic lives in `@gendigital/sage-mcp`; connectors only provide a thin runnable entrypoint and (optionally) an allowlist approval adapter.
+- **No copy/paste across connectors**: protocol + tool logic lives in `@gendigital/sage-mcp`; connectors only provide a thin runnable entrypoint and (optionally) an approval adapter.
 - **Conversation id quality is host-dependent**: Sage records the best available conversation/session identifier from each host and stores it as `conversation_id` in the audit log.

@@ -90,7 +90,6 @@ function writeTestConfigs(homeDir: string): void {
 		JSON.stringify(
 			{
 				cache: { path: join(sageDir, "cache.json") },
-				allowlist: { path: join(sageDir, "allowlist.json") },
 			},
 			null,
 			2,

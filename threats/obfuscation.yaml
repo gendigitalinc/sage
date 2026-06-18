@@ -7,7 +7,6 @@
   category: tool
   severity: critical
   confidence: 0.95
-  action: block
   pattern: "base64\\s+(-d|--decode)\\s*\\|\\s*(bash|sh|zsh|ksh|dash)"
   match_on: command
   title: "Base64 decode piped to shell execution"
@@ -17,9 +16,8 @@
 # --- Hex escape sequences in printf ---
 - id: "CLT-OBFUS-002"
   category: tool
-  severity: medium
-  confidence: 0.70
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "printf\\s+[\"']\\\\x[0-9a-fA-F]{2}(\\\\x[0-9a-fA-F]{2}){3,}"
   match_on: command
   title: "Hex escape sequences in printf (potential obfuscation)"
@@ -31,7 +29,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\|\\s*rev\\s*\\|\\s*(bash|sh|zsh|ksh|dash)"
   match_on: command
   title: "Reversed string piped to shell execution"
@@ -43,7 +40,6 @@
   category: tool
   severity: critical
   confidence: 0.90
-  action: block
   pattern: "\\beval\\s+.*\\$\\(\\s*base64|python[3]?\\s+-c\\s+[\"'].*exec\\(.*decode"
   match_on: [command, content]
   title: "Eval with decode (obfuscated code execution)"
@@ -53,9 +49,8 @@
 # --- Shell metacharacter escaping ---
 - id: "CLT-OBFUS-005"
   category: tool
-  severity: high
+  severity: warning
   confidence: 0.85
-  action: block
   pattern: "\\|\\s*[\\\\'\"]+(bash|sh|zsh|ksh|dash)[\\\\'\"]*(\\s|$)"
   match_on: command
   title: "Shell metacharacter escaping to hide pipe target"
@@ -65,9 +60,8 @@
 # --- Alias/function redefinition ---
 - id: "CLT-OBFUS-006"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\balias\\s+(bash|sh|zsh|curl|wget|nc|netcat|python|ruby|perl|node)="
   match_on: command
   title: "Alias redefinition of security-relevant command"
@@ -76,9 +70,8 @@
 
 - id: "CLT-OBFUS-007"
   category: tool
-  severity: high
-  confidence: 0.80
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\\b(function\\s+)?(bash|sh|curl|wget|nc|python|ruby|perl|node)\\s*\\(\\s*\\)"
   match_on: command
   title: "Function redefinition of security-relevant command"
@@ -90,7 +83,6 @@
   category: tool
   severity: critical
   confidence: 0.85
-  action: block
   pattern: "python[23]?\\s+-c\\s+[\"'].*\\b(exec|eval|compile|__import__)\\b.*\\b(base64|decode|decompress)\\b"
   match_on: command
   title: "Python encoded payload execution via -c"

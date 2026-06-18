@@ -77,8 +77,7 @@ describe("scanPlugin skill-check integration", () => {
 		expect(skillFindings).toHaveLength(1);
 
 		const finding = skillFindings[0];
-		expect(finding.severity).toBe("high");
-		expect(finding.action).toBe("log");
+		expect(finding.severity).toBe("warning");
 		expect(finding.title).toContain("remote code");
 		expect(finding.sourceFile).toBe(join("skills", "audit-website"));
 		expect(finding.recommendations).toEqual([

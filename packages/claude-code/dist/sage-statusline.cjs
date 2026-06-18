@@ -4161,7 +4161,7 @@ var init_zod = __esm({
 });
 
 // ../core/dist/types.js
-var nullLogger, ArtifactTypeSchema, ArtifactSchema, SeveritySchema, ActionSchema, ThreatSchema, DecisionSchema, VerdictSeveritySchema, SensitivitySchema, UrlCheckConfigSchema, CacheConfigSchema, AllowlistConfigSchema, LoggingConfigSchema, OperationalLogLevelSchema, OperationalLoggingConfigSchema, FileCheckConfigSchema, PackageCheckConfigSchema, AmsiCheckConfigSchema, DEFAULT_PI_HIGH_RISK_THRESHOLD, DEFAULT_PI_MEDIUM_RISK_THRESHOLD, PiCheckConfigSchema, ExceptionDecisionSchema, ExceptionMatchSchema, ExceptionRuleSchema, ExceptionsFileSchema, ExceptionsConfigSchema, ConfigSchema, HookTypeSchema;
+var nullLogger, ArtifactTypeSchema, ArtifactSchema, VerdictSeveritySchema, ThreatSchema, DecisionSchema, SensitivitySchema, UrlCheckConfigSchema, CacheConfigSchema, LoggingConfigSchema, OperationalLogLevelSchema, OperationalLoggingConfigSchema, FileCheckConfigSchema, PackageCheckConfigSchema, AmsiCheckConfigSchema, DEFAULT_PI_HIGH_RISK_THRESHOLD, DEFAULT_PI_MEDIUM_RISK_THRESHOLD, PiCheckConfigSchema, ExceptionDecisionSchema, ExceptionMatchSchema, ExceptionRuleSchema, ExceptionsFileSchema, ExceptionsConfigSchema, ConfigSchema, HookTypeSchema;
 var init_types2 = __esm({
   "../core/dist/types.js"() {
     "use strict";
@@ -4182,23 +4182,21 @@ var init_types2 = __esm({
       value: external_exports.string(),
       context: external_exports.string().optional()
     });
-    SeveritySchema = external_exports.enum(["critical", "high", "medium", "low"]);
-    ActionSchema = external_exports.enum(["block", "require_approval", "log"]);
+    VerdictSeveritySchema = external_exports.enum(["info", "warning", "critical"]);
     ThreatSchema = external_exports.object({
       id: external_exports.string(),
       version: external_exports.number().int().optional(),
       category: external_exports.string(),
-      severity: SeveritySchema,
+      severity: VerdictSeveritySchema,
       confidence: external_exports.number(),
-      action: ActionSchema,
       pattern: external_exports.string(),
       match_on: external_exports.union([external_exports.string(), external_exports.array(external_exports.string())]),
       title: external_exports.string(),
       expires_at: external_exports.string().nullable().optional(),
-      revoked: external_exports.boolean().optional().default(false)
+      revoked: external_exports.boolean().optional().default(false),
+      flags: external_exports.array(external_exports.string()).optional().default([])
     });
     DecisionSchema = external_exports.enum(["allow", "deny", "ask"]);
-    VerdictSeveritySchema = external_exports.enum(["info", "warning", "critical"]);
     SensitivitySchema = external_exports.enum(["paranoid", "balanced", "relaxed"]);
     UrlCheckConfigSchema = external_exports.object({
       endpoint: external_exports.string().optional(),
@@ -4210,9 +4208,6 @@ var init_types2 = __esm({
       ttl_malicious_seconds: external_exports.number().default(3600),
       ttl_clean_seconds: external_exports.number().default(86400),
       path: external_exports.string().default("~/.sage/cache.json")
-    });
-    AllowlistConfigSchema = external_exports.object({
-      path: external_exports.string().default("~/.sage/allowlist.json")
     });
     LoggingConfigSchema = external_exports.object({
       enabled: external_exports.boolean().default(true),
@@ -4275,7 +4270,6 @@ var init_types2 = __esm({
       pi_check: PiCheckConfigSchema.default({}),
       heuristics_enabled: external_exports.boolean().default(true),
       cache: CacheConfigSchema.default({}),
-      allowlist: AllowlistConfigSchema.default({}),
       exceptions: ExceptionsConfigSchema.default({}),
       logging: LoggingConfigSchema.default({}),
       operational_logging: OperationalLoggingConfigSchema.default({}),
@@ -4305,9 +4299,6 @@ function defaultConfigPath() {
 function defaultCachePath() {
   return (0, import_node_path.join)(resolvedSageDir(), "cache.json");
 }
-function defaultAllowlistPath() {
-  return (0, import_node_path.join)(resolvedSageDir(), "allowlist.json");
-}
 function defaultExceptionsPath() {
   return (0, import_node_path.join)(resolvedSageDir(), "exceptions.json");
 }
@@ -4323,6 +4314,12 @@ function resolvePath(pathStr) {
     return (0, import_node_path.join)(home, pathStr.slice(1));
   }
   return pathStr;
+}
+function getClaudeConfigDir() {
+  const envDir = process.env.CLAUDE_CONFIG_DIR;
+  if (envDir)
+    return resolvePath(envDir);
+  return resolvePath("~/.claude");
 }
 function isWithinDirectory(baseDir, targetPath) {
   const rel = (0, import_node_path.relative)(baseDir, targetPath);
@@ -4373,7 +4370,6 @@ function sanitizeBrandKey(data, logger) {
 }
 function sanitizeConfigPaths(config, logger) {
   const cachePath = defaultCachePath();
-  const allowlistPath = defaultAllowlistPath();
   const exceptionsPath = defaultExceptionsPath();
   const auditPath = defaultAuditPath();
   const operationalLogPath = defaultOperationalLogPath();
@@ -4382,10 +4378,6 @@ function sanitizeConfigPaths(config, logger) {
     cache: {
       ...config.cache,
       path: normalizeStateFilePath(config.cache.path, cachePath, "cache", logger)
-    },
-    allowlist: {
-      ...config.allowlist,
-      path: normalizeStateFilePath(config.allowlist.path, allowlistPath, "allowlist", logger)
     },
     exceptions: {
       ...config.exceptions,
@@ -13675,25 +13667,6 @@ var require_dist = __commonJS({
 var import_node_fs = require("node:fs");
 var import_node_path5 = require("node:path");
 
-// ../core/dist/allowlist.js
-init_config();
-init_file_utils();
-init_types2();
-
-// ../core/dist/url-utils.js
-init_file_utils();
-
-// ../core/dist/approval-store.js
-var PENDING_STALE_MS = 60 * 60 * 1e3;
-var APPROVED_TTL_MS = 10 * 60 * 1e3;
-
-// ../core/dist/audit-log.js
-init_config();
-init_file_utils();
-
-// ../core/dist/jsonl-log-writer.js
-init_config();
-
 // ../core/dist/brands.js
 var defaultBranding = { name: "Sage", short_name: "Sage" };
 var BRANDS = {
@@ -13710,10 +13683,28 @@ function resolveBranding(brandKey, logger) {
   return { ...entry, brand_key: brandKey };
 }
 
+// ../core/dist/allowlist-migration.js
+init_config();
+init_file_utils();
+
+// ../core/dist/approval-store.js
+var PENDING_STALE_MS = 60 * 60 * 1e3;
+var APPROVED_TTL_MS = 10 * 60 * 1e3;
+
+// ../core/dist/audit-log.js
+init_config();
+init_file_utils();
+
+// ../core/dist/jsonl-log-writer.js
+init_config();
+
 // ../core/dist/cache.js
 init_config();
 init_file_utils();
 init_types2();
+
+// ../core/dist/url-utils.js
+init_file_utils();
 
 // ../core/dist/clients/amsi.js
 init_types2();
@@ -13867,7 +13858,7 @@ init_file_utils();
 var import_meta = {};
 function resolveVersion() {
   if (true)
-    return "0.10.0";
+    return "0.11.0";
   try {
     const pkgPath = (0, import_node_path2.join)((0, import_node_path2.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
     const pkg = JSON.parse(getFileContentSync(pkgPath));
@@ -13934,6 +13925,9 @@ init_file_utils();
 // ../core/dist/detection-telemetry.js
 init_types2();
 
+// ../core/dist/policy.js
+init_types2();
+
 // ../core/dist/engine.js
 init_types2();
 
@@ -13993,9 +13987,6 @@ init_file_utils();
 init_config();
 init_types2();
 
-// ../core/dist/marketplace-migration.js
-init_config();
-
 // ../core/dist/model-download.js
 init_types2();
 
@@ -14007,14 +13998,17 @@ var DEFAULT_CACHE_PATH = (0, import_node_path3.join)(getHomeDir(), ".sage", "plu
 
 // ../core/dist/plugin-scanner.js
 var import_node_path4 = require("node:path");
+init_config();
 init_file_utils();
 init_types2();
-var DEFAULT_PLUGINS_REGISTRY = (0, import_node_path4.join)(getHomeDir(), ".claude", "plugins", "installed_plugins.json");
+function defaultPluginsRegistry() {
+  return (0, import_node_path4.join)(getClaudeConfigDir(), "plugins", "installed_plugins.json");
+}
 var MAX_FILE_SIZE = 512 * 1024;
 function isPluginInstalledSync(pluginName) {
   let raw;
   try {
-    raw = getFileContentSync(DEFAULT_PLUGINS_REGISTRY);
+    raw = getFileContentSync(defaultPluginsRegistry());
   } catch (err) {
     if (err && typeof err === "object" && "code" in err && err.code === "ENOENT") {
       return false;
@@ -14092,7 +14086,7 @@ function getPluginName() {
 function isMarketplaceInstallation() {
   try {
     const pluginRoot = (0, import_node_fs.realpathSync)((0, import_node_path5.resolve)(__dirname, "..", "..", ".."));
-    const claudeDir = (0, import_node_fs.realpathSync)(resolvePath("~/.claude"));
+    const claudeDir = (0, import_node_fs.realpathSync)(getClaudeConfigDir());
     return pluginRoot.startsWith(claudeDir);
   } catch {
     return false;
@@ -14108,7 +14102,7 @@ function isPluginEnabled() {
   const pluginName = getPluginName();
   if (!pluginName) return true;
   try {
-    const settingsPath = resolvePath("~/.claude/settings.json");
+    const settingsPath = (0, import_node_path5.join)(getClaudeConfigDir(), "settings.json");
     const raw = (0, import_node_fs.readFileSync)(settingsPath, "utf-8");
     const settings = JSON.parse(raw);
     const enabled = settings.enabledPlugins;
@@ -14123,7 +14117,7 @@ function isPluginEnabled() {
   return true;
 }
 function removeOwnStatusLine() {
-  const settingsPath = resolvePath("~/.claude/settings.json");
+  const settingsPath = (0, import_node_path5.join)(getClaudeConfigDir(), "settings.json");
   try {
     const raw = (0, import_node_fs.readFileSync)(settingsPath, "utf-8");
     const settings = JSON.parse(raw);

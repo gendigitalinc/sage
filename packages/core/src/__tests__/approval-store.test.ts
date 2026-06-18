@@ -60,57 +60,6 @@ describe("ApprovalStore", () => {
 		expect(store.isApproved("a1")).toBe(false);
 	});
 
-	it("hasApprovedArtifact finds matching artifact", () => {
-		const store = new ApprovalStore();
-		store.setPending("a1", {
-			artifacts: [
-				{ type: "url", value: "https://example.com" },
-				{ type: "command", value: "curl http://x" },
-			],
-			createdAt: Date.now(),
-		});
-		store.approve("a1");
-
-		expect(store.hasApprovedArtifact("url", "https://example.com")).toBe(true);
-		expect(store.hasApprovedArtifact("command", "curl http://x")).toBe(true);
-		expect(store.hasApprovedArtifact("url", "https://other.com")).toBe(false);
-	});
-
-	it("consumeApprovedArtifact is single-use", () => {
-		const store = new ApprovalStore();
-		store.setPending("a1", {
-			artifacts: [{ type: "url", value: "https://example.com" }],
-			createdAt: Date.now(),
-		});
-		store.approve("a1");
-
-		expect(store.hasApprovedArtifact("url", "https://example.com")).toBe(true);
-		expect(store.consumeApprovedArtifact("url", "https://example.com")).toBe(true);
-		expect(store.hasApprovedArtifact("url", "https://example.com")).toBe(false);
-		expect(store.consumeApprovedArtifact("url", "https://example.com")).toBe(false);
-	});
-
-	it("consumeApprovedArtifact removes only the matched artifact, leaving others", () => {
-		const store = new ApprovalStore();
-		store.setPending("a1", {
-			artifacts: [
-				{ type: "url", value: "https://example.com" },
-				{ type: "command", value: "curl http://x" },
-			],
-			createdAt: Date.now(),
-		});
-		store.approve("a1");
-
-		// Consuming the URL should leave the command intact
-		expect(store.consumeApprovedArtifact("url", "https://example.com")).toBe(true);
-		expect(store.hasApprovedArtifact("url", "https://example.com")).toBe(false);
-		expect(store.hasApprovedArtifact("command", "curl http://x")).toBe(true);
-
-		// Consuming the command removes the last artifact and the entire entry
-		expect(store.consumeApprovedArtifact("command", "curl http://x")).toBe(true);
-		expect(store.hasApprovedArtifact("command", "curl http://x")).toBe(false);
-	});
-
 	it("cleanup prunes stale pending entries", () => {
 		const store = new ApprovalStore();
 		store.setPending("a1", {
@@ -173,6 +122,6 @@ describe("ApprovalStore", () => {
 
 		// Mutating the returned pending entry should not affect the approved entry
 		entry?.artifacts.push({ type: "url", value: "https://sneaky.test" });
-		expect(store.hasApprovedArtifact("url", "https://sneaky.test")).toBe(false);
+		expect(store.isApproved("a1")).toBe(true);
 	});
 });

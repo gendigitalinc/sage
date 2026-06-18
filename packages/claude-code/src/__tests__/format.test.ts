@@ -17,9 +17,7 @@ function makeFinding(overrides: Partial<PluginFinding> = {}): PluginFinding {
 	return {
 		threatId: "CLT-CMD-001",
 		title: "Pipe to shell",
-		severity: "high",
-		confidence: 0.9,
-		action: "block",
+		severity: "warning",
 		artifact: "curl ... | bash",
 		sourceFile: "setup.sh",
 		...overrides,
@@ -41,20 +39,17 @@ function makeVerdict(overrides: Partial<Verdict> = {}): Verdict {
 }
 
 describe("severityEmoji", () => {
-	it("returns alert emoji for critical/high", () => {
+	it("returns alert emoji for critical", () => {
 		expect(severityEmoji("critical")).toBe("🚨");
-		expect(severityEmoji("high")).toBe("🚨");
 		expect(severityEmoji("CRITICAL")).toBe("🚨");
 	});
 
-	it("returns warning emoji for medium/warn", () => {
-		expect(severityEmoji("medium")).toBe("⚠️");
-		expect(severityEmoji("warn")).toBe("⚠️");
+	it("returns warning emoji for warning", () => {
 		expect(severityEmoji("warning")).toBe("⚠️");
+		expect(severityEmoji("WARNING")).toBe("⚠️");
 	});
 
-	it("returns info emoji for low/info/unknown", () => {
-		expect(severityEmoji("low")).toBe("ℹ️");
+	it("returns info emoji for info/unknown", () => {
 		expect(severityEmoji("info")).toBe("ℹ️");
 		expect(severityEmoji("unknown")).toBe("ℹ️");
 	});
@@ -125,7 +120,7 @@ describe("formatThreatBanner", () => {
 	it("renders multiple findings with blank line separator", () => {
 		const results: PluginScanResult[] = [
 			{ plugin: makePlugin("plugin-a@mp"), findings: [makeFinding({ severity: "critical" })] },
-			{ plugin: makePlugin("plugin-b@mp"), findings: [makeFinding({ severity: "high" })] },
+			{ plugin: makePlugin("plugin-b@mp"), findings: [makeFinding({ severity: "warning" })] },
 		];
 		const msg = formatThreatBanner("0.3.1", results);
 		expect(msg).toContain("plugin-a@mp");
@@ -134,10 +129,10 @@ describe("formatThreatBanner", () => {
 		expect(msg).toContain("\n\n");
 	});
 
-	it("skips low severity findings", () => {
+	it("skips info severity findings", () => {
 		const result: PluginScanResult = {
 			plugin: makePlugin(),
-			findings: [makeFinding({ severity: "low" })],
+			findings: [makeFinding({ severity: "info" })],
 		};
 		const msg = formatThreatBanner("0.3.1", [result]);
 		expect(msg).not.toContain("Plugin");
@@ -164,7 +159,7 @@ describe("formatThreatBanner", () => {
 
 	it("caps findings at 5 per plugin", () => {
 		const findings = Array.from({ length: 8 }, (_, i) =>
-			makeFinding({ threatId: `CLT-${i}`, severity: "high" }),
+			makeFinding({ threatId: `CLT-${i}`, severity: "warning" }),
 		);
 		const result: PluginScanResult = { plugin: makePlugin(), findings };
 		const msg = formatThreatBanner("0.3.1", [result]);

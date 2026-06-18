@@ -18,7 +18,7 @@ import { checkForUpdate, type VersionCheckResult } from "./version-check.js";
 export interface SessionStartContext {
 	plugins: PluginInfo[];
 	threatsDir: string;
-	allowlistsDir: string;
+	trustedDomainsDir: string;
 	version: string;
 	agentRuntime: AgentRuntime;
 	logger?: Logger;
@@ -70,7 +70,7 @@ export async function runSessionStart(ctx: SessionStartContext): Promise<Session
 		runSessionStartScan({
 			plugins: ctx.plugins,
 			threatsDir: ctx.threatsDir,
-			allowlistsDir: ctx.allowlistsDir,
+			trustedDomainsDir: ctx.trustedDomainsDir,
 			sageVersion: ctx.version,
 			logger,
 			configPath: ctx.configPath,

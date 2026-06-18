@@ -68,4 +68,16 @@ await esbuild.build({
 	define: { __SAGE_VERSION__: JSON.stringify(pkg.version) },
 });
 
+await esbuild.build({
+	bundle: true,
+	platform: "node",
+	target: "node18",
+	format: "cjs",
+	sourcemap: true,
+	external: ["koffi"],
+	entryPoints: ["src/mcp-server.ts"],
+	outfile: "dist/mcp-server.cjs",
+	define: { __SAGE_VERSION__: JSON.stringify(pkg.version) },
+});
+
 console.log("Build complete.");

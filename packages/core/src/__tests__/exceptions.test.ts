@@ -433,9 +433,8 @@ describe("self-defense coverage", () => {
 		);
 	});
 
-	it("still detects .sage/config.json and .sage/allowlist.json", () => {
+	it("still detects .sage/config.json", () => {
 		expect(matchFilePath(engine, "/home/user/.sage/config.json")).toContain("CLT-SELF-002");
-		expect(matchFilePath(engine, "/home/user/.sage/allowlist.json")).toContain("CLT-SELF-002");
 	});
 });
 

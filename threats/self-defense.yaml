@@ -8,8 +8,7 @@
 - id: "CLT-SELF-001"
   category: self_defense
   severity: critical
-  confidence: 0.90
-  action: require_approval
+  confidence: 0.60
   pattern: "(rm|del|rmdir|rd|Remove-Item|unlink)\\s.*\\.sage(\\s|[\\\\/]|$)"
   case_insensitive: true
   match_on: command
@@ -20,10 +19,9 @@
 # Access Sage config files
 - id: "CLT-SELF-002"
   category: self_defense
-  severity: high
-  confidence: 0.85
-  action: require_approval
-  pattern: "\\.sage[\\\\/](allowlist|config|exceptions|pending-exceptions)\\.json"
+  severity: warning
+  confidence: 0.60
+  pattern: "\\.sage[\\\\/](config|exceptions|pending-exceptions)\\.json"
   match_on: file_path
   title: "Access Sage configuration files"
   expires_at: null
@@ -32,9 +30,8 @@
 # Delete Claude Code hook or plugin config
 - id: "CLT-SELF-003"
   category: self_defense
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "(rm|del|Remove-Item|unlink)\\s.*\\.claude[\\\\/].*(hooks\\.json|installed_plugins)"
   case_insensitive: true
   match_on: command
@@ -45,9 +42,8 @@
 # Disable Sage security features via config
 - id: "CLT-SELF-004"
   category: self_defense
-  severity: high
-  confidence: 0.85
-  action: require_approval
+  severity: warning
+  confidence: 0.60
   pattern: "\"heuristics_enabled\"\\s*:\\s*false|\"url_check\"\\s*:\\s*\\{[^}]*\"enabled\"\\s*:\\s*false"
   match_on: content
   title: "Attempt to disable Sage security features via config"

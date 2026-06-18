@@ -32,7 +32,7 @@ Sage scans other installed plugins for threats at every session start. Each plug
     {
       "threat_id": "CLT-CMD-001",
       "title": "Pipe to shell",
-      "severity": "high",
+      "severity": "warning",
       "confidence": 0.9,
       "artifact": "curl ... | bash",
       "source_file": "setup.sh"

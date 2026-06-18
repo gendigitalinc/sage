@@ -40,12 +40,6 @@ describe("Self-defense threats", () => {
 		expect(matchFilePath(engine, "/home/user/.sage/config.json")).toContain("CLT-SELF-002");
 	});
 
-	it("detects write to .sage/allowlist.json (SELF-002)", () => {
-		expect(matchFilePath(engine, "C:\\Users\\user\\.sage\\allowlist.json")).toContain(
-			"CLT-SELF-002",
-		);
-	});
-
 	it("does not match .sage/cache.json (SELF-002)", () => {
 		const ids = matchFilePath(engine, "/home/user/.sage/cache.json");
 		expect(ids.filter((id) => id === "CLT-SELF-002")).toEqual([]);

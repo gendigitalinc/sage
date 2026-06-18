@@ -1,7 +1,7 @@
 {
   "name": "@gendigital/sage-openclaw",
   "license": "Apache-2.0",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "type": "module",
   "description": "Safety for Agents — ADR layer for OpenClaw",
   "homepage": "https://github.com/gendigitalinc/sage",
@@ -23,7 +23,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "pnpm -C ../core build && pnpm run clean && pnpm run sync:assets && node esbuild.config.js",
+    "build": "pnpm run clean && pnpm run sync:assets && node esbuild.config.js",
     "clean": "node ../../scripts/clean.mjs dist resources",
     "prepack": "node ../../scripts/check-workspace-refs.mjs",
     "sync:assets": "node scripts/sync-assets.mjs",
@@ -34,6 +34,7 @@
   },
   "devDependencies": {
     "@gendigital/sage-core": "workspace:*",
+    "@gendigital/sage-mcp": "workspace:*",
     "@types/node": "^22.0.0",
     "esbuild": "^0.25.0",
     "typescript": "^5.9.0",

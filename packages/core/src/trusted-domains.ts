@@ -10,21 +10,21 @@ import type { Logger, TrustedDomain } from "./types.js";
 import { nullLogger } from "./types.js";
 
 export async function loadTrustedDomains(
-	allowlistsDir: string,
+	trustedDomainsDir: string,
 	logger: Logger = nullLogger,
 ): Promise<TrustedDomain[]> {
 	let files: string[];
 	try {
-		files = (await readdir(allowlistsDir)).filter((f) => f.endsWith(".yaml")).sort();
+		files = (await readdir(trustedDomainsDir)).filter((f) => f.endsWith(".yaml")).sort();
 	} catch {
-		logger.debug("Allowlists directory does not exist", { path: allowlistsDir });
+		logger.debug("Trusted domains directory does not exist", { path: trustedDomainsDir });
 		return [];
 	}
 
 	const domains: TrustedDomain[] = [];
 
 	for (const filename of files) {
-		const filePath = join(allowlistsDir, filename);
+		const filePath = join(trustedDomainsDir, filename);
 		let content: string;
 		try {
 			content = await getFileContent(filePath);
@@ -70,7 +70,7 @@ export async function loadTrustedDomains(
 		}
 	}
 
-	logger.debug(`Loaded ${domains.length} trusted domains from ${allowlistsDir}`);
+	logger.debug(`Loaded ${domains.length} trusted domains from ${trustedDomainsDir}`);
 	return domains;
 }
 

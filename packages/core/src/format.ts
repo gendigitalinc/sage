@@ -14,8 +14,8 @@ export const SEPARATOR_WIDTH = 48;
 
 export function severityEmoji(severity: string): string {
 	const s = severity.toLowerCase();
-	if (s === "critical" || s === "high") return "🚨";
-	if (s === "medium" || s === "warn" || s === "warning") return "⚠️";
+	if (s === "critical") return "🚨";
+	if (s === "warning") return "⚠️";
 	return "ℹ️";
 }
 
@@ -59,22 +59,22 @@ export function formatStartupClean(
  */
 export type ThreatBannerStyle = "verbose" | "compact";
 
-function totalHighCrit(results: PluginScanResult[]): number {
+function totalNonInfo(results: PluginScanResult[]): number {
 	let n = 0;
 	for (const r of results) {
 		for (const f of r.findings) {
-			if (f.severity === "critical" || f.severity === "high") n++;
+			if (f.severity !== "info") n++;
 		}
 	}
 	return n;
 }
 
-function findFirstHighCrit(
+function findFirstNonInfo(
 	results: PluginScanResult[],
 ): { plugin: PluginScanResult["plugin"]; finding: PluginScanResult["findings"][number] } | null {
 	for (const r of results) {
 		for (const f of r.findings) {
-			if (f.severity === "critical" || f.severity === "high") {
+			if (f.severity !== "info") {
 				return { plugin: r.plugin, finding: f };
 			}
 		}
@@ -95,12 +95,10 @@ function formatThreatBannerVerbose(
 	let first = true;
 
 	for (const result of results) {
-		const highCrit = result.findings.filter(
-			(f) => f.severity === "critical" || f.severity === "high",
-		);
-		if (highCrit.length === 0) continue;
+		const nonInfo = result.findings.filter((f) => f.severity !== "info");
+		if (nonInfo.length === 0) continue;
 
-		for (const f of highCrit.slice(0, MAX_FINDINGS)) {
+		for (const f of nonInfo.slice(0, MAX_FINDINGS)) {
 			if (!first) lines.push("");
 			first = false;
 
@@ -112,8 +110,6 @@ function formatThreatBannerVerbose(
 				lines.push(kv("Artifact", f.artifact));
 			}
 			lines.push(kv("Source", f.sourceFile));
-			const actionLabel = f.action === "block" ? "Blocked" : "Flagged";
-			lines.push(kv("Action", actionLabel));
 			if (f.recommendations && f.recommendations.length > 0) {
 				lines.push(kv("Recommendations", ""));
 				for (const rec of f.recommendations) {
@@ -122,7 +118,7 @@ function formatThreatBannerVerbose(
 			}
 		}
 
-		const overflow = highCrit.length - MAX_FINDINGS;
+		const overflow = nonInfo.length - MAX_FINDINGS;
 		if (overflow > 0) {
 			lines.push("");
 			lines.push(`   ... and ${overflow} more findings`);
@@ -146,8 +142,8 @@ function formatThreatBannerCompact(
 	// `formatSessionStartMessage` only enters the threat path when at least
 	// one plugin had findings, but we still defensively handle the empty
 	// case to avoid crashing on a degenerate input.
-	const total = totalHighCrit(results);
-	const first = findFirstHighCrit(results);
+	const total = totalNonInfo(results);
+	const first = findFirstNonInfo(results);
 	if (!first || total === 0) {
 		return formatStartupClean(version, versionCheck, branding);
 	}
@@ -211,9 +207,4 @@ export function formatPiWarning(
 		"If this is a false positive, use the sage_report_false_positive MCP tool to report it.",
 	];
 	return lines.join("\n");
-}
-
-// TODO: Remove marketplace migration notice after v0.7.x // gitleaks:allow
-export function formatMigrationNotice(branding: Branding = defaultBranding): string {
-	return `\u26a0\ufe0f  ${branding.name} has moved \u2192 run: /plugin marketplace remove sage && /plugin marketplace add https://github.com/gendigitalinc/sage.git`;
 }

@@ -43,6 +43,34 @@ export function getHomeDir(): string {
 }
 
 /**
+ * Rename with bounded retry on Windows-style transient sharing violations.
+ *
+ * On Windows, `rename` over a target file can fail with EPERM/EACCES/EBUSY
+ * when another process (AV scanner, indexer, sync client, ...) holds a brief
+ * handle without FILE_SHARE_DELETE. The window is typically a few ms; a small
+ * exponential backoff rides over it. POSIX rename(2) is atomic and these
+ * error codes there indicate permanent permission/mount issues, so we
+ * fail-fast with a single attempt on non-Windows platforms.
+ */
+async function renameWithRetry(from: string, to: string, attempts = 5): Promise<void> {
+	if (process.platform !== "win32") {
+		await fsPromises.rename(from, to);
+		return;
+	}
+	for (let i = 0; i < attempts; i++) {
+		try {
+			await fsPromises.rename(from, to);
+			return;
+		} catch (err) {
+			const code = (err as NodeJS.ErrnoException).code;
+			const transient = code === "EPERM" || code === "EACCES" || code === "EBUSY";
+			if (!transient || i === attempts - 1) throw err;
+			await new Promise((resolve) => setTimeout(resolve, 10 * 2 ** i));
+		}
+	}
+}
+
+/**
  * Write JSON data atomically: write to a temp file, then rename.
  * Prevents corrupt reads from concurrent processes.
  */
@@ -51,7 +79,7 @@ export async function atomicWriteJson(path: string, data: unknown): Promise<void
 	const tmp = `${path}.${randomBytes(6).toString("hex")}.tmp`;
 	try {
 		await fsPromises.writeFile(tmp, `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
-		await fsPromises.rename(tmp, path);
+		await renameWithRetry(tmp, path);
 	} catch (err) {
 		try {
 			await fsPromises.unlink(tmp);
@@ -93,7 +121,7 @@ export async function pruneOrphanedTmpFiles(
 	// Also prune transient model-download artefacts (in-flight archives and
 	// half-extracted dirs) under <sageDir>/models/.download/. Old schema-version
 	// trees under <sageDir>/models/<schema>/ are deliberately left in place
-	// — see docs/model-update.md §3.7.
+	// to avoid breaking older installs still using them.
 	await pruneOrphanedModelDownloads(join(resolvedDir, "models", ".download"));
 }
 

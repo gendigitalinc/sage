@@ -4,7 +4,6 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { isAllowlisted, loadAllowlist } from "./allowlist.js";
 import { logVerdict } from "./audit-log.js";
 import { VerdictCache } from "./cache.js";
 import { AmsiClient, isAmsiSupported } from "./clients/amsi.js";
@@ -88,11 +87,23 @@ export interface ToolOutputEvaluationRequest {
 	toolUseId?: string;
 }
 
+export interface AmsiClientLease {
+	client: AmsiClient;
+	release(): void | Promise<void>;
+}
+
 export interface ToolEvaluationContext {
 	threatsDir: string;
-	allowlistsDir: string;
+	trustedDomainsDir: string;
+	config?: Config;
 	configPath?: string;
 	logger?: Logger;
+	/**
+	 * Optional process-scoped AMSI lease provider for long-lived connectors. When
+	 * omitted, the evaluator preserves the command-hook behavior of creating and
+	 * closing a fresh AMSI client per evaluation.
+	 */
+	acquireAmsiClientLease?: (logger: Logger) => Promise<AmsiClientLease | null>;
 	/** Agent runtime identifier for telemetry (e.g. "claude-code", "cursor") */
 	agentRuntime?: AgentRuntime;
 	/** Session ID for audit logging */
@@ -159,13 +170,21 @@ export function allowVerdict(source = "none"): Verdict {
 	return {
 		decision: "allow",
 		category: "none",
-		confidence: 1.0,
+		confidence: 0.0,
 		severity: "info",
 		source,
 		artifacts: [],
 		matchedThreatId: null,
 		reasons: [],
 	};
+}
+
+async function resolveEvaluationConfig(
+	context: ToolEvaluationContext,
+	logger: Logger,
+): Promise<Config> {
+	if (context.config) return context.config;
+	return loadConfig(context.configPath, logger).catch(() => ConfigSchema.parse({}));
 }
 
 function shouldSkipPromptInjectionForLocalMarkdown(request: ToolEvaluationRequest): boolean {
@@ -180,7 +199,7 @@ export async function evaluateToolCall(
 	context: ToolEvaluationContext,
 ): Promise<Verdict> {
 	const logger = context.logger ?? nullLogger;
-	const config = await loadConfig(context.configPath, logger).catch(() => ConfigSchema.parse({}));
+	const config = await resolveEvaluationConfig(context, logger);
 	const eventId = randomUUID();
 	logger.debug("Tool call evaluation started", {
 		eventId,
@@ -247,31 +266,7 @@ export async function evaluateToolCall(
 			return verdict;
 		}
 
-		// 2. Legacy exact-match allowlist (unchanged)
-		try {
-			const allowlist = await loadAllowlist(config.allowlist, logger);
-			if (isAllowlisted(allowlist, request.artifacts)) {
-				const allowV = allowVerdict("allowlisted");
-				await logVerdict(config.logging, {
-					sessionId: request.sessionId,
-					toolName: request.toolName,
-					toolInput: request.toolInput,
-					verdict: allowV,
-					userOverride: true,
-					conversationId: request.conversationId,
-					agentRuntime: request.agentRuntime,
-					hookType: request.hookType,
-					eventId,
-					toolUseId: request.toolUseId,
-				});
-				logEvaluationCompleted(allowV);
-				return allowV;
-			}
-		} catch {
-			// Fail open if allowlist loading fails.
-		}
-
-		// 3. Allow exceptions (pattern-based, with match-type-aware semantics)
+		// 2. Allow exceptions (pattern-based, with match-type-aware semantics)
 		const allowMatch = findAllowException(exceptions, request.artifacts);
 		if (allowMatch) {
 			const allowV = allowVerdict("exception");
@@ -295,7 +290,7 @@ export async function evaluateToolCall(
 			return allowV;
 		}
 	} catch (error) {
-		logger.debug("Exception/allowlist checks failed open", { error: String(error) });
+		logger.debug("Exception checks failed open", { error: String(error) });
 		// Fail open if exceptions loading fails.
 	}
 
@@ -323,7 +318,7 @@ export async function evaluateToolCall(
 		if (shouldSkipPromptInjectionForLocalMarkdown(request)) {
 			threats = threats.filter((t) => t.category !== "prompt_injection");
 		}
-		const trustedDomains = await loadTrustedDomains(context.allowlistsDir, logger);
+		const trustedDomains = await loadTrustedDomains(context.trustedDomainsDir, logger);
 		const heuristics = new HeuristicsEngine(threats, trustedDomains);
 		heuristicMatches = heuristics.match(request.artifacts);
 	}
@@ -345,10 +340,19 @@ export async function evaluateToolCall(
 	const amsiCheckResults: AmsiCheckResult[] = [];
 	if (config.amsi_check.enabled && isAmsiSupported()) {
 		let amsiClient: AmsiClient | null = null;
+		let amsiLease: AmsiClientLease | null = null;
+		let ownsAmsiClient = false;
 		try {
-			amsiClient = new AmsiClient(logger);
-			await amsiClient.init();
-			if (amsiClient.isAvailable) {
+			if (context.acquireAmsiClientLease) {
+				amsiLease = await context.acquireAmsiClientLease(logger);
+				amsiClient = amsiLease?.client ?? null;
+			} else {
+				amsiClient = new AmsiClient(logger);
+				ownsAmsiClient = true;
+				await amsiClient.init();
+			}
+			if (amsiClient?.isAvailable) {
+				const activeAmsiClient = amsiClient;
 				const scans: { scanType: AmsiScanType; name: string; content: string }[] = [];
 
 				if (request.toolName === "Bash") {
@@ -381,7 +385,7 @@ export async function evaluateToolCall(
 				}
 
 				for (const scan of scans) {
-					const result = await amsiClient.scanString(scan.scanType, scan.name, scan.content);
+					const result = await activeAmsiClient.scanString(scan.scanType, scan.name, scan.content);
 					if (result) {
 						amsiCheckResults.push(result);
 					}
@@ -390,50 +394,50 @@ export async function evaluateToolCall(
 		} catch {
 			// Fail open
 		} finally {
-			amsiClient?.close();
+			try {
+				if (amsiLease) {
+					await amsiLease.release();
+				} else if (ownsAmsiClient) {
+					amsiClient?.close();
+				}
+			} catch {
+				// Fail open
+			}
 		}
 	}
 
-	// PI (prompt injection) check — restricted to WebFetch with content pre-fetching.
-	// Heuristic PI rules still run on all tools via the heuristics engine above.
+	// Compute preliminary verdict from non-PI signals.
+	// If already deny, skip the expensive PI check entirely.
+	const engine = new DecisionEngine(config.sensitivity, logger);
+	const preliminaryVerdict = await engine.decide({
+		heuristicMatches,
+		urlCheckResults,
+		packageCheckResults: packageCheckResults.length > 0 ? packageCheckResults : undefined,
+		amsiCheckResults: amsiCheckResults.length > 0 ? amsiCheckResults : undefined,
+	});
+
 	const allPiResults: PiCheckResult[] = [];
-	const piDenySignals: PiCheckResult[] = [];
-	const heuristicPiDeny = heuristicMatches.some(
-		(m) => m.threat.action === "block" && m.threat.category === "prompt_injection",
-	);
-	const heuristicDeny = heuristicMatches.some((m) => m.threat.action === "block");
-	const urlAlreadyDenied =
-		cachedUrlVerdicts.size > 0 &&
-		[...cachedUrlVerdicts.values()].some((v) => v.verdict !== "allow");
-	const urlCheckDenied = urlCheckResults.some((r) => r.isMalicious);
-	if (
-		config.pi_check.enabled &&
-		!heuristicPiDeny &&
-		!heuristicDeny &&
-		!urlAlreadyDenied &&
-		!urlCheckDenied &&
-		request.toolName === "WebFetch"
-	) {
+	const alreadyDenied =
+		preliminaryVerdict.decision === "deny" ||
+		(cachedUrlVerdicts.size > 0 &&
+			[...cachedUrlVerdicts.values()].some((v) => v.verdict === "deny"));
+
+	if (config.pi_check.enabled && !alreadyDenied && request.toolName === "WebFetch") {
 		try {
 			const url = extractWebFetchUrl(request.toolInput);
 			if (url) {
 				const ext = getUrlExtension(url);
-				// Has extension but not in allowlist → skip entirely
 				const skip = ext != null && !SCANNABLE_EXTENSIONS.has(ext);
 				if (!skip) {
 					const fetcher = new ContentFetchClient(4000, config.pi_check.max_content_length, logger);
 					const fetched = await fetcher.fetchTextContent(url);
 					if (fetched) {
-						// No extension → sniff content; known extension → already approved
 						const shouldScan = ext != null || isScannableContent(fetched.content);
 						if (shouldScan) {
 							const provider = createPiProvider(config, context, logger);
 							const result = await provider.checkContent(fetched.content, `WebFetch:${url}`);
 							if (result) {
 								allPiResults.push(result);
-								if (result.risk >= config.pi_check.high_risk_threshold) {
-									piDenySignals.push(result);
-								}
 							}
 						}
 					}
@@ -444,35 +448,44 @@ export async function evaluateToolCall(
 		}
 	}
 
-	const engine = new DecisionEngine(config.sensitivity);
-	let verdict = await engine.decide({
-		heuristicMatches,
-		urlCheckResults,
-		packageCheckResults: packageCheckResults.length > 0 ? packageCheckResults : undefined,
-		amsiCheckResults: amsiCheckResults.length > 0 ? amsiCheckResults : undefined,
-		piCheckResults: piDenySignals.length > 0 ? piDenySignals : undefined,
-		piThresholds: {
-			highRisk: config.pi_check.high_risk_threshold,
-			mediumRisk: config.pi_check.medium_risk_threshold,
-		},
-	});
+	let verdict: Verdict;
+	if (allPiResults.length > 0) {
+		verdict = await engine.decide({
+			heuristicMatches,
+			urlCheckResults,
+			packageCheckResults: packageCheckResults.length > 0 ? packageCheckResults : undefined,
+			amsiCheckResults: amsiCheckResults.length > 0 ? amsiCheckResults : undefined,
+			piCheckResults: allPiResults,
+			piThresholds: {
+				highRisk: config.pi_check.high_risk_threshold,
+				mediumRisk: config.pi_check.medium_risk_threshold,
+			},
+		});
+	} else {
+		verdict = preliminaryVerdict;
+	}
 
-	if (cachedUrlVerdicts.size > 0 && verdict.decision === "allow") {
+	// Apply cached URL verdicts: iterate all entries and take the strongest upgrade.
+	// No early break on "ask" — a later cached "deny" must not be missed.
+	if (cachedUrlVerdicts.size > 0 && verdict.decision !== "deny") {
 		for (const [url, cachedVerdict] of cachedUrlVerdicts) {
 			if (cachedVerdict.verdict === "allow") {
 				continue;
 			}
-			verdict = {
-				decision: cachedVerdict.verdict,
-				category: "network_egress",
-				confidence: 1.0,
-				severity: cachedVerdict.severity,
-				source: `cache(${cachedVerdict.source})`,
-				artifacts: [url],
-				matchedThreatId: null,
-				reasons: cachedVerdict.reasons,
-			};
-			break;
+			// Only upgrade: deny beats ask/allow; ask beats allow only.
+			if (cachedVerdict.verdict === "deny" || verdict.decision === "allow") {
+				verdict = {
+					decision: cachedVerdict.verdict,
+					category: "network_egress",
+					confidence: 1.0,
+					severity: cachedVerdict.severity,
+					source: `cache(${cachedVerdict.source})`,
+					artifacts: [url],
+					matchedThreatId: null,
+					reasons: cachedVerdict.reasons,
+				};
+				if (verdict.decision === "deny") break; // Can't go higher
+			}
 		}
 	}
 
@@ -726,21 +739,56 @@ async function checkPackages(
 
 		if (!parsedPackages || parsedPackages.length === 0) return results;
 
+		// Deny-class packageVerdicts: only "malicious" and "not_found" map to cached.verdict "deny".
+		// Ask-class packageVerdicts: "suspicious_age" and "unknown" map to "ask".
+		// This mirrors the write path in putPackage (line ~764): isCritical → "deny", else → "ask".
+		const DENY_CLASS_PKG_VERDICTS = new Set(["malicious", "not_found"]);
+		const ASK_CLASS_PKG_VERDICTS = new Set(["suspicious_age", "unknown"]);
+		const VALID_PKG_VERDICTS = new Set([...DENY_CLASS_PKG_VERDICTS, ...ASK_CLASS_PKG_VERDICTS]);
 		const uncached: ParsedPackage[] = [];
 		for (const pkg of parsedPackages) {
 			const cacheKey = `${pkg.registry}:${pkg.name}${pkg.version ? `@${pkg.version}` : ""}`;
 			const cached = cache?.getPackage(cacheKey);
-			if (cached && cached.verdict !== "allow") {
-				results.push({
-					packageName: pkg.name,
-					registry: pkg.registry,
-					verdict: cached.verdict === "deny" ? "malicious" : "suspicious_age",
-					confidence: 1.0,
-					details: cached.reasons.join("; "),
-				});
-			} else if (!cached) {
+			if (!cached) {
 				uncached.push(pkg);
+				continue;
 			}
+			if (cached.verdict === "allow") continue;
+			const rawVerdict = cached.packageVerdict;
+			const rawConf = cached.packageConfidence;
+			const verdictValid = rawVerdict !== undefined && VALID_PKG_VERDICTS.has(rawVerdict);
+			const confValid =
+				rawConf !== undefined && Number.isFinite(rawConf) && rawConf > 0 && rawConf <= 1;
+			// Consistency check: packageVerdict must agree with the cached three-way decision.
+			// A mismatch (e.g. verdict:"deny" + packageVerdict:"unknown") can silently downgrade
+			// a cached deny to ask/allow on replay. This cannot happen via the normal write path
+			// but could result from on-disk tampering or a future bug feeding mismatched data.
+			const consistent =
+				rawVerdict === undefined ||
+				!verdictValid ||
+				(cached.verdict === "deny" && DENY_CLASS_PKG_VERDICTS.has(rawVerdict)) ||
+				(cached.verdict === "ask" && ASK_CLASS_PKG_VERDICTS.has(rawVerdict));
+			if (!verdictValid || !confValid || !consistent) {
+				// Treat invalid or inconsistent metadata as a cache miss: re-query live so the next
+				// write repopulates the entry with correct values. Cache entries are version-scoped
+				// (cache.ts isStale), so legacy entries are evicted on Sage version bump — this path
+				// only triggers if a downstream bug writes garbage metadata under the current version.
+				logger.warn("Package cache entry has invalid metadata; re-querying live", {
+					cacheKey,
+					packageVerdict: rawVerdict,
+					packageConfidence: rawConf,
+					cachedVerdict: cached.verdict,
+				});
+				uncached.push(pkg);
+				continue;
+			}
+			results.push({
+				packageName: pkg.name,
+				registry: pkg.registry,
+				verdict: rawVerdict as "malicious" | "not_found" | "suspicious_age" | "unknown",
+				confidence: rawConf,
+				details: cached.reasons.join("; "),
+			});
 		}
 
 		if (uncached.length > 0) {
@@ -768,6 +816,8 @@ async function checkPackages(
 							severity: isCritical ? "critical" : "warning",
 							reasons: [result.details],
 							source: "package_check",
+							packageVerdict: result.verdict,
+							packageConfidence: result.confidence,
 						},
 						result.ageDays ?? null,
 					);
@@ -839,7 +889,7 @@ function createPiProvider(
 	// Model path priority:
 	//   1. config.pi_check.model_path  — explicit override (also air-gapped escape hatch)
 	//   2. BundledPiProvider default   — `~/.sage/models/<schema>/pi-model/` via getModelDir()
-	// Repo/extension-relative fallbacks are gone — see docs/model-update.md §3.3.
+	// Repo/extension-relative fallbacks are gone — only config override or default ~/.sage/models/ path.
 	return new BundledPiProvider({
 		modelPath: config.pi_check.model_path,
 		maxContentLength: config.pi_check.max_content_length,
@@ -887,7 +937,7 @@ export async function evaluateToolOutput(
 		return warnings;
 	}
 
-	const config = await loadConfig(context.configPath, logger).catch(() => ConfigSchema.parse({}));
+	const config = await resolveEvaluationConfig(context, logger);
 
 	// Tier 1: heuristic rules — only prompt_injection category for PostToolUse output scanning
 	let heuristicMatchId: string | undefined;
@@ -895,7 +945,7 @@ export async function evaluateToolOutput(
 	try {
 		if (config.heuristics_enabled) {
 			let threats = await loadThreats(context.threatsDir);
-			const trustedDomains = await loadTrustedDomains(context.allowlistsDir);
+			const trustedDomains = await loadTrustedDomains(context.trustedDomainsDir);
 
 			// Only PI rules apply to output scanning — other categories (credentials, commands)
 			// are already handled by PreToolUse and would produce misleading "PI detected" warnings.

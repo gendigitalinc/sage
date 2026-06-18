@@ -2,10 +2,11 @@
  * Decision engine — combines signals into a final Verdict.
  */
 
+import { applyPolicy, SENSITIVITY_POLICY } from "./policy.js";
 import type {
 	AmsiCheckResult,
-	Decision,
 	HeuristicMatch,
+	Logger,
 	PackageCheckResult,
 	PiCheckResult,
 	SignalSources,
@@ -13,42 +14,13 @@ import type {
 	Verdict,
 	VerdictSeverity,
 } from "./types.js";
-import { DEFAULT_PI_HIGH_RISK_THRESHOLD, DEFAULT_PI_MEDIUM_RISK_THRESHOLD } from "./types.js";
-
-/** Default confidence threshold. */
-export const CONFIDENCE_THRESHOLD = 0.85;
-
-/** Sensitivity presets: maps preset name to confidence threshold. */
-const SENSITIVITY_THRESHOLDS: Record<string, number> = {
-	paranoid: 0.7,
-	balanced: 0.85,
-	relaxed: 0.95,
-};
-
-/** Severity mapping: 4-level threat def → 3-level user-facing verdict. */
-const SEVERITY_MAP: Record<string, VerdictSeverity> = {
-	critical: "critical",
-	high: "warning",
-	medium: "warning",
-	low: "info",
-};
-
-/** Action mapping: threat def action → verdict decision. */
-const ACTION_MAP: Record<string, Decision> = {
-	block: "deny",
-	require_approval: "ask",
-	log: "allow",
-};
-
-/** Decision priority for merge precedence: deny > ask > allow. */
-const DECISION_PRIORITY: Record<string, number> = {
-	allow: 0,
-	ask: 1,
-	deny: 2,
-};
+import {
+	DEFAULT_PI_HIGH_RISK_THRESHOLD,
+	DEFAULT_PI_MEDIUM_RISK_THRESHOLD,
+	nullLogger,
+} from "./types.js";
 
 interface Signal {
-	decision: Decision;
 	category: string;
 	confidence: number;
 	severity: VerdictSeverity;
@@ -89,12 +61,15 @@ function formatPiFinding(result: PiCheckResult): string {
 }
 
 export class DecisionEngine {
-	private readonly threshold: number;
-	private readonly sensitivity: string;
+	private readonly denyThreshold: number;
+	private readonly askThreshold: number;
+	private readonly logger: Logger;
 
-	constructor(sensitivity = "balanced") {
-		this.threshold = SENSITIVITY_THRESHOLDS[sensitivity] ?? CONFIDENCE_THRESHOLD;
-		this.sensitivity = sensitivity;
+	constructor(sensitivity = "balanced", logger: Logger = nullLogger) {
+		const policy = SENSITIVITY_POLICY[sensitivity] ?? SENSITIVITY_POLICY.balanced;
+		this.denyThreshold = policy.denyThreshold;
+		this.askThreshold = policy.askThreshold;
+		this.logger = logger;
 	}
 
 	async decide(sources: SignalSources): Promise<Verdict> {
@@ -111,28 +86,12 @@ export class DecisionEngine {
 			return this.allowVerdict();
 		}
 
-		signals.sort(
-			(a, b) => (DECISION_PRIORITY[b.decision] ?? 0) - (DECISION_PRIORITY[a.decision] ?? 0),
-		);
-		const top = signals[0];
-		if (!top) {
-			return this.allowVerdict();
-		}
+		const top = signals.reduce((best, s) => (s.confidence > best.confidence ? s : best));
+		const maxConfidence = top.confidence;
+		const decision = applyPolicy(maxConfidence, this.denyThreshold, this.askThreshold, this.logger);
 
 		const allArtifacts = [...new Map(signals.map((s) => [s.artifact, s.artifact])).values()];
 		const allReasons = [...new Map(signals.map((s) => [s.reason, s.reason])).values()];
-		const maxConfidence = Math.max(...signals.map((s) => s.confidence));
-
-		let decision = top.decision;
-		// PI check signals bypass the sensitivity-driven deny→ask demotion: the
-		// model already made a binary decision at its configured threshold and
-		// the v8 model scores deny signals in the 0.93–0.99 band, which exceeds
-		// every sensitivity level. Sensitivity coupling for medium-risk PI
-		// signals lives in `collectSignals` (relaxed mode suppresses them) so
-		// the suppressed signal never reaches the engine's decision step.
-		if (decision === "deny" && maxConfidence < this.threshold && top.source !== "pi_check") {
-			decision = "ask";
-		}
 
 		return {
 			decision,
@@ -156,28 +115,33 @@ export class DecisionEngine {
 	): Signal[] {
 		const signals: Signal[] = [];
 
+		// Heuristics can fire hundreds of times per call (one match per pattern per extracted artifact).
+		// Other sources (URL, package, AMSI, PI) produce at most a handful of results and are always collected.
+		// Early-filtering allow-results here is safe: allow signals never influence the final verdict.
 		for (const match of heuristicMatches) {
+			const { confidence, category, severity, id, title } = match.threat;
+			if (applyPolicy(confidence, this.denyThreshold, this.askThreshold, this.logger) === "allow")
+				continue;
 			signals.push({
-				decision: ACTION_MAP[match.threat.action] ?? "ask",
-				category: match.threat.category,
-				confidence: match.threat.confidence,
-				severity: SEVERITY_MAP[match.threat.severity] ?? "warning",
+				category,
+				confidence,
+				severity,
 				source: "heuristic",
-				threatId: match.threat.id,
-				reason: match.threat.title,
+				threatId: id,
+				reason: title,
 				artifact: match.artifact,
 			});
 		}
 
 		for (const result of urlCheckResults) {
 			if (result.isMalicious) {
+				const confidence = 1.0;
 				const findingDetails = result.findings
 					.map((f) => `${f.severityName}/${f.typeName}`)
 					.join(", ");
 				signals.push({
-					decision: "deny",
 					category: "network_egress",
-					confidence: 1.0,
+					confidence,
 					severity: "critical",
 					source: "url_check",
 					threatId: null,
@@ -190,7 +154,6 @@ export class DecisionEngine {
 		if (packageCheckResults) {
 			for (const pkg of packageCheckResults) {
 				if (pkg.verdict === "clean") continue;
-
 				const signal = this.packageVerdictToSignal(pkg);
 				if (signal) signals.push(signal);
 			}
@@ -200,7 +163,6 @@ export class DecisionEngine {
 			for (const result of amsiCheckResults) {
 				if (result.isDetected) {
 					signals.push({
-						decision: "deny",
 						category: "malware",
 						confidence: 1.0,
 						severity: "critical",
@@ -211,7 +173,6 @@ export class DecisionEngine {
 					});
 				} else if (result.isBlockedByAdmin) {
 					signals.push({
-						decision: "deny",
 						category: "malware",
 						confidence: 0.9,
 						severity: "critical",
@@ -227,25 +188,24 @@ export class DecisionEngine {
 		if (piCheckResults) {
 			const highRisk = piThresholds?.highRisk ?? DEFAULT_PI_HIGH_RISK_THRESHOLD;
 			const mediumRisk = piThresholds?.mediumRisk ?? DEFAULT_PI_MEDIUM_RISK_THRESHOLD;
-			const suppressMediumPi = this.sensitivity === "relaxed";
 
 			for (const result of piCheckResults) {
 				if (result.risk >= highRisk) {
 					signals.push({
-						decision: "deny",
 						category: "prompt_injection",
-						confidence: result.risk,
+						confidence: 1.0,
 						severity: "critical",
 						source: "pi_check",
 						threatId: "PROMPT_INJECTION",
 						reason: buildPiReason("Prompt injection detected", result),
 						artifact: result.contentName,
 					});
-				} else if (!suppressMediumPi && result.risk >= mediumRisk) {
+				} else if (result.risk >= mediumRisk) {
+					// 0.6 is intentionally below relaxed askThreshold (0.70): medium-risk PI is
+					// suppressed in relaxed mode but still triggers ask in balanced/paranoid.
 					signals.push({
-						decision: "ask",
 						category: "prompt_injection",
-						confidence: result.risk,
+						confidence: 0.6,
 						severity: "warning",
 						source: "pi_check",
 						threatId: "PROMPT_INJECTION",
@@ -262,21 +222,10 @@ export class DecisionEngine {
 	private packageVerdictToSignal(pkg: PackageCheckResult): Signal | null {
 		switch (pkg.verdict) {
 			case "not_found":
-				return {
-					decision: "deny",
-					category: "supply_chain",
-					confidence: 0.95,
-					severity: "critical",
-					source: "package_check",
-					threatId: null,
-					reason: pkg.details,
-					artifact: pkg.packageName,
-				};
 			case "malicious":
 				return {
-					decision: "deny",
 					category: "supply_chain",
-					confidence: 1.0,
+					confidence: pkg.confidence,
 					severity: "critical",
 					source: "package_check",
 					threatId: null,
@@ -284,21 +233,10 @@ export class DecisionEngine {
 					artifact: pkg.packageName,
 				};
 			case "suspicious_age":
-				return {
-					decision: "ask",
-					category: "supply_chain",
-					confidence: 0.75,
-					severity: "warning",
-					source: "package_check",
-					threatId: null,
-					reason: pkg.details,
-					artifact: pkg.packageName,
-				};
 			case "unknown":
 				return {
-					decision: "ask",
 					category: "supply_chain",
-					confidence: 0.6,
+					confidence: pkg.confidence,
 					severity: "warning",
 					source: "package_check",
 					threatId: null,
@@ -311,10 +249,13 @@ export class DecisionEngine {
 	}
 
 	private allowVerdict(): Verdict {
+		// confidence: 0.0 is intentional — no threat signal means zero confidence in a threat.
+		// allowVerdict() results never flow through applyPolicy (which rejects confidence <= 0),
+		// so this value does not violate the applyPolicy invariant; it simply marks "no detection."
 		return {
 			decision: "allow",
 			category: "none",
-			confidence: 1.0,
+			confidence: 0.0,
 			severity: "info",
 			source: "none",
 			artifacts: [],

@@ -23,27 +23,30 @@ export async function runPluginScan(
 	context: string,
 	plugins: PluginInfo[],
 	threatsDir: string,
-	allowlistsDir: string,
+	trustedDomainsDir: string,
 	version: string,
 	agentRuntime: AgentRuntime,
 	branding: Branding = defaultBranding,
 	modelDownloadWorkerPath?: string,
 	style: ThreatBannerStyle = "verbose",
+	// Trailing optional to stay backward-compatible with existing positional callers.
+	agentRuntimeVersion?: string,
 ): Promise<string> {
 	logger.debug(`${branding.name} plugin scan started (${context})`, {
 		agentRuntime,
 		pluginsCount: plugins.length,
 		threatsDir,
-		allowlistsDir,
+		trustedDomainsDir,
 	});
 
 	const result = await runSessionStart({
 		plugins,
 		threatsDir,
-		allowlistsDir,
+		trustedDomainsDir,
 		version,
 		logger,
 		agentRuntime,
+		agentRuntimeVersion,
 		modelDownloadWorkerPath,
 	});
 
@@ -76,9 +79,11 @@ export interface ScanHandlerOptions {
 	discoverPlugins: () => Promise<PluginInfo[]>;
 	selfPrefix: string;
 	threatsDir: string;
-	allowlistsDir: string;
+	trustedDomainsDir: string;
 	version: string;
 	agentRuntime: AgentRuntime;
+	/** Host runtime version (e.g. Cursor `"3.6.31"`, Claude Code `"2.1.150"`). Omit when no source exists. */
+	agentRuntimeVersion?: string;
 	branding?: Branding;
 	onResult?: (msg: string) => void;
 	/** Connector-bundled `dist/model-download-worker.cjs` (see runSessionStart). */
@@ -94,9 +99,10 @@ export function createScanHandler(options: ScanHandlerOptions): () => Promise<vo
 		discoverPlugins,
 		selfPrefix,
 		threatsDir,
-		allowlistsDir,
+		trustedDomainsDir,
 		version,
 		agentRuntime,
+		agentRuntimeVersion,
 		branding = defaultBranding,
 		onResult,
 		modelDownloadWorkerPath,
@@ -119,12 +125,13 @@ export function createScanHandler(options: ScanHandlerOptions): () => Promise<vo
 				context,
 				plugins,
 				threatsDir,
-				allowlistsDir,
+				trustedDomainsDir,
 				version,
 				agentRuntime,
 				branding,
 				modelDownloadWorkerPath,
 				style,
+				agentRuntimeVersion,
 			);
 			onResult?.(msg);
 		} catch (e) {

@@ -15,7 +15,7 @@ function makeFinding(overrides: Partial<PluginFinding> = {}): PluginFinding {
 	return {
 		threatId: "CLT-CMD-001",
 		title: "Pipe to shell",
-		severity: "high",
+		severity: "warning",
 		confidence: 0.9,
 		action: "block",
 		artifact: "curl ... | bash",

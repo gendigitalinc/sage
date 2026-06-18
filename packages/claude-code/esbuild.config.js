@@ -14,8 +14,6 @@ const shared = {
 };
 
 await Promise.all([
-	esbuild.build({ ...shared, entryPoints: ["src/pre-tool-use.ts"], outfile: "dist/pre-tool-use.cjs" }),
-	esbuild.build({ ...shared, entryPoints: ["src/post-tool-use.ts"], outfile: "dist/post-tool-use.cjs" }),
 	esbuild.build({ ...shared, entryPoints: ["src/mcp-server.ts"], outfile: "dist/mcp-server.cjs" }),
 	esbuild.build({ ...shared, entryPoints: ["src/session-start.ts"], outfile: "dist/session-start.cjs" }),
 	esbuild.build({ ...shared, entryPoints: ["src/sage-statusline.ts"], outfile: "dist/sage-statusline.cjs" }),

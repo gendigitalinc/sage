@@ -3,8 +3,8 @@
  *
  * The scanner runs four checks per plugin:
  *
- *   - URL reputation (Avast) on every URL extracted from plugin files.
- *   - File-hash reputation (Avast) on every scannable file's sha256.
+ *   - URL reputation (configured reputation API) on every URL extracted from plugin files.
+ *   - File-hash reputation (configured reputation API) on every scannable file's sha256.
  *   - AMSI scan on file content when an `AmsiClient` is supplied
  *     (Windows-only; caller owns lifecycle).
  *   - Skill-package risk lookup on any folder containing `SKILL.md`.
@@ -25,13 +25,16 @@ import type { AmsiClient } from "./clients/amsi.js";
 import { FileCheckClient } from "./clients/file-check.js";
 import { SkillCheckClient } from "./clients/skill-check.js";
 import { UrlCheckClient } from "./clients/url-check.js";
+import { getClaudeConfigDir } from "./config.js";
 import { extractUrls } from "./extractors.js";
-import { getFileContent, getFileContentRaw, getFileContentSync, getHomeDir } from "./file-utils.js";
+import { getFileContent, getFileContentRaw, getFileContentSync } from "./file-utils.js";
 import { computeSkillIdsForRoot, SKIP_DIRS } from "./skill-id.js";
 import type { Logger, PluginFinding, PluginInfo, PluginScanResult } from "./types.js";
 import { nullLogger } from "./types.js";
 
-const DEFAULT_PLUGINS_REGISTRY = join(getHomeDir(), ".claude", "plugins", "installed_plugins.json");
+function defaultPluginsRegistry(): string {
+	return join(getClaudeConfigDir(), "plugins", "installed_plugins.json");
+}
 
 /**
  * Extensions whose contents are read from disk and fed to the URL-
@@ -68,7 +71,7 @@ const MAX_FILE_SIZE = 512 * 1024;
 export function isPluginInstalledSync(pluginName: string): boolean | null {
 	let raw: string;
 	try {
-		raw = getFileContentSync(DEFAULT_PLUGINS_REGISTRY);
+		raw = getFileContentSync(defaultPluginsRegistry());
 	} catch (err: unknown) {
 		if (
 			err &&
@@ -94,7 +97,7 @@ export function isPluginInstalledSync(pluginName: string): boolean | null {
 }
 
 export async function discoverPlugins(
-	registryPath = DEFAULT_PLUGINS_REGISTRY,
+	registryPath = defaultPluginsRegistry(),
 	logger: Logger = nullLogger,
 ): Promise<PluginInfo[]> {
 	let raw: string;
@@ -227,8 +230,6 @@ export async function scanPlugin(
 						threatId: "AMSI_SCAN",
 						title: `AMSI detection (result=${amsiResult.amsiResult})`,
 						severity: "critical",
-						confidence: 1.0,
-						action: "block",
 						artifact: content.slice(0, 200),
 						sourceFile: relative(plugin.installPath, filePath),
 					});
@@ -269,8 +270,6 @@ export async function scanPlugin(
 									threatId: "URL_CHECK",
 									title: `Malicious URL (${findingDetails})`,
 									severity: "critical",
-									confidence: 1.0,
-									action: "block",
 									artifact: ur.url.slice(0, 200),
 									sourceFile: "URL check",
 								});
@@ -297,8 +296,6 @@ export async function scanPlugin(
 										threatId: "FILE_CHECK",
 										title: `Malicious file (${fr.detectionNames.join(", ") || "unknown"})`,
 										severity: "critical",
-										confidence: 1.0,
-										action: "block",
 										artifact: fr.sha256,
 										sourceFile: relative(plugin.installPath, filePath),
 									});
@@ -335,13 +332,11 @@ async function runSkillCheck(
 			const risk = (verdict.overallRiskLevel ?? "").toUpperCase();
 			if (risk !== "HIGH" && risk !== "CRITICAL") continue;
 
-			const severity = risk === "CRITICAL" ? "critical" : "high";
+			const severity = risk === "CRITICAL" ? "critical" : "warning";
 			findings.push({
 				threatId: "SKILL_CHECK",
 				title: verdict.summary?.trim() || `Risky skill detected (${risk})`,
 				severity,
-				confidence: 1.0,
-				action: "log",
 				artifact: skillId.slice(0, 16),
 				sourceFile: relative(plugin.installPath, folder) || ".",
 				recommendations: verdict.recommendations.length > 0 ? verdict.recommendations : undefined,
