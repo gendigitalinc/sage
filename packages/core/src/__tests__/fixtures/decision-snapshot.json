@@ -1,22 +1,7 @@
 {
-	"generatedAt": "2026-06-10T12:51:34.526Z",
-	"threatCount": 366,
+	"generatedAt": "2026-07-10T19:35:18.794Z",
+	"threatCount": 373,
 	"entries": {
-		"CLT-PI-091": {
-			"paranoid": "deny",
-			"balanced": "deny",
-			"relaxed": "ask"
-		},
-		"CLT-PI-092": {
-			"paranoid": "deny",
-			"balanced": "deny",
-			"relaxed": "ask"
-		},
-		"CLT-PI-093": {
-			"paranoid": "deny",
-			"balanced": "deny",
-			"relaxed": "ask"
-		},
 		"CLT-MCP-004": {
 			"paranoid": "deny",
 			"balanced": "deny",
@@ -61,6 +46,41 @@
 			"paranoid": "deny",
 			"balanced": "deny",
 			"relaxed": "deny"
+		},
+		"CLT-PRV-001a": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PRV-001b": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PRV-001d": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PRV-001e": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MCP-005": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MCP-006": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-MCP-007": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
 		},
 		"CLT-CMD-001": {
 			"paranoid": "deny",
@@ -1222,6 +1242,11 @@
 			"balanced": "deny",
 			"relaxed": "ask"
 		},
+		"CLT-PI-052": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
 		"CLT-PI-060": {
 			"paranoid": "deny",
 			"balanced": "deny",
@@ -1245,6 +1270,21 @@
 		"CLT-PI-081": {
 			"paranoid": "deny",
 			"balanced": "ask",
+			"relaxed": "ask"
+		},
+		"CLT-PI-091": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-092": {
+			"paranoid": "deny",
+			"balanced": "deny",
+			"relaxed": "ask"
+		},
+		"CLT-PI-093": {
+			"paranoid": "deny",
+			"balanced": "deny",
 			"relaxed": "ask"
 		},
 		"CLT-SELF-001": {
@@ -1826,11 +1866,6 @@
 			"paranoid": "ask",
 			"balanced": "ask",
 			"relaxed": "allow"
-		},
-		"CLT-PI-052": {
-			"paranoid": "deny",
-			"balanced": "deny",
-			"relaxed": "ask"
 		}
 	}
 }
