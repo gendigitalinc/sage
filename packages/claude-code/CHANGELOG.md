@@ -1,5 +1,11 @@
 # @gendigital/sage-claude-code
 
+## 0.14.0
+
+### Minor Changes
+
+- Allow users to report risky Skill Analyzer findings through the existing false-positive MCP flow. Skill verdict audit entries and the verdict cache now share analyzer job and report IDs, so current findings remain selectable if audit storage is unavailable or rotates. Reports reach `/v2/fp-report` as `SessionStart` / `Skill` events with normalized suspicious or malicious skill detection names and structured `skill_checks` metadata, while omitting empty `content` objects for compatibility with the Submit metadata roundtrip. Legacy cache entries receive stable UUIDs, malformed skill IDs are ignored, and list/report limits are enforced after candidate resolution. The tools select only the latest analyzed result per skill, preventing an older risky result from remaining reportable after the backend returns a corrected verdict, and omit analyzer summaries from globally scoped listings.
+
 ## 0.13.0
 
 ### Minor Changes

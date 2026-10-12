@@ -63,10 +63,12 @@ export { resolveEndpoint, UrlCheckClient } from "./clients/url-check.js";
 export {
 	getClaudeConfigDir,
 	HOOK_TIMEOUT_SECONDS,
+	isFreshTimestamp,
 	loadConfig,
 	loadConfigSync,
 	resolvePath,
 	SAGE_DIR,
+	skillCacheTtlMs,
 } from "./config.js";
 export {
 	buildConfigDefaults,
@@ -103,8 +105,10 @@ export {
 	type AmsiDetectionClass,
 	amsiDetectionName,
 	amsiReportingData,
+	buildSkillCheckSignal,
 	formatReportingDetectionName,
 	isCanonicalDetectionName,
+	isSkillId,
 	PACKAGE_DETECTION_NAMES,
 	type PackageDetectionVerdict,
 	PI_DETECTION_NAME,
@@ -112,6 +116,11 @@ export {
 	REPORTING_DETECTION_SUFFIX,
 	REPORTING_ENGINE_SHORTHANDS,
 	type ReportingDetectionEngine,
+	SKILL_DETECTION_NAMES,
+	type SkillCheckSignal,
+	type SkillDetectionVerdict,
+	skillDetectionName,
+	skillReportingDetectionName,
 } from "./detection-names.js";
 // Detection telemetry (Community IQ)
 export {
@@ -356,6 +365,7 @@ export {
 	type CachedSkillVerdict,
 	getVerdict,
 	loadSkillVerdictCache,
+	loadSkillVerdictCacheReadOnly,
 	loadSkillVerdictCacheSync,
 	putVerdict,
 	riskyVerdictsSince,
@@ -363,6 +373,7 @@ export {
 	type SkillVerdictSource,
 	saveSkillVerdictCache,
 } from "./skill-verdict-cache.js";
+export { resolveSkillVerdictEntryId } from "./skill-verdict-record.js";
 // Session status (detection notifications)
 export {
 	agentRuntimeLabel,

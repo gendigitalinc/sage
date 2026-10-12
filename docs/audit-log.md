@@ -28,7 +28,7 @@ Every entry carries:
 | Field | Type | Description |
 |-------|------|-------------|
 | `schema_version` | integer | Currently `1`. Bumped only on backwards-incompatible shape changes (renamed/removed top-level keys, semantically repurposed fields). Additive changes do not bump. Stamped centrally — callers cannot omit it. |
-| `type` | string | Discriminator. Currently `"runtime_verdict"` or `"plugin_scan"`. |
+| `type` | string | Discriminator. Currently `"runtime_verdict"`, `"plugin_scan"`, `"skill_queued"`, or `"skill_verdict"`. |
 | `timestamp` | string | ISO 8601 UTC, millisecond precision (e.g. `"2026-04-21T14:33:07.412Z"`). |
 
 ## Runtime verdict entries (`type: "runtime_verdict"`)
@@ -66,6 +66,7 @@ Each subkey is a homogeneous array of detection records. All subkeys are optiona
 | `package_checks` | `{ detection_name: string, package_name: string, package_version?: string, package_registry: string }` | Package supply-chain signals. The reporting name appends `\|sgpk:<package_name>[:<package_version>]\|sage` to the stable canonical verdict-class identity. Package coordinates also remain in separate fields. |
 | `pi_checks` | `{ detection_name: string, risk: number, model_id: string, content_name: string, content_snippet?: string }` | Prompt-injection (PI) ML model results, gated by [`pi_check.enabled`](user-guide.md#pi_check). The reporting name is `"Other:SagePromptInjectionML-A [Susp]\|sgml:<model-id>:<model-schema>\|sage"` (currently `sgml:pi-model:v2`); risk and model ID also remain separate. `content_name` labels what was scanned — currently always `"WebFetch:<url>"`, since the model runs only on content fetched for `WebFetch` during PreToolUse. When `risk >= 0.5`, `content_snippet` is the home-path-scrubbed highest-risk model chunk (up to 512 tokens). Emitted whenever the model is invoked and produces a result. PostToolUse output scanning is heuristic-only and never contributes `pi_checks`; Tier 1 heuristic prompt-injection rules surface separately under `heuristics`. |
 | `amsi_checks` | `{ detection_name: string, content_name: string, content_snippet?: string, amsi_result: number }` | Windows AMSI results (Windows / WSL only). The reporting name appends `\|sgam:<AMSI rule name>:<amsi_result_hex>\|sage`, where the result is lowercase hexadecimal without a `0x` prefix—for example, `"Other:SageAmsiDetected-A [Heur]\|sgam:AMSI_DETECTED:8000\|sage"` for result `0x8000`. `content_name` labels what was scanned (`"Bash:command"`, `"Write:<path>"`); home directories are scrubbed. `content_snippet` is capped at 200 chars and home-scrubbed. |
+| `skill_checks` | `{ detection_name: string, skill_id: string, job_id?: string, analyzer_verdict: string }` | Risky Skill Analyzer results. `HIGH` uses `"Other:SageSuspiciousSkill-A [Susp]"`; `CRITICAL` uses `"Other:SageMaliciousSkill-A [Trj]"`. The reporting name appends `\|skan:<skill_id>\|sage`, while the full content hash and analyzer verdict remain in separate fields. |
 
 ### Content snapshot (`content`)
 
@@ -97,6 +98,25 @@ Which fields are populated depends on the canonical tool type:
 | `Glob`, `Grep`, `List`, `CodeSearch`, `WebSearch`, `Question`, `Task`, `ReadLines`, `Unknown` | none (snapshot omitted) |
 
 When the verdict involves multiple URLs or packages, `content.url` / `content.package_*` carries the **first** value in stable input/signal order. Full multi-value detail stays in `signals`.
+
+## Skill entries
+
+`skill_queued` records that an unknown skill was queued for detached analysis. It carries `skill_id`, `plugin_key`, and an optional home-scrubbed `skill_folder`; it is not addressable by the FP tool.
+
+`skill_verdict` records the detached analyzer result or a known result returned during session-start lookup.
+
+| Field | Type | Required | Description |
+|-------|------|:--------:|-------------|
+| `entry_id` | string (UUID) | yes | Selectable identifier for `sage_report_false_positive`. New entries use UUID v4; pre-upgrade cache entries receive a stable derived UUID v5. |
+| `skill_id` | string | yes | Content-addressed identifier of the analyzed skill package. |
+| `job_id` | string | optional | Analyzer job identifier. Omitted for legacy/upstream responses that do not provide one. |
+| `agent_runtime` | string | optional | Runtime that discovered or uploaded the skill. |
+| `status` | string | yes | `"analyzed"`, `"too_large"`, `"empty"`, `"error"`, or `"no_verdict"`. Only `"analyzed"` entries are reportable; the FP tools ignore the rest. |
+| `verdict` | string | optional | Analyzer verdict such as `"HIGH"` or `"CRITICAL"`. |
+| `summary` | string | optional | Analyzer summary, capped at 200 characters. |
+| `signals.skill_checks` | object[] | conditional | Present for `HIGH`/`CRITICAL` analyzed results and contains `detection_name`, `skill_id`, optional `job_id`, and `analyzer_verdict`. |
+
+The FP tools merge these entries with a read-only view of the current verdict cache, which stores the same `entry_id` for new analyses and provides a deterministic UUID v5 fallback for pre-upgrade entries. Audit and cache candidates are reconciled by generation timestamp and filtered with the configured skill-cache TTL. This keeps a current cached verdict reportable if its audit entry rotates or could not be written, prevents stale cache state from overriding a newer audit generation, and stops expired audit findings from reappearing. Only valid SHA-256 skill IDs are selectable. The latest result for each `skill_id` is exposed only when it is `HIGH` or `CRITICAL`; a newer `SAFE` result suppresses an older risky result. Skill entries are globally selectable rather than conversation-scoped because detached analysis has no reliable originating conversation ID. Analyzer summaries remain in the local audit log but are omitted from the globally scoped MCP listing.
 
 ## Plugin scan entries (`type: "plugin_scan"`)
 

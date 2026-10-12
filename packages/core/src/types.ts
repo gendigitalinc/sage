@@ -248,6 +248,12 @@ export interface AuditSignals {
 		content_snippet?: string;
 		amsi_result: number;
 	}[];
+	skill_checks?: {
+		detection_name: string;
+		skill_id: string;
+		job_id?: string;
+		analyzer_verdict: string;
+	}[];
 }
 
 // ── Cache ───────────────────────────────────────────────────────────

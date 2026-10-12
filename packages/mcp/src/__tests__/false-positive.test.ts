@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -26,6 +27,13 @@ type SageProxyEnvelopeArgs = {
 	config?: MockConfig;
 };
 
+type SkillCheckSignal = {
+	detection_name: string;
+	skill_id: string;
+	job_id?: string;
+	analyzer_verdict: string;
+};
+
 type DryRunPayload = {
 	identity: { uuid: string } & Record<string, unknown>;
 	product: { version_app: string } & Record<string, unknown>;
@@ -34,23 +42,32 @@ type DryRunPayload = {
 	block_event: {
 		tool_type: string;
 		hook_type: string;
+		verdict: string;
 		user_action: string;
-		content: Record<string, unknown>;
+		content?: Record<string, unknown>;
 		content_snippet?: string;
 		signals?: {
-			heuristics?: { rule_id: string }[];
+			heuristics?: { detection_name?: string; rule_id: string }[];
 			url_checks?: { url: string }[];
 			pi_checks?: {
+				detection_name?: string;
 				risk: number;
 				model_id: string;
 				content_name: string;
 				content_snippet?: string;
 			}[];
+			package_checks?: { detection_name?: string; package_name: string }[];
 			amsi_checks?: {
 				detection_name: string;
 				content_name: string;
 				content_snippet?: string;
 				amsi_result: number;
+			}[];
+			skill_checks?: {
+				detection_name: string;
+				skill_id: string;
+				job_id?: string;
+				analyzer_verdict: string;
 			}[];
 		};
 	};
@@ -79,6 +96,7 @@ const mockLoadConfig = vi.fn(
 );
 
 const mockGetRecentEntries = vi.fn(async (): Promise<unknown[]> => []);
+const mockLoadSkillVerdictCache = vi.fn(async () => ({ entries: {} }));
 const mockGetInstallationId = vi.fn(
 	async (): Promise<string> => "550e8400-e29b-41d4-a716-446655440000",
 );
@@ -120,14 +138,48 @@ function mergeExtendedInfoMock(
 	return out;
 }
 
+/** Deterministic UUIDv5-shaped id, enough to stand in for the core derivation. */
+function fakeUuidV5(name: string): string {
+	const bytes = createHash("sha1").update(name).digest().subarray(0, 16);
+	bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x50;
+	bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
+	const hex = bytes.toString("hex");
+	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 vi.mock("@gendigital/sage-core", () => ({
 	loadConfig: mockLoadConfig,
 	getRecentEntries: mockGetRecentEntries,
+	loadSkillVerdictCacheReadOnly: mockLoadSkillVerdictCache,
+	isFreshTimestamp: (timestamp: number, ttlMs: number, now = Date.now()) =>
+		Number.isFinite(timestamp) && timestamp - now <= 5 * 60 * 1000 && now - timestamp < ttlMs,
+	skillCacheTtlMs: () => 24 * 60 * 60 * 1000,
 	getInstallationId: mockGetInstallationId,
 	readProductJsonVersion: mockReadProductJsonVersion,
 	loadExtendedInfo: mockLoadExtendedInfo,
 	mergeExtendedInfo: mergeExtendedInfoMock,
 	defaultBranding: { name: "Sage", short_name: "Sage", brand_key: undefined },
+	buildSkillCheckSignal: (skillId: string, verdict: string, jobId?: string) => {
+		if (!/^[0-9a-f]{64}$/i.test(skillId)) return undefined;
+		const normalizedVerdict = verdict.toUpperCase();
+		if (normalizedVerdict !== "HIGH" && normalizedVerdict !== "CRITICAL") return undefined;
+		const canonical =
+			normalizedVerdict === "CRITICAL"
+				? "Other:SageMaliciousSkill-A [Trj]"
+				: "Other:SageSuspiciousSkill-A [Susp]";
+		const normalizedSkillId = skillId.toLowerCase();
+		return {
+			detection_name: `${canonical}|skan:${normalizedSkillId}|sage`,
+			skill_id: normalizedSkillId,
+			...(jobId ? { job_id: jobId } : {}),
+			analyzer_verdict: normalizedVerdict,
+		};
+	},
+	isSkillId: (value: string) => /^[0-9a-f]{64}$/i.test(value),
+	// Contract stand-in: a stored id wins, otherwise a deterministic UUIDv5-shaped
+	// one. The real derivation is covered by core's skill-verdict-record tests.
+	resolveSkillVerdictEntryId: (skillId: string, entry: { entryId?: string; analyzedAt: string }) =>
+		entry.entryId ?? fakeUuidV5(`${skillId.toLowerCase()}:${entry.analyzedAt}`),
 	buildSageProxyEnvelope: (args: SageProxyEnvelopeArgs) => ({
 		identity: { uuid: args.iid },
 		product: { version_app: args.versionApp },
@@ -169,6 +221,8 @@ describe("sage_report_false_positive", () => {
 
 	beforeEach(() => {
 		mockGetRecentEntries.mockReset();
+		mockLoadSkillVerdictCache.mockReset();
+		mockLoadSkillVerdictCache.mockResolvedValue({ entries: {} });
 		mockGetInstallationId.mockReset();
 		mockReadProductJsonVersion.mockClear();
 		mockLoadExtendedInfo.mockReset();
@@ -288,9 +342,17 @@ describe("sage_report_false_positive", () => {
 		expect(payload.event_id).toBe("11111111-1111-1111-1111-111111111111");
 
 		expect(payload.block_event.signals?.heuristics?.[0]?.rule_id).toBe("CLT-CMD-006");
+		expect(payload.block_event.signals?.url_checks?.[0]?.url).toBe(
+			"https://example.com/api/endpoint",
+		);
 		expect(payload.block_event.signals?.heuristics?.[0]?.detection_name).toBe(
 			"CMD:SageCommand-F [Heur]|sghe:CLT-CMD-006:3|sage",
 		);
+		expect(payload.block_event.signals?.package_checks?.[0]?.detection_name).toBe(
+			"Other:SagePackageNew-A [Susp]|sgpk:left-pad:1.0.0|sage",
+		);
+		// Dry runs strip PI snippets: the reviewing agent never sees the
+		// untrusted text that triggered the detection.
 		expect(payload.block_event.signals?.pi_checks?.[0]).toEqual({
 			detection_name: "Other:SagePromptInjectionML-A [Susp]|sgml:pi-model:v2|sage",
 			risk: 0.99,
@@ -298,12 +360,6 @@ describe("sage_report_false_positive", () => {
 			content_name: "WebFetch:https://example.com",
 		});
 		expect(text).not.toContain("Ignore previous instructions");
-		expect(payload.block_event.signals?.package_checks?.[0]?.detection_name).toBe(
-			"Other:SagePackageNew-A [Susp]|sgpk:left-pad:1.0.0|sage",
-		);
-		expect(payload.block_event.signals?.url_checks?.[0]?.url).toBe(
-			"https://example.com/api/endpoint",
-		);
 
 		// Content snapshot is read verbatim from the audit entry — no
 		// reconstruction in the FP tool. Home-path scrubbing happens upstream
@@ -408,19 +464,32 @@ describe("sage_report_false_positive", () => {
 		};
 	}
 
-	async function runHandler(input: Record<string, unknown>) {
-		const mod = await import("../tools/false-positive.js");
-		const server = { registerTool: vi.fn() };
-		mod.registerFalsePositiveTools(
-			server as unknown as { registerTool: (...args: unknown[]) => void },
-			{ logger: makeLogger(), versionApp: "0.5.1" },
-		);
-		const calls = (server.registerTool as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
-		const report = calls.find((c) => c[0] === "sage_report_false_positive");
-		const handler = (report as unknown[])[2] as (
-			i: Record<string, unknown>,
-		) => Promise<{ content?: Array<{ text?: string }>; isError?: boolean }>;
-		return handler(input);
+	function makeSkillEntry(
+		id: string,
+		verdict: "HIGH" | "CRITICAL" | "MEDIUM" | "LOW" | "SAFE" = "HIGH",
+		jobId?: string,
+		skillId = "a".repeat(64),
+	) {
+		return {
+			type: "skill_verdict",
+			entry_id: id,
+			timestamp: new Date().toISOString(),
+			agent_runtime: "cursor",
+			skill_id: skillId,
+			...(jobId ? { job_id: jobId } : {}),
+			status: "analyzed",
+			verdict,
+			summary: "Analyzer finding",
+			signals: {
+				skill_checks: [
+					{
+						skill_id: skillId,
+						...(jobId ? { job_id: jobId } : {}),
+						analyzer_verdict: verdict,
+					},
+				],
+			},
+		};
 	}
 
 	async function runListHandler(input: Record<string, unknown> = {}) {
@@ -433,6 +502,21 @@ describe("sage_report_false_positive", () => {
 		const calls = (server.registerTool as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
 		const list = calls.find((c) => c[0] === "sage_list_audit_entries");
 		const handler = (list as unknown[])[2] as (
+			i: Record<string, unknown>,
+		) => Promise<{ content?: Array<{ text?: string }>; isError?: boolean }>;
+		return handler(input);
+	}
+
+	async function runHandler(input: Record<string, unknown>, logger = makeLogger()) {
+		const mod = await import("../tools/false-positive.js");
+		const server = { registerTool: vi.fn() };
+		mod.registerFalsePositiveTools(
+			server as unknown as { registerTool: (...args: unknown[]) => void },
+			{ logger, versionApp: "0.5.1" },
+		);
+		const calls = (server.registerTool as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
+		const report = calls.find((c) => c[0] === "sage_report_false_positive");
+		const handler = (report as unknown[])[2] as (
 			i: Record<string, unknown>,
 		) => Promise<{ content?: Array<{ text?: string }>; isError?: boolean }>;
 		return handler(input);
@@ -475,6 +559,484 @@ describe("sage_report_false_positive", () => {
 			model_id: "pi-model",
 			content_name: "WebFetch:https://attacker.example",
 		});
+	});
+
+	it("lists reportable skill verdicts without a runtime conversation", async () => {
+		mockGetRecentEntries.mockResolvedValueOnce([makeSkillEntry("skill-list", "HIGH", "job-list")]);
+
+		const res = await runListHandler();
+		expect(res.isError).not.toBe(true);
+		const parsed = JSON.parse(res.content?.[0]?.text ?? "") as {
+			entries: Array<Record<string, unknown>>;
+		};
+		expect(parsed.entries).toHaveLength(1);
+		expect(parsed.entries[0]).toMatchObject({
+			type: "skill_verdict",
+			entry_id: "skill-list",
+			job_id: "job-list",
+			analyzer_verdict: "HIGH",
+			signals: {
+				skill_checks: [
+					{
+						detection_name: `Other:SageSuspiciousSkill-A [Susp]|skan:${"a".repeat(64)}|sage`,
+						skill_id: "a".repeat(64),
+						job_id: "job-list",
+						analyzer_verdict: "HIGH",
+					},
+				],
+			},
+		});
+	});
+
+	it("rebuilds stale skill detection metadata from the authoritative verdict", async () => {
+		const entry = makeSkillEntry("skill-stale-name", "CRITICAL", "job-stale");
+		(entry.signals.skill_checks[0] as Record<string, unknown>).detection_name =
+			"Other:SageSuspiciousSkill-A [Susp]|skan:stale|sage";
+		mockGetRecentEntries.mockResolvedValueOnce([entry]);
+
+		const res = await runListHandler();
+		const parsed = JSON.parse(res.content?.[0]?.text ?? "") as {
+			entries: Array<{ signals: { skill_checks: SkillCheckSignal[] } }>;
+		};
+		expect(parsed.entries[0].signals.skill_checks[0]).toEqual({
+			detection_name: `Other:SageMaliciousSkill-A [Trj]|skan:${"a".repeat(64)}|sage`,
+			skill_id: "a".repeat(64),
+			job_id: "job-stale",
+			analyzer_verdict: "CRITICAL",
+		});
+	});
+
+	it("does not list a skill entry with a malformed content hash", async () => {
+		mockGetRecentEntries.mockResolvedValueOnce([
+			makeSkillEntry("skill-invalid-id", "HIGH", undefined, "not-a-hash"),
+		]);
+
+		const res = await runListHandler();
+		expect(res.isError).toBe(true);
+		expect(res.content?.[0]?.text ?? "").toContain("No reportable runtime or skill verdict");
+	});
+
+	it("lists and reports a current skill verdict from cache when its audit entry is unavailable", async () => {
+		const analyzedAt = new Date().toISOString();
+		mockLoadSkillVerdictCache.mockResolvedValue({
+			entries: {
+				["c".repeat(64)]: {
+					entryId: "cached-entry",
+					jobId: "cached-job",
+					verdict: "HIGH",
+					summary: "must not be exposed",
+					analyzedAt,
+					sources: [{ agentRuntime: "claude-code" }],
+				},
+			},
+		});
+		mockGetRecentEntries.mockResolvedValue([]);
+
+		const list = await runListHandler();
+		const listed = JSON.parse(list.content?.[0]?.text ?? "") as {
+			entries: Array<Record<string, unknown>>;
+		};
+		expect(listed.entries).toEqual([
+			expect.objectContaining({
+				type: "skill_verdict",
+				entry_id: "cached-entry",
+				skill_id: "c".repeat(64),
+				job_id: "cached-job",
+				analyzer_verdict: "HIGH",
+			}),
+		]);
+		expect(listed.entries[0]).not.toHaveProperty("summary");
+
+		const report = await runHandler({
+			description: "Cached FP",
+			reasoning: "The cached result is incorrect",
+			entry_ids: ["cached-entry"],
+			dry_run: true,
+		});
+		const payload = JSON.parse(report.content?.[0]?.text ?? "") as DryRunResponse;
+		expect(payload.reports[0].payload.event_id).toBe("cached-entry");
+		expect(payload.reports[0].payload.block_event.signals?.skill_checks?.[0]).toEqual({
+			detection_name: `Other:SageSuspiciousSkill-A [Susp]|skan:${"c".repeat(64)}|sage`,
+			skill_id: "c".repeat(64),
+			job_id: "cached-job",
+			analyzer_verdict: "HIGH",
+		});
+	});
+
+	it("applies the list limit after merging audit and cache candidates", async () => {
+		const now = Date.now();
+		mockLoadSkillVerdictCache.mockResolvedValue({
+			entries: Object.fromEntries(
+				["a", "b", "c"].map((prefix, index) => [
+					prefix.repeat(64),
+					{
+						entryId: `cached-${prefix}`,
+						verdict: "HIGH",
+						analyzedAt: new Date(now - (2 - index) * 1000).toISOString(),
+					},
+				]),
+			),
+		});
+		mockGetRecentEntries.mockResolvedValue([]);
+
+		const list = await runListHandler({ limit: 2 });
+		const parsed = JSON.parse(list.content?.[0]?.text ?? "") as {
+			entries: Array<{ entry_id: string }>;
+		};
+		expect(parsed.entries.map((entry) => entry.entry_id)).toEqual(["cached-b", "cached-c"]);
+		expect(mockGetRecentEntries).toHaveBeenCalledWith(expect.any(Object), 5000);
+	});
+
+	it("uses a stable fallback ID for pre-upgrade cache entries", async () => {
+		const skillId = "d".repeat(64);
+		const analyzedAt = new Date().toISOString();
+		mockLoadSkillVerdictCache.mockResolvedValue({
+			entries: {
+				[skillId]: {
+					verdict: "CRITICAL",
+					analyzedAt,
+				},
+			},
+		});
+		mockGetRecentEntries.mockResolvedValue([]);
+
+		const list = await runListHandler();
+		const listed = JSON.parse(list.content?.[0]?.text ?? "") as {
+			entries: Array<{ entry_id: string }>;
+		};
+		const entryId = listed.entries[0].entry_id;
+		expect(entryId).toMatch(
+			/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+		);
+
+		const report = await runHandler({
+			description: "Legacy cached FP",
+			reasoning: "The cached result is incorrect",
+			entry_ids: [entryId],
+			dry_run: true,
+		});
+		expect(report.isError).not.toBe(true);
+		const payload = JSON.parse(report.content?.[0]?.text ?? "") as DryRunResponse;
+		expect(payload.reports[0].payload.event_id).toBe(entryId);
+	});
+
+	it("lets the current cache verdict suppress an older risky audit entry", async () => {
+		const skillId = "e".repeat(64);
+		const oldHigh = makeSkillEntry("old-high", "HIGH", "old-job", skillId);
+		oldHigh.timestamp = new Date(Date.now() - 60_000).toISOString();
+		mockGetRecentEntries.mockResolvedValue([oldHigh]);
+		mockLoadSkillVerdictCache.mockResolvedValue({
+			entries: {
+				[skillId]: {
+					entryId: "current-safe",
+					jobId: "current-job",
+					verdict: "SAFE",
+					analyzedAt: new Date().toISOString(),
+				},
+			},
+		});
+
+		const res = await runListHandler();
+		expect(res.isError).toBe(true);
+		expect(res.content?.[0]?.text ?? "").toContain("No reportable runtime or skill verdict");
+	});
+
+	it("lets a newer SAFE audit result suppress an older cached HIGH", async () => {
+		const skillId = "f".repeat(64);
+		const safeAudit = makeSkillEntry("new-safe-audit", "SAFE", "new-job", skillId);
+		safeAudit.timestamp = new Date().toISOString();
+		mockGetRecentEntries.mockResolvedValue([safeAudit]);
+		mockLoadSkillVerdictCache.mockResolvedValue({
+			entries: {
+				[skillId]: {
+					entryId: "old-cached-high",
+					jobId: "old-job",
+					verdict: "HIGH",
+					analyzedAt: new Date(Date.now() - 60_000).toISOString(),
+				},
+			},
+		});
+
+		const res = await runListHandler();
+		expect(res.isError).toBe(true);
+		expect(res.content?.[0]?.text ?? "").toContain("No reportable runtime or skill verdict");
+	});
+
+	it("does not let a verdict-less cache sentinel suppress a risky audit entry", async () => {
+		// The upload worker caches `{}` for skills it can never analyze (too large
+		// / empty). That row carries a fresh `analyzedAt` but no analyzer result, so
+		// it must stay out of the newest-generation comparison entirely — the audit
+		// log already excludes its counterpart via a non-`analyzed` status.
+		const skillId = "b".repeat(64);
+		const risky = makeSkillEntry("audit-high", "HIGH", "audit-job", skillId);
+		risky.timestamp = new Date(Date.now() - 60_000).toISOString();
+		mockGetRecentEntries.mockResolvedValue([risky]);
+		mockLoadSkillVerdictCache.mockResolvedValue({
+			entries: {
+				[skillId]: { analyzedAt: new Date().toISOString() },
+			},
+		});
+
+		const res = await runListHandler();
+		expect(res.isError).not.toBe(true);
+		const parsed = JSON.parse(res.content?.[0]?.text ?? "") as {
+			entries: Array<{ entry_id: string; analyzer_verdict: string }>;
+		};
+		expect(parsed.entries).toHaveLength(1);
+		expect(parsed.entries[0]).toMatchObject({
+			entry_id: "audit-high",
+			analyzer_verdict: "HIGH",
+		});
+	});
+
+	it("ignores skill audit verdicts older than the configured cache TTL", async () => {
+		const expired = makeSkillEntry("expired-high", "HIGH");
+		expired.timestamp = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+		mockGetRecentEntries.mockResolvedValue([expired]);
+
+		const res = await runListHandler();
+		expect(res.isError).toBe(true);
+		expect(res.content?.[0]?.text ?? "").toContain("No reportable runtime or skill verdict");
+	});
+
+	it("does not list legacy skill verdicts that have no selectable entry_id", async () => {
+		const legacy = makeSkillEntry("legacy");
+		delete (legacy as { entry_id?: string }).entry_id;
+		mockGetRecentEntries.mockResolvedValueOnce([legacy]);
+
+		const res = await runListHandler();
+		expect(res.isError).toBe(true);
+		expect(res.content?.[0]?.text ?? "").toContain("No reportable runtime or skill verdict");
+	});
+
+	it("suppresses an older HIGH result when the latest result for the skill is SAFE", async () => {
+		const entries = [
+			makeSkillEntry("skill-old-high", "HIGH", "job-old"),
+			makeSkillEntry("skill-new-safe", "SAFE", "job-new"),
+		];
+		mockGetRecentEntries.mockResolvedValueOnce(entries);
+
+		const list = await runListHandler();
+		expect(list.isError).toBe(true);
+		expect(list.content?.[0]?.text ?? "").toContain("No reportable runtime or skill verdict");
+
+		mockGetRecentEntries.mockResolvedValueOnce(entries);
+		const report = await runHandler({
+			description: "Stale FP",
+			reasoning: "The skill is now safe",
+			entry_ids: ["skill-old-high"],
+			dry_run: true,
+		});
+		expect(report.isError).toBe(true);
+		expect(report.content?.[0]?.text ?? "").toContain("No matching reportable audit entries");
+	});
+
+	it("suppresses an older HIGH result when the latest analyzed result is non-risky", async () => {
+		mockGetRecentEntries.mockResolvedValueOnce([
+			makeSkillEntry("skill-old-high", "HIGH"),
+			makeSkillEntry("skill-new-medium", "MEDIUM"),
+		]);
+
+		const res = await runListHandler();
+		expect(res.isError).toBe(true);
+		expect(res.content?.[0]?.text ?? "").toContain("No reportable runtime or skill verdict");
+	});
+
+	it("uses generation timestamps when audit and cache order disagree", async () => {
+		const newerCritical = makeSkillEntry("skill-newer-critical", "CRITICAL");
+		newerCritical.timestamp = new Date().toISOString();
+		const olderSafe = makeSkillEntry("skill-older-safe", "SAFE");
+		olderSafe.timestamp = new Date(Date.now() - 60_000).toISOString();
+		mockGetRecentEntries.mockResolvedValueOnce([newerCritical, olderSafe]);
+
+		const res = await runListHandler();
+		const parsed = JSON.parse(res.content?.[0]?.text ?? "") as {
+			entries: Array<{ entry_id: string }>;
+		};
+		expect(parsed.entries[0].entry_id).toBe("skill-newer-critical");
+	});
+
+	it("keeps the latest analyzed result across newer operational status entries", async () => {
+		const operationalFailure = makeSkillEntry("skill-error", "HIGH");
+		operationalFailure.status = "error";
+		mockGetRecentEntries.mockResolvedValueOnce([
+			makeSkillEntry("skill-analyzed", "HIGH"),
+			operationalFailure,
+		]);
+
+		const res = await runListHandler();
+		const parsed = JSON.parse(res.content?.[0]?.text ?? "") as {
+			entries: Array<Record<string, unknown>>;
+		};
+		expect(parsed.entries).toHaveLength(1);
+		expect(parsed.entries[0].entry_id).toBe("skill-analyzed");
+	});
+
+	it("lists and reports only the latest risky result for a skill", async () => {
+		const entries = [
+			makeSkillEntry("skill-old-high", "HIGH", "job-old"),
+			makeSkillEntry("skill-new-critical", "CRITICAL", "job-new"),
+		];
+		mockGetRecentEntries.mockResolvedValueOnce(entries);
+
+		const list = await runListHandler();
+		const listed = JSON.parse(list.content?.[0]?.text ?? "") as {
+			entries: Array<Record<string, unknown>>;
+		};
+		expect(listed.entries).toHaveLength(1);
+		expect(listed.entries[0]).toMatchObject({
+			entry_id: "skill-new-critical",
+			job_id: "job-new",
+			analyzer_verdict: "CRITICAL",
+		});
+
+		mockGetRecentEntries.mockResolvedValueOnce(entries);
+		const report = await runHandler({
+			description: "Current FP",
+			reasoning: "The latest result is incorrect",
+			entry_ids: ["skill-new-critical"],
+			dry_run: true,
+		});
+		const payload = JSON.parse(report.content?.[0]?.text ?? "") as DryRunResponse;
+		expect(payload.reports).toHaveLength(1);
+		expect(payload.reports[0].payload.event_id).toBe("skill-new-critical");
+	});
+
+	it("keeps latest reportable results for different skills independently", async () => {
+		mockGetRecentEntries.mockResolvedValueOnce([
+			makeSkillEntry("skill-a-old", "HIGH", "job-a-old", "a".repeat(64)),
+			makeSkillEntry("skill-b", "HIGH", "job-b", "b".repeat(64)),
+			makeSkillEntry("skill-a-new", "CRITICAL", "job-a-new", "a".repeat(64)),
+		]);
+
+		const res = await runListHandler();
+		const parsed = JSON.parse(res.content?.[0]?.text ?? "") as {
+			entries: Array<Record<string, unknown>>;
+		};
+		expect(parsed.entries.map((entry) => entry.entry_id)).toEqual(["skill-b", "skill-a-new"]);
+	});
+
+	it("does not fall back to an older entry when the latest result has no entry_id", async () => {
+		const latestLegacy = makeSkillEntry("legacy-latest", "CRITICAL", "job-new");
+		delete (latestLegacy as { entry_id?: string }).entry_id;
+		mockGetRecentEntries.mockResolvedValueOnce([
+			makeSkillEntry("skill-old", "HIGH", "job-old"),
+			latestLegacy,
+		]);
+
+		const res = await runListHandler();
+		expect(res.isError).toBe(true);
+		expect(res.content?.[0]?.text ?? "").toContain("No reportable runtime or skill verdict");
+	});
+
+	it("reports an explicitly selected skill verdict through the existing endpoint", async () => {
+		mockGetRecentEntries.mockResolvedValueOnce([
+			makeSkillEntry("skill-report", "HIGH", "job-report"),
+		]);
+
+		const res = await runHandler({
+			description: "Skill FP",
+			reasoning: "Expected behavior",
+			entry_ids: ["skill-report"],
+			dry_run: true,
+		});
+		const parsed = JSON.parse(res.content?.[0]?.text ?? "") as DryRunResponse;
+		const payload = parsed.reports[0].payload;
+		expect(payload.event_id).toBe("skill-report");
+		expect(payload.block_event).toMatchObject({
+			hook_type: "SessionStart",
+			tool_type: "Skill",
+			verdict: "ask",
+			user_action: "blocked",
+		});
+		expect(payload.block_event).not.toHaveProperty("content");
+		expect(payload.block_event.signals?.skill_checks).toEqual([
+			{
+				detection_name: `Other:SageSuspiciousSkill-A [Susp]|skan:${"a".repeat(64)}|sage`,
+				skill_id: "a".repeat(64),
+				job_id: "job-report",
+				analyzer_verdict: "HIGH",
+			},
+		]);
+	});
+
+	it("maps CRITICAL skills to deny and permits a missing optional job_id", async () => {
+		mockGetRecentEntries.mockResolvedValueOnce([makeSkillEntry("skill-critical", "CRITICAL")]);
+
+		const res = await runHandler({
+			description: "Skill FP",
+			reasoning: "Expected behavior",
+			entry_ids: ["skill-critical"],
+			dry_run: true,
+		});
+		const parsed = JSON.parse(res.content?.[0]?.text ?? "") as DryRunResponse;
+		expect(parsed.reports[0].payload.block_event.verdict).toBe("deny");
+		expect(parsed.reports[0].payload.block_event.signals?.skill_checks?.[0]).toEqual({
+			detection_name: `Other:SageMaliciousSkill-A [Trj]|skan:${"a".repeat(64)}|sage`,
+			skill_id: "a".repeat(64),
+			analyzer_verdict: "CRITICAL",
+		});
+	});
+
+	it("reports explicitly selected runtime and skill entries together", async () => {
+		mockGetRecentEntries.mockResolvedValueOnce([
+			makeEntry("runtime-mixed", "deny"),
+			makeSkillEntry("skill-mixed", "HIGH", "job-mixed"),
+		]);
+
+		const res = await runHandler({
+			description: "Mixed FP",
+			reasoning: "Both detections are expected",
+			entry_ids: ["runtime-mixed", "skill-mixed"],
+			dry_run: true,
+		});
+		const parsed = JSON.parse(res.content?.[0]?.text ?? "") as DryRunResponse;
+		expect(parsed.reports.map((report) => report.payload.event_id)).toEqual([
+			"runtime-mixed",
+			"skill-mixed",
+		]);
+	});
+
+	it("preserves runtime behavior by reporting resolved IDs and ignoring missing IDs", async () => {
+		mockGetRecentEntries.mockResolvedValueOnce([
+			makeEntry("runtime-present", "deny"),
+			makeSkillEntry("skill-present", "HIGH"),
+		]);
+
+		const res = await runHandler({
+			description: "Mixed FP",
+			reasoning: "Both detections are expected",
+			entry_ids: ["runtime-present", "skill-missing"],
+			dry_run: true,
+		});
+		const parsed = JSON.parse(res.content?.[0]?.text ?? "") as DryRunResponse;
+		expect(parsed.reports).toHaveLength(1);
+		expect(parsed.reports[0].payload.event_id).toBe("runtime-present");
+	});
+
+	it("does not implicitly report skill verdicts", async () => {
+		mockGetRecentEntries.mockResolvedValueOnce([makeSkillEntry("skill-implicit")]);
+
+		const res = await runHandler({
+			description: "Skill FP",
+			reasoning: "Expected behavior",
+			dry_run: true,
+		});
+		expect(res.isError).toBe(true);
+		expect(res.content?.[0]?.text ?? "").toContain("explicit entry_ids");
+	});
+
+	it("rejects non-risky skill entries even when explicitly selected", async () => {
+		mockGetRecentEntries.mockResolvedValueOnce([makeSkillEntry("skill-safe", "SAFE")]);
+
+		const res = await runHandler({
+			description: "Skill FP",
+			reasoning: "Expected behavior",
+			entry_ids: ["skill-safe"],
+			dry_run: true,
+		});
+		expect(res.isError).toBe(true);
+		expect(res.content?.[0]?.text ?? "").toContain("No matching reportable audit entries");
 	});
 
 	it("excludes allow verdicts when entry_ids is not provided", async () => {
@@ -642,6 +1204,37 @@ describe("sage_report_false_positive", () => {
 		expect(parsed.reports[0].payload.block_event.content_snippet).toBeUndefined();
 	});
 
+	it("drops skill_checks carried by a runtime entry instead of forwarding them", async () => {
+		// Sage never writes skill_checks onto a runtime verdict, so such a signal can
+		// only come from a tampered audit log. Forwarding it would push unvalidated
+		// text into the backend's delimiter-parsed detection_name; skill reports
+		// rebuild that name from the authoritative verdict instead.
+		mockGetRecentEntries.mockResolvedValueOnce([
+			{
+				...makeEntry("runtime-with-skill-signal", "deny"),
+				signals: {
+					skill_checks: [
+						{
+							detection_name: "Other:Spoofed-A [Trj]|skan:not-a-hash|sage|extra",
+							skill_id: "not-a-hash",
+							analyzer_verdict: "CRITICAL",
+						},
+					],
+				},
+			},
+		]);
+		const res = await runHandler({
+			description: "FP",
+			reasoning: "Because",
+			entry_ids: ["runtime-with-skill-signal"],
+			dry_run: true,
+		});
+		const parsed = JSON.parse(res.content?.[0]?.text ?? "") as DryRunResponse;
+		expect(parsed.reports).toHaveLength(1);
+		expect(parsed.reports[0].payload.block_event.signals?.skill_checks).toBeUndefined();
+		expect(res.content?.[0]?.text ?? "").not.toContain("Other:Spoofed-A [Trj]");
+	});
+
 	it("forwards amsi_checks signals with their full reporting detection_name", async () => {
 		// Win32 AMSI returns only a numeric threat level, so the evaluator maps
 		// the result class to a stable canonical identity and appends the AMSI
@@ -733,7 +1326,7 @@ describe("sage_report_false_positive", () => {
 		]);
 	});
 
-	it("emits an empty content object for legacy entries without a content field", async () => {
+	it("omits content for legacy entries without a content field", async () => {
 		// Simulates a pre-buildContentSnapshot audit entry — no `content` field.
 		const entry = { ...makeEntry("legacy-1", "deny") } as unknown;
 		mockGetRecentEntries.mockResolvedValueOnce([entry]);
@@ -744,7 +1337,7 @@ describe("sage_report_false_positive", () => {
 		});
 		const parsed = JSON.parse(res.content?.[0]?.text ?? "") as DryRunResponse;
 		expect(parsed.reports).toHaveLength(1);
-		expect(parsed.reports[0].payload.block_event.content).toEqual({});
+		expect(parsed.reports[0].payload.block_event).not.toHaveProperty("content");
 	});
 
 	it("merges extended-info into every FP report payload", async () => {
@@ -848,6 +1441,18 @@ describe("sage_report_false_positive", () => {
 		});
 		expect(res.isError).toBe(true);
 		expect(res.content?.[0]?.text ?? "").toContain("Too many entry_ids");
+	});
+
+	it("rejects more than 10 requested IDs even when only one resolves", async () => {
+		mockGetRecentEntries.mockResolvedValueOnce([makeEntry("entry-0", "deny")]);
+		const res = await runHandler({
+			description: "FP",
+			reasoning: "Because",
+			entry_ids: Array.from({ length: 11 }, (_, index) => `entry-${index}`),
+			dry_run: true,
+		});
+		expect(res.isError).toBe(true);
+		expect(res.content?.[0]?.text ?? "").toContain("Too many entry_ids (11)");
 	});
 
 	// ── Runtime-version resolution chain ─────────────────────────────

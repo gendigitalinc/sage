@@ -68,7 +68,7 @@ If the user believes a Sage detection is incorrect (a wrong block, mistaken flag
 
 With the server running:
 
-1. **`sage_list_audit_entries`** — Lists recent Sage audit log entries for the current conversation. Use this to find the `entry_id`s of the detections the user considers incorrect.
-2. **`sage_report_false_positive`** — Submits a false positive report to the Sage backend. Requires a `description` (what was wrongly detected) and `reasoning` (why it is a false positive). Optionally accepts `entry_ids` to scope the report to specific entries.
+1. **`sage_list_audit_entries`** — Lists recent Sage runtime entries for the current conversation and recent risky Skill Analyzer entries. Use this to find the `entry_id`s of the detections the user considers incorrect.
+2. **`sage_report_false_positive`** — Submits a false positive report to the Sage backend. Requires a `description` (what was wrongly detected) and `reasoning` (why it is a false positive). Pass the selected `entry_ids`; this is required for Skill Analyzer findings.
 
 When the user says a detection was wrong, a false positive, or asks to report/dispute a Sage verdict, use these tools to help them.

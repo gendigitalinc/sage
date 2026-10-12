@@ -2,16 +2,22 @@ import { randomUUID } from "node:crypto";
 import {
 	type Branding,
 	buildSageProxyEnvelope,
+	buildSkillCheckSignal,
 	defaultBranding,
 	getInstallationId,
 	getRecentEntries,
 	type HookType,
+	isFreshTimestamp,
+	isSkillId,
 	type Logger,
 	loadConfig,
 	loadExtendedInfo,
+	loadSkillVerdictCacheReadOnly,
 	mergeExtendedInfo,
 	readProductJsonVersion,
 	resolveEndpoint,
+	resolveSkillVerdictEntryId,
+	skillCacheTtlMs,
 } from "@gendigital/sage-core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -36,6 +42,19 @@ type AuditRuntimeVerdictEntry = {
 	content?: unknown;
 	content_snippet?: unknown;
 	hook_type?: unknown;
+};
+
+type AuditSkillVerdictEntry = {
+	type?: unknown;
+	entry_id?: unknown;
+	timestamp?: unknown;
+	agent_runtime?: unknown;
+	skill_id?: unknown;
+	job_id?: unknown;
+	status?: unknown;
+	verdict?: unknown;
+	summary?: unknown;
+	signals?: unknown;
 };
 
 function asString(v: unknown): string | undefined {
@@ -76,9 +95,8 @@ const HOST_AGENT_RUNTIME_VERSION = (() => {
  * entry. The snapshot is produced by `buildContentSnapshot` in core (caps,
  * home-path scrubbing, deterministic multi-value selection all applied
  * upstream) and persisted verbatim by `logVerdict`. The FP tool reads it
- * directly with no reconstruction — legacy entries without a `content` field
- * produce an empty object rather than a heuristic rebuild, which is acceptable
- * because audit logs rotate naturally via `max_bytes` / `max_files`.
+ * directly with no reconstruction. Legacy entries without a `content` field
+ * produce an empty object here, which payload construction omits entirely.
  */
 function readContent(entry: AuditRuntimeVerdictEntry): Record<string, unknown> {
 	const raw = entry.content;
@@ -95,12 +113,103 @@ function isRuntimeVerdictEntry(v: unknown): v is AuditRuntimeVerdictEntry {
 	return (v as Record<string, unknown>).type === "runtime_verdict";
 }
 
+/** A skill_verdict entry whose `skill_id` the guards below have already validated. */
+type AnalyzedSkillVerdictEntry = AuditSkillVerdictEntry & { skill_id: string };
+
+function isAnalyzedSkillVerdictEntry(v: unknown): v is AnalyzedSkillVerdictEntry {
+	if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+	const entry = v as Record<string, unknown>;
+	return (
+		entry.type === "skill_verdict" &&
+		entry.status === "analyzed" &&
+		isSkillId(asString(entry.skill_id) ?? "")
+	);
+}
+
+function isReportableSkillVerdictEntry(v: unknown): v is AnalyzedSkillVerdictEntry {
+	if (!isAnalyzedSkillVerdictEntry(v)) return false;
+	const entry = v as Record<string, unknown>;
+	const verdict = asString(entry.verdict)?.toUpperCase();
+	return (verdict === "HIGH" || verdict === "CRITICAL") && asString(entry.entry_id) !== undefined;
+}
+
+/**
+ * Return at most one current reportable analyzer result per skill. Generation
+ * timestamps reconcile audit and cache candidates; append order breaks ties.
+ *
+ * Deduplication deliberately happens before the risk filter. A newer SAFE
+ * result (or a malformed/legacy analyzed result without an entry_id) therefore
+ * suppresses an older HIGH/CRITICAL entry instead of exposing stale data.
+ */
+function latestReportableSkillVerdicts(
+	entries: unknown[],
+	ttlMs: number,
+	now = Date.now(),
+): AuditSkillVerdictEntry[] {
+	const latestBySkillId = new Map<string, { entry: AuditSkillVerdictEntry; timestamp: number }>();
+	for (const entry of entries) {
+		if (!isAnalyzedSkillVerdictEntry(entry)) continue;
+		const timestamp = Date.parse(asString(entry.timestamp) ?? "");
+		if (!isFreshTimestamp(timestamp, ttlMs, now)) continue;
+		const normalizedSkillId = entry.skill_id.toLowerCase();
+		const current = latestBySkillId.get(normalizedSkillId);
+		if (current && timestamp < current.timestamp) continue;
+		latestBySkillId.delete(normalizedSkillId);
+		latestBySkillId.set(normalizedSkillId, { entry, timestamp });
+	}
+	return [...latestBySkillId.values()]
+		.map(({ entry }) => entry)
+		.filter(isReportableSkillVerdictEntry);
+}
+
+/**
+ * Adapter: presents verdict-cache rows in the audit-entry shape so both stores
+ * can go through one merge and one reporting path. Nothing here is read back
+ * from the audit log — `signals` is rebuilt from the cached verdict, and
+ * entries written before `entryId` was persisted get a derived one.
+ */
+async function cachedSkillVerdictEntries(
+	config: Awaited<ReturnType<typeof loadConfig>>,
+	logger: Logger,
+): Promise<AuditSkillVerdictEntry[]> {
+	const cache = await loadSkillVerdictCacheReadOnly(undefined, skillCacheTtlMs(config), logger);
+	return Object.entries(cache.entries).flatMap(([skillId, entry]) => {
+		if (!isSkillId(skillId)) return [];
+		// Verdict-less rows are the sentinel the upload worker caches for skills it
+		// can never analyze (too large / empty). The audit log records those under a
+		// non-`analyzed` status, so skipping them keeps both stores consistent
+		// instead of letting a sentinel win the newest-generation comparison.
+		if (!entry.verdict) return [];
+		const normalizedSkillId = skillId.toLowerCase();
+		const analyzerVerdict = entry.verdict.toUpperCase();
+		const signal = buildSkillCheckSignal(normalizedSkillId, analyzerVerdict, entry.jobId);
+		return [
+			{
+				type: "skill_verdict",
+				entry_id: resolveSkillVerdictEntryId(normalizedSkillId, entry),
+				timestamp: entry.analyzedAt,
+				agent_runtime: entry.sources?.[0]?.agentRuntime,
+				skill_id: normalizedSkillId,
+				job_id: entry.jobId,
+				status: "analyzed",
+				verdict: analyzerVerdict,
+				signals: signal ? { skill_checks: [signal] } : undefined,
+			},
+		];
+	});
+}
+
 function getConversationId(entry: AuditRuntimeVerdictEntry): string | undefined {
 	return asString(entry.conversation_id) ?? asString(entry.session_id);
 }
 
-function getEntryId(entry: AuditRuntimeVerdictEntry): string | undefined {
+function getEntryId(entry: AuditRuntimeVerdictEntry | AuditSkillVerdictEntry): string | undefined {
 	return asString(entry.entry_id);
+}
+
+function getEntryTimestamp(entry: AuditRuntimeVerdictEntry | AuditSkillVerdictEntry): number {
+	const timestamp = Date.parse(asString(entry.timestamp) ?? "");
+	return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
 function asHookType(value: unknown): HookType | undefined {
@@ -136,12 +245,20 @@ async function postMultipart(
 	return { ok: res.ok, status: res.status, bodyText };
 }
 
+const MAX_AUDIT_SCAN_ENTRIES = 5000;
+
 const ListInputSchema = z.object({
 	conversation_id: z
 		.string()
 		.optional()
 		.describe("Conversation id to filter audit entries; if omitted, uses the most recent one."),
-	limit: z.number().int().min(1).max(5000).optional().describe("Max entries to scan and return."),
+	limit: z
+		.number()
+		.int()
+		.min(1)
+		.max(MAX_AUDIT_SCAN_ENTRIES)
+		.optional()
+		.describe("Max merged entries to return."),
 });
 
 const MAX_IMPLICIT_ENTRIES = 3;
@@ -165,6 +282,7 @@ const ReportInputSchema = z.object({
 		),
 	entry_ids: z
 		.array(z.string())
+		.max(MAX_EXPLICIT_ENTRIES)
 		.optional()
 		.describe(
 			`REQUIRED in normal use: list of specific audit entry_ids to report as false positives. ALWAYS call sage_list_audit_entries first to inspect the audit log and identify the exact deny/ask verdict the user considers a false positive, then pass its entry_id here. Up to ${MAX_EXPLICIT_ENTRIES} entry_ids may be provided per call. Omitting this parameter is a fallback that submits up to ${MAX_IMPLICIT_ENTRIES} most recent deny/ask entries for the conversation, which may include irrelevant verdicts and should only be used when entry_id discovery is impossible.`,
@@ -172,7 +290,15 @@ const ReportInputSchema = z.object({
 	dry_run: z.boolean().optional().describe("If true, do not POST; just show the payload."),
 });
 
-function parseAuditSignals(
+/**
+ * Parse the runtime detection signals off a stored entry.
+ *
+ * `skill_checks` is absent by design, not by oversight: a skill signal is
+ * rebuilt from the authoritative verdict at the call sites, so parsing the
+ * stored one here would put unvalidated text back into the report. The name
+ * says "runtime" to keep that boundary visible.
+ */
+function parseRuntimeAuditSignals(
 	raw: unknown,
 	options: { includePiContentSnippet?: boolean } = {},
 ): {
@@ -379,7 +505,7 @@ export function registerFalsePositiveTools(
 		"sage_list_audit_entries",
 		{
 			title: `${branding.name}: List Audit Entries`,
-			description: `List recent ${branding.name} audit log entries, optionally scoped to a conversation id. Useful for selecting entry_ids to report as false positives.`,
+			description: `List recent ${branding.name} runtime and Skill Analyzer audit entries. Runtime entries are optionally scoped to a conversation id; skill entries are global because analysis can finish outside the originating conversation. Useful for selecting entry_ids to report as false positives.`,
 			inputSchema: ListInputSchema,
 		},
 		async ({ conversation_id, limit }) => {
@@ -398,9 +524,14 @@ export function registerFalsePositiveTools(
 			});
 			try {
 				const config = await loadConfig(undefined, logger);
-				const scanLimit = limit ?? 500;
-				const entries = await getRecentEntries(config.logging, scanLimit);
+				const outputLimit = limit ?? 500;
+				const entries = await getRecentEntries(config.logging, MAX_AUDIT_SCAN_ENTRIES);
 				const runtime = entries.filter(isRuntimeVerdictEntry);
+				const cachedSkills = await cachedSkillVerdictEntries(config, logger);
+				const skills = latestReportableSkillVerdicts(
+					[...entries, ...cachedSkills],
+					skillCacheTtlMs(config),
+				);
 
 				const inferredConversationId =
 					conversation_id ??
@@ -411,30 +542,58 @@ export function registerFalsePositiveTools(
 							.find((e) => !!getConversationId(e)) ?? {},
 					);
 
-				if (!inferredConversationId) {
-					complete("skipped", { skippedReason: "no_runtime_entries", entriesReturned: 0 });
-					return textResult("No runtime_verdict entries found in the audit log.", true);
+				if (!inferredConversationId && skills.length === 0) {
+					complete("skipped", { skippedReason: "no_reportable_entries", entriesReturned: 0 });
+					return textResult("No reportable runtime or skill verdict entries found.", true);
 				}
 
-				const filtered = runtime.filter((e) => getConversationId(e) === inferredConversationId);
-				const out = filtered.map((e) => ({
-					entry_id: getEntryId(e),
-					timestamp: asString(e.timestamp),
-					conversation_id: inferredConversationId,
-					agent_runtime: asString(e.agent_runtime),
-					tool_name: asString(e.tool_name),
-					tool_input_summary: asString(e.tool_input_summary),
-					verdict: asString(e.verdict),
-					severity: asString(e.severity),
-					source: asString(e.source),
-					user_override: e.user_override,
-					// PI snippets are untrusted fetched content. Exclude their raw
-					// text—including the generic top-level content_snippet - from this
-					// model-visible response. Retain it only for the backend-only
-					// false-positive report below.
-					signals: parseAuditSignals(e.signals, { includePiContentSnippet: false }),
-					content: readContent(e),
-				}));
+				const filteredRuntime = inferredConversationId
+					? runtime.filter((e) => getConversationId(e) === inferredConversationId)
+					: [];
+				const selected: Array<AuditRuntimeVerdictEntry | AuditSkillVerdictEntry> = [
+					...filteredRuntime,
+					...skills,
+				]
+					.sort((a, b) => getEntryTimestamp(a) - getEntryTimestamp(b))
+					.slice(-outputLimit);
+				const out = selected.map((entry) => {
+					if (isReportableSkillVerdictEntry(entry)) {
+						const skillId = entry.skill_id;
+						const analyzerVerdict = asString(entry.verdict)?.toUpperCase() ?? "";
+						const signal = buildSkillCheckSignal(skillId, analyzerVerdict, asString(entry.job_id));
+						return {
+							type: "skill_verdict",
+							entry_id: getEntryId(entry),
+							timestamp: asString(entry.timestamp),
+							agent_runtime: asString(entry.agent_runtime),
+							skill_id: skillId.toLowerCase(),
+							job_id: asString(entry.job_id),
+							status: asString(entry.status),
+							analyzer_verdict: analyzerVerdict,
+							signals: signal ? { skill_checks: [signal] } : {},
+						};
+					}
+					const runtimeEntry = entry as AuditRuntimeVerdictEntry;
+					return {
+						type: "runtime_verdict",
+						entry_id: getEntryId(runtimeEntry),
+						timestamp: asString(runtimeEntry.timestamp),
+						conversation_id: inferredConversationId,
+						agent_runtime: asString(runtimeEntry.agent_runtime),
+						tool_name: asString(runtimeEntry.tool_name),
+						tool_input_summary: asString(runtimeEntry.tool_input_summary),
+						verdict: asString(runtimeEntry.verdict),
+						severity: asString(runtimeEntry.severity),
+						source: asString(runtimeEntry.source),
+						user_override: runtimeEntry.user_override,
+						// PI snippets are untrusted fetched content. Exclude their raw
+						// text from this model-visible response.
+						signals: parseRuntimeAuditSignals(runtimeEntry.signals, {
+							includePiContentSnippet: false,
+						}),
+						content: readContent(runtimeEntry),
+					};
+				});
 
 				complete("completed", {
 					conversationId: inferredConversationId,
@@ -459,10 +618,10 @@ export function registerFalsePositiveTools(
 		{
 			title: `${branding.name}: Report False Positive`,
 			description:
-				`Report ${branding.name} audit log entries as false positives to the backend, scoped to the current conversation.\n\n` +
+				`Report ${branding.name} runtime or Skill Analyzer audit entries as false positives to the backend. Runtime entries are scoped to the current conversation; skill entries require explicit entry_ids.\n\n` +
 				`USAGE — IMPORTANT:\n` +
-				`1. ALWAYS call \`sage_list_audit_entries\` FIRST to inspect the audit log and locate the specific deny/ask verdict the user considers a false positive.\n` +
-				`2. ALWAYS pass the \`entry_ids\` parameter with just the relevant deny/ask entry id(s). Up to ${MAX_EXPLICIT_ENTRIES} entry_ids may be reported per call.\n` +
+				`1. ALWAYS call \`sage_list_audit_entries\` FIRST to inspect the audit log and locate the specific runtime or skill verdict the user considers a false positive.\n` +
+				`2. ALWAYS pass the \`entry_ids\` parameter with just the relevant entry id(s); it is required for skill verdicts. Up to ${MAX_EXPLICIT_ENTRIES} entry_ids may be reported per call.\n` +
 				`3. Only when entry_id discovery is impossible should \`entry_ids\` be omitted; in that fallback at most ${MAX_IMPLICIT_ENTRIES} most recent deny/ask entries for the conversation are submitted, which may include irrelevant verdicts and floods the backend with noise.`,
 			inputSchema: ReportInputSchema,
 		},
@@ -495,9 +654,15 @@ export function registerFalsePositiveTools(
 				const endpoint = resolveEndpoint("/v2/fp-report");
 				const timeoutSeconds = Number(process.env.SAGE_FALSE_POSITIVE_TIMEOUT_SECONDS) || 5;
 
-				const scanLimit = 2000;
-				const entries = await getRecentEntries(config.logging, scanLimit);
+				// Match the list tool's maximum so every entry it can expose can
+				// subsequently be resolved by explicit entry_id.
+				const entries = await getRecentEntries(config.logging, MAX_AUDIT_SCAN_ENTRIES);
 				const runtime = entries.filter(isRuntimeVerdictEntry);
+				const cachedSkills = await cachedSkillVerdictEntries(config, logger);
+				const skills = latestReportableSkillVerdicts(
+					[...entries, ...cachedSkills],
+					skillCacheTtlMs(config),
+				);
 				const inferredConversationId =
 					conversation_id ??
 					getConversationId(
@@ -507,31 +672,37 @@ export function registerFalsePositiveTools(
 							.find((e) => !!getConversationId(e)) ?? {},
 					);
 
-				if (!inferredConversationId) {
-					complete("skipped", { skippedReason: "no_runtime_entries", reportsCount: 0 });
-					return textResult("No runtime_verdict entries found in the audit log.", true);
-				}
-
-				let filtered = runtime.filter((e) => getConversationId(e) === inferredConversationId);
+				let filtered: Array<AuditRuntimeVerdictEntry | AuditSkillVerdictEntry>;
 				if (entry_ids && entry_ids.length > 0) {
-					const wanted = new Set(entry_ids);
-					filtered = filtered.filter((e) => {
-						const id = getEntryId(e);
-						return id ? wanted.has(id) : false;
-					});
-					if (filtered.length > MAX_EXPLICIT_ENTRIES) {
+					if (entry_ids.length > MAX_EXPLICIT_ENTRIES) {
 						complete("failed_validation", {
 							conversationId: inferredConversationId,
-							reportsCount: filtered.length,
+							entryIdsCount: entry_ids.length,
 							maxEntries: MAX_EXPLICIT_ENTRIES,
 						});
 						return textResult(
-							`Too many entry_ids (${filtered.length}). Provide at most ${MAX_EXPLICIT_ENTRIES} specific entry_ids per report call.`,
+							`Too many entry_ids (${entry_ids.length}). Provide at most ${MAX_EXPLICIT_ENTRIES} specific entry_ids per report call.`,
 							true,
 						);
 					}
+					const wanted = new Set(entry_ids);
+					const scopedRuntime = inferredConversationId
+						? runtime.filter((e) => getConversationId(e) === inferredConversationId)
+						: [];
+					filtered = [...scopedRuntime, ...skills].filter((e) => {
+						const id = getEntryId(e);
+						return id !== undefined && wanted.has(id);
+					});
 				} else {
-					filtered = filtered.filter((e) => {
+					if (!inferredConversationId) {
+						complete("skipped", { skippedReason: "no_runtime_entries", reportsCount: 0 });
+						return textResult(
+							"No runtime_verdict entries found. Skill verdicts must be reported with explicit entry_ids.",
+							true,
+						);
+					}
+					filtered = runtime.filter((e) => {
+						if (getConversationId(e) !== inferredConversationId) return false;
 						const v = asString(e.verdict);
 						return v === "deny" || v === "ask";
 					});
@@ -548,7 +719,7 @@ export function registerFalsePositiveTools(
 							reportsCount: 0,
 						});
 						return textResult(
-							"No matching audit entries found for the provided entry_ids in this conversation. Run sage_list_audit_entries first.",
+							"No matching reportable audit entries found for the provided entry_ids. Run sage_list_audit_entries first.",
 							true,
 						);
 					}
@@ -592,26 +763,32 @@ export function registerFalsePositiveTools(
 
 				const reports = filtered
 					.map((e) => {
+						const isSkill = isReportableSkillVerdictEntry(e);
+						const runtimeEntry = isSkill ? undefined : (e as AuditRuntimeVerdictEntry);
 						const entry_id = getEntryId(e);
 						const timestamp = asString(e.timestamp) ?? new Date().toISOString();
 						const agent_runtime = asString(e.agent_runtime) ?? "unknown";
-						const tool_type = asString(e.tool_name) ?? "Unknown";
-						const verdict = asString(e.verdict) ?? "deny";
-						// Explicitly selected allow entries have no user override, but were
-						// still allowed on the user's machine. Reporting them as blocked
-						// would contradict the audit verdict and corrupt FP telemetry.
-						const wasAllowed = verdict === "allow" || e.user_override === true;
+						const analyzerVerdict = isSkill ? asString(e.verdict)?.toUpperCase() : undefined;
+						const tool_type = isSkill ? "Skill" : (asString(runtimeEntry?.tool_name) ?? "Unknown");
+						const verdict = isSkill
+							? analyzerVerdict === "CRITICAL"
+								? "deny"
+								: "ask"
+							: (asString(e.verdict) ?? "deny");
+						const wasAllowed =
+							!isSkill && (verdict === "allow" || runtimeEntry?.user_override === true);
 						const user_action = wasAllowed ? "allowed" : "blocked";
-						const hook_type = asHookType(e.hook_type) ?? "PreToolUse";
+						const hook_type = isSkill
+							? "SessionStart"
+							: (asHookType(runtimeEntry?.hook_type) ?? "PreToolUse");
 
 						// Dry-run output is returned directly to the model. Do not expose
-						// untrusted PI text there, including the generic top-level
-						// content_snippet; preserve it only for actual backend reports.
-						const signals = parseAuditSignals(e.signals, {
+						// untrusted PI text there; preserve it only for backend reports.
+						const signals = parseRuntimeAuditSignals(e.signals, {
 							includePiContentSnippet: !dry_run,
 						});
-						const content = readContent(e);
-						const contentSnippet = readContentSnippet(e);
+						const content = runtimeEntry ? readContent(runtimeEntry) : {};
+						const contentSnippet = runtimeEntry ? readContentSnippet(runtimeEntry) : undefined;
 
 						const bestEffortSignals: Record<string, unknown> = {};
 						if (signals.heuristics) bestEffortSignals.heuristics = signals.heuristics;
@@ -620,6 +797,15 @@ export function registerFalsePositiveTools(
 						if (signals.package_checks) bestEffortSignals.package_checks = signals.package_checks;
 						if (signals.pi_checks) bestEffortSignals.pi_checks = signals.pi_checks;
 						if (signals.amsi_checks) bestEffortSignals.amsi_checks = signals.amsi_checks;
+						// Always rebuilt from the authoritative verdict, never copied from
+						// the stored signal — a runtime entry carrying `skill_checks` is
+						// not something Sage writes, so it is dropped rather than trusted.
+						if (isSkill) {
+							const signal = analyzerVerdict
+								? buildSkillCheckSignal(e.skill_id, analyzerVerdict, asString(e.job_id))
+								: undefined;
+							if (signal) bestEffortSignals.skill_checks = [signal];
+						}
 
 						const baseReportPayload = {
 							...buildSageProxyEnvelope({
@@ -638,7 +824,7 @@ export function registerFalsePositiveTools(
 								...(Object.keys(bestEffortSignals).length > 0
 									? { signals: bestEffortSignals }
 									: {}),
-								content,
+								...(Object.keys(content).length > 0 ? { content } : {}),
 								...(contentSnippet && !dry_run ? { content_snippet: contentSnippet } : {}),
 							},
 							comment,
@@ -715,8 +901,11 @@ export function registerFalsePositiveTools(
 					conversationId: inferredConversationId,
 					reported: filtered.length,
 				});
+				const scope = inferredConversationId
+					? ` for conversation_id=${inferredConversationId}`
+					: "";
 				return textResult(
-					`Reported ${filtered.length} audit entr${filtered.length === 1 ? "y" : "ies"} for conversation_id=${inferredConversationId}.`,
+					`Reported ${filtered.length} audit entr${filtered.length === 1 ? "y" : "ies"}${scope}.`,
 				);
 			} catch (e) {
 				logger.warn("MCP tool failed", {

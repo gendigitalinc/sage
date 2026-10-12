@@ -13906,7 +13906,7 @@ init_file_utils();
 var import_meta = {};
 function resolveVersion() {
   if (true)
-    return "0.13.0";
+    return "0.14.0";
   try {
     const pkgPath = (0, import_node_path2.join)((0, import_node_path2.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
     const pkg = JSON.parse(getFileContentSync(pkgPath));
@@ -14158,6 +14158,8 @@ function loadSkillVerdictCacheSync(cachePath = defaultCachePath2()) {
       if (typeof analyzedAt !== "string")
         continue;
       entries[skillId] = {
+        entryId: typeof entry.entry_id === "string" ? entry.entry_id : void 0,
+        jobId: typeof entry.job_id === "string" ? entry.job_id : void 0,
         verdict: typeof entry.verdict === "string" ? entry.verdict : void 0,
         summary: typeof entry.summary === "string" ? entry.summary : void 0,
         skillName: typeof entry.skill_name === "string" ? entry.skill_name : void 0,
@@ -14181,6 +14183,9 @@ function riskyVerdictsSince(cache, sinceIso) {
     return risk === "HIGH" || risk === "CRITICAL";
   }).sort((a, b) => b.ts - a.ts).map(({ entry }) => entry);
 }
+
+// ../core/dist/skill-verdict-record.js
+var SKILL_ENTRY_ID_NAMESPACE = Buffer.from("75bba79a376142a7bacbf95d791126d3", "hex");
 
 // ../core/dist/plugin-scanner.js
 init_types2();

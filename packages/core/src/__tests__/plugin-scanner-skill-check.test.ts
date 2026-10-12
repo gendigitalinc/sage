@@ -1,9 +1,9 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { scanPlugin } from "../plugin-scanner.js";
-import { listPending, loadPendingMarker } from "../skill-pending.js";
+import { addPending, listPending, loadPendingMarker, savePendingMarker } from "../skill-pending.js";
 import type { PluginInfo } from "../types.js";
 
 describe("scanPlugin skill-check integration", () => {
@@ -115,6 +115,134 @@ describe("scanPlugin skill-check integration", () => {
 		const skillFindings = result.findings.filter((f) => f.threatId === "SKILL_CHECK");
 		expect(skillFindings).toHaveLength(1);
 		expect(skillFindings[0].severity).toBe("critical");
+	});
+
+	it("caches and audits job_id for a known analyzer verdict", async () => {
+		await makeSkill("skills/reportable");
+		const auditPath = join(sageDir, "audit.jsonl");
+
+		globalThis.fetch = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+			const body = JSON.parse(init.body as string);
+			const id = body.skill_ids[0] as string;
+			return {
+				ok: true,
+				json: async () => ({
+					results: {
+						[id]: {
+							job_id: "job-known",
+							skill_id: id,
+							verdict: "HIGH",
+							summary: "suspicious",
+						},
+					},
+				}),
+			};
+		});
+
+		await scan({
+			agentRuntime: "cursor",
+			loggingConfig: {
+				enabled: true,
+				log_clean: false,
+				path: auditPath,
+				max_bytes: 5 * 1024 * 1024,
+				max_files: 3,
+			},
+		});
+
+		const cache = JSON.parse(await readFile(skillVerdictCachePath, "utf-8"));
+		const cached = Object.values(cache.entries)[0] as Record<string, unknown>;
+		expect(cached.job_id).toBe("job-known");
+
+		const audit = JSON.parse((await readFile(auditPath, "utf-8")).trim());
+		expect(audit.type).toBe("skill_verdict");
+		expect(audit.job_id).toBe("job-known");
+		expect(audit.entry_id).toEqual(expect.any(String));
+		expect(cached.entry_id).toBe(audit.entry_id);
+	});
+
+	it("audits one entry when two folders hold the same skill", async () => {
+		// Identical content ⇒ identical (content-derived) skill id, so both folders
+		// share one cache row and must not each mint their own entry id.
+		await makeSkill("skills/twin-a", "same body\n");
+		await makeSkill("skills/twin-b", "same body\n");
+		const auditPath = join(sageDir, "audit.jsonl");
+
+		globalThis.fetch = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+			const body = JSON.parse(init.body as string);
+			const ids = body.skill_ids as string[];
+			expect(new Set(ids).size).toBe(1);
+			return {
+				ok: true,
+				json: async () => ({
+					results: {
+						[ids[0]]: { job_id: "job-twin", skill_id: ids[0], verdict: "HIGH" },
+					},
+				}),
+			};
+		});
+
+		const result = await scan({
+			loggingConfig: {
+				enabled: true,
+				log_clean: false,
+				path: auditPath,
+				max_bytes: 5 * 1024 * 1024,
+				max_files: 3,
+			},
+		});
+
+		// One finding per folder, but a single audit entry matching the cache row.
+		expect(result.findings.filter((f) => f.threatId === "SKILL_CHECK")).toHaveLength(2);
+		const audit = (await readFile(auditPath, "utf-8")).trim().split("\n").map(JSON.parse);
+		expect(audit).toHaveLength(1);
+		const cache = JSON.parse(await readFile(skillVerdictCachePath, "utf-8"));
+		expect(Object.keys(cache.entries)).toHaveLength(1);
+		expect((Object.values(cache.entries)[0] as Record<string, unknown>).entry_id).toBe(
+			audit[0].entry_id,
+		);
+	});
+
+	it("retains pending work and defers plugin caching when verdict cache persistence fails", async () => {
+		const folder = await makeSkill("skills/cache-write-failure");
+		skillVerdictCachePath = sageDir; // Existing directory makes atomic file replacement fail.
+		const auditPath = join(sageDir, "audit.jsonl");
+
+		globalThis.fetch = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+			const body = JSON.parse(init.body as string);
+			const id = body.skill_ids[0] as string;
+			const marker = { entries: {} };
+			addPending(marker, id, folder);
+			await savePendingMarker(marker, skillPendingPath);
+			return {
+				ok: true,
+				json: async () => ({
+					results: {
+						[id]: {
+							job_id: "job-cache-failure",
+							skill_id: id,
+							verdict: "HIGH",
+						},
+					},
+				}),
+			};
+		});
+
+		const result = await scan({
+			loggingConfig: {
+				enabled: true,
+				log_clean: false,
+				path: auditPath,
+				max_bytes: 5 * 1024 * 1024,
+				max_files: 3,
+			},
+		});
+
+		expect(result.deferCache).toBe(true);
+		expect(listPending(await loadPendingMarker(skillPendingPath))).toHaveLength(1);
+		// No "analyzed" entry: the next session re-records the verdict under a fresh
+		// entry id, so an entry logged here would be an orphan.
+		await expect(readFile(auditPath, "utf-8")).rejects.toThrow();
 	});
 
 	it("queues a skill the proxy returns null for (not found → upload)", async () => {

@@ -6,6 +6,7 @@
 import { randomUUID } from "node:crypto";
 import { resolvePath } from "./config.js";
 import { scrubHomePath } from "./content-snapshot.js";
+import { buildSkillCheckSignal } from "./detection-names.js";
 import { getFileContent } from "./file-utils.js";
 import { appendJsonlEntry } from "./jsonl-log-writer.js";
 import type { AgentRuntime, AuditSignals, HookType, LoggingConfig, Verdict } from "./types.js";
@@ -48,7 +49,7 @@ const MAX_SUMMARY_LEN = 200;
  * value domains, etc.). Additive changes — new optional fields, new
  * `type` values, new entries inside `signals`/`content` — do NOT
  * require a bump because readers (`getRecentEntries`, the FP tool's
- * `parseAuditSignals`, etc.) all tolerate unknown keys.
+ * `parseRuntimeAuditSignals`, etc.) all tolerate unknown keys.
  *
  * Exported so downstream consumers (tests, schema validators, future
  * audit-log readers that want to gate on the writer's version) can
@@ -205,20 +206,35 @@ export async function logSkillVerdict(
 	status: "analyzed" | "too_large" | "empty" | "error" | "no_verdict",
 	verdict?: string,
 	summary?: string,
-): Promise<void> {
-	if (!config.enabled) return;
+	context: { entryId?: string; jobId?: string; agentRuntime?: string } = {},
+): Promise<boolean> {
+	if (!config.enabled) return false;
 	const entry: Record<string, unknown> = {
 		type: "skill_verdict",
+		entry_id: context.entryId ?? randomUUID(),
 		timestamp: new Date().toISOString(),
 		skill_id: skillId,
 		status,
 	};
+	if (context.jobId !== undefined) entry.job_id = context.jobId;
+	if (context.agentRuntime !== undefined) entry.agent_runtime = context.agentRuntime;
 	if (verdict !== undefined) entry.verdict = verdict;
 	if (summary !== undefined) entry.summary = summary.slice(0, MAX_SUMMARY_LEN);
+	const skillSignal =
+		status === "analyzed" && verdict !== undefined
+			? buildSkillCheckSignal(skillId, verdict, context.jobId)
+			: undefined;
+	if (skillSignal) {
+		entry.signals = {
+			skill_checks: [skillSignal],
+		} satisfies AuditSignals;
+	}
 	try {
 		await appendEntry(config, entry);
+		return true;
 	} catch {
 		// Fail-open
+		return false;
 	}
 }
 

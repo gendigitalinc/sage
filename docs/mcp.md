@@ -85,21 +85,23 @@ For **MCP**, Sage registers an MCP server definition provider so that the server
 
 ### `sage_list_audit_entries`
 
-Lists recent audit entries from `~/.sage/audit.jsonl`, optionally filtered by `conversation_id`. This is intended to help users pick `entry_id`s for reporting.
+Lists recent reportable audit entries from `~/.sage/audit.jsonl`. Runtime verdicts are optionally filtered by `conversation_id`; risky Skill Analyzer verdicts are listed globally because detached analysis can finish after the originating conversation. The optional `limit` is applied after audit and cache candidates are merged. This is intended to help users pick `entry_id`s for reporting.
 
 ### `sage_report_false_positive`
 
 Reports audit entries as false positives to Sage Proxy (`POST /v2/fp-report`).
 
-- **Scoping**: filters to entries matching `conversation_id`.
+- **Scoping**: runtime verdicts are filtered to entries matching `conversation_id`.
   - If `conversation_id` is not provided, Sage will infer it from the most recent `runtime_verdict` entry in the audit log.
+  - Skill Analyzer verdicts have no reliable conversation association and must be selected explicitly by `entry_id`.
 - **User input**: the tool requires:
   - `description`: a short description of what is wrong
   - `reasoning`: why it’s a false positive
 - **Entry selection**: callers should call `sage_list_audit_entries` first and pass the relevant `entry_id`(s) via the `entry_ids` parameter.
   - With `entry_ids` provided: at most **10** entries per call. Larger arrays are rejected with an actionable error.
   - With `entry_ids` omitted (fallback): `allow` verdicts are filtered out and only the **3** most recent `deny` / `ask` entries for the conversation are submitted, to avoid flooding the backend with unrelated verdicts.
-- **Payload**: one report per audit entry, shaped like the Sage FP Submit Structure. It includes standard Sage context (runtime/platform metadata plus current Sage protection settings). The structured `content` field stored on the audit entry is forwarded verbatim — the tool does not reconstruct content from the truncated `tool_input_summary`.
+- **Skill reports**: Sage merges audit entries with a non-mutating, TTL-filtered read of `skill_verdict_cache.json`, using generation timestamps to select the newest result for each valid SHA-256 `skill_id`. The cache provides a fallback when an audit entry has rotated or could not be written, without overriding a newer audit generation. Audit candidates use the same configured skill-cache TTL, so expired risky results do not reappear. Only current `HIGH` / `CRITICAL` results are exposed; a newer `SAFE` result suppresses an older risky result. Sage reconstructs each skill signal from its normalized verdict and content hash, so legacy or stale signal metadata cannot override the canonical name. Reports use `hook_type=SessionStart`, `tool_type=Skill`, and carry `signals.skill_checks` with `detection_name`, `skill_id`, optional `job_id`, and `analyzer_verdict`. `HIGH` reports use `Other:SageSuspiciousSkill-A [Susp]|skan:<skill_id>|sage`; `CRITICAL` reports use `Other:SageMaliciousSkill-A [Trj]|skan:<skill_id>|sage`. Analyzer summaries are intentionally omitted from the globally scoped listing.
+- **Payload**: one report per selected entry, shaped like the Sage FP Submit Structure. It includes standard Sage context (runtime/platform metadata plus current Sage protection settings). For runtime entries, a non-empty structured `content` field stored on the audit entry is forwarded verbatim — the tool does not reconstruct content from the truncated `tool_input_summary`. Empty content is omitted, including for Skill Analyzer reports.
 
 ## Configuration
 
@@ -128,3 +130,5 @@ Environment overrides:
 
 - **No copy/paste across connectors**: protocol + tool logic lives in `@gendigital/sage-mcp`; connectors only provide a thin runnable entrypoint and (optionally) an approval adapter.
 - **Conversation id quality is host-dependent**: Sage records the best available conversation/session identifier from each host and stores it as `conversation_id` in the audit log.
+- **Skill verdict freshness**: skill and plugin-scan caches use `skill_check.cache_ttl_days` (one day by default). Backend verdict changes therefore reach a client after the cached result expires and the next session-start lookup completes. FP selection compares audit and cache generation timestamps, using input order only to break ties.
+- **Skill-report ingestion contract**: `/v2/fp-report` must accept and store `block_event.signals.skill_checks`. Warehouse ingestion must model that value as a repeated record containing `detection_name`, `skill_id`, `job_id`, and `analyzer_verdict`; `hook_type=SessionStart` plus `tool_type=Skill` is the source marker.

@@ -2,7 +2,7 @@
   "name": "sage-cursor",
   "displayName": "Gen Sage",
   "description": "Safety for Agents — protects AI agent tool calls against dangerous commands, malicious URLs, and harmful file writes.",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "private": true,
   "publisher": "Gen",
   "icon": "icon.png",

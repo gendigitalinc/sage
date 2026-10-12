@@ -27,6 +27,7 @@ import {
 	savePendingMarker,
 } from "./skill-pending.js";
 import { loadSkillVerdictCache, putVerdict, saveSkillVerdictCache } from "./skill-verdict-cache.js";
+import { recordAnalyzedSkillVerdict } from "./skill-verdict-record.js";
 import { SkillTooLargeError, zipEntriesWithLimit } from "./skill-zip.js";
 import { type AgentRuntime, type Logger, type LoggingConfig, nullLogger } from "./types.js";
 
@@ -65,7 +66,7 @@ export interface SkillUploadWorkerArgs {
 export interface SkillUploadWorkerResult {
 	/** Skills successfully analyzed and cached this run. */
 	analyzed: number;
-	/** Skills left pending (analyzer failed / unreachable) for retry. */
+	/** Skills left pending (analyzer failed / unreachable, or the verdict cache could not be written) for retry. */
 	retained: number;
 }
 
@@ -160,13 +161,17 @@ export async function runSkillUploadWorker(
 					error: String(outcome.error),
 				});
 				if (loggingConfig) {
-					logSkillVerdict(loggingConfig, skillId, "error").catch(() => {});
+					logSkillVerdict(loggingConfig, skillId, "error", undefined, undefined, {
+						agentRuntime: skill.agentRuntime ?? args.agentRuntime,
+					}).catch(() => {});
 				}
 			} else if (outcome.tag === "no_verdict") {
 				retained += 1;
 				logger.debug("Skill analysis returned no verdict; leaving pending", { skillId });
 				if (loggingConfig) {
-					logSkillVerdict(loggingConfig, skillId, "no_verdict").catch(() => {});
+					logSkillVerdict(loggingConfig, skillId, "no_verdict", undefined, undefined, {
+						agentRuntime: skill.agentRuntime ?? args.agentRuntime,
+					}).catch(() => {});
 				}
 			} else if (outcome.tag === "ok") {
 				successes.push({ skill, result: outcome.result });
@@ -177,7 +182,9 @@ export async function runSkillUploadWorker(
 				// later session re-submits it.
 				terminal.push(skillId);
 				if (loggingConfig) {
-					logSkillVerdict(loggingConfig, skillId, outcome.tag).catch(() => {});
+					logSkillVerdict(loggingConfig, skillId, outcome.tag, undefined, undefined, {
+						agentRuntime: skill.agentRuntime ?? args.agentRuntime,
+					}).catch(() => {});
 				}
 			}
 		}
@@ -185,51 +192,47 @@ export async function runSkillUploadWorker(
 		if (successes.length === 0 && terminal.length === 0) continue;
 
 		// Batch write: one load-modify-save for all resolved skills in this batch.
+		// The cache remains an FP-selection fallback if operational audit storage
+		// is unavailable or rotates before the verdict TTL expires.
 		const cache = await loadSkillVerdictCache(args.verdictCachePath, args.verdictTtlMs, logger);
-		for (const { skill, result } of successes) {
-			putVerdict(cache, skill.skillId, {
-				verdict: result.verdict,
-				summary: result.summary,
+		const recorded = successes.map(({ skill, result }) =>
+			recordAnalyzedSkillVerdict(cache, skill.skillId, result, {
 				skillName: basename(skill.folder),
-				sources: [
-					{
-						agentRuntime: skill.agentRuntime ?? args.agentRuntime,
-						containerKey: skill.containerKey,
-					},
-				],
-			});
-		}
+				agentRuntime: skill.agentRuntime ?? args.agentRuntime,
+				containerKey: skill.containerKey,
+				loggingConfig,
+			}),
+		);
 		for (const skillId of terminal) {
 			putVerdict(cache, skillId, {});
 		}
-		await saveSkillVerdictCache(cache, args.verdictCachePath, logger);
+		const cacheSaved = await saveSkillVerdictCache(cache, args.verdictCachePath, logger);
 
 		// Batch clear from marker: re-read once, remove all resolved skills, save once.
 		const fresh = await loadPendingMarker(args.pendingPath, logger);
-		for (const { skill } of successes) {
-			removePending(fresh, skill.skillId);
-		}
-		for (const skillId of terminal) {
-			removePending(fresh, skillId);
+		if (cacheSaved) {
+			for (const { skill } of successes) {
+				removePending(fresh, skill.skillId);
+			}
+			for (const skillId of terminal) {
+				removePending(fresh, skillId);
+			}
+			analyzed += successes.length;
+			// Audit only now: a skill left pending by a failed save is retried with a
+			// fresh entryId, and an entry logged before the save would be orphaned.
+			// A failed audit write must not abort the marker clear below: the verdict
+			// is already cached, so re-uploading the skill would gain nothing.
+			await Promise.all(recorded.map((entry) => entry.writeAuditEntry().catch(() => {})));
+			for (const { skill, result } of successes) {
+				logger.debug("Skill analyzed and cached", {
+					skillId: skill.skillId,
+					risk: result.verdict,
+				});
+			}
+		} else {
+			retained += successes.length + terminal.length;
 		}
 		await savePendingMarker(fresh, args.pendingPath, logger);
-
-		analyzed += successes.length;
-		for (const { skill, result } of successes) {
-			logger.debug("Skill analyzed and cached", {
-				skillId: skill.skillId,
-				risk: result.verdict,
-			});
-			if (loggingConfig) {
-				logSkillVerdict(
-					loggingConfig,
-					skill.skillId,
-					"analyzed",
-					result.verdict,
-					result.summary,
-				).catch(() => {});
-			}
-		}
 	}
 
 	return { analyzed, retained };

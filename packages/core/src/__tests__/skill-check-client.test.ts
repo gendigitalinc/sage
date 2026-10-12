@@ -29,6 +29,7 @@ describe("SkillCheckClient", () => {
 		const verdict = verdicts.get(id);
 
 		expect(verdict).not.toBeNull();
+		expect(verdict?.jobId).toBe("abc");
 		expect(verdict?.verdict).toBe("HIGH");
 		expect(verdict?.summary).toContain("remote code");
 	});

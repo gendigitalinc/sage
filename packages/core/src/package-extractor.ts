@@ -360,6 +360,7 @@ function extractFromPackageJson(content: string): ParsedPackage[] {
 			if (typeof version !== "string") continue;
 			if (version === "" || version === "*") continue;
 			if (
+				version.startsWith("catalog:") ||
 				version.startsWith("file:") ||
 				version.startsWith("link:") ||
 				version.startsWith("git+") ||

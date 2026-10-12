@@ -6,6 +6,7 @@ import {
 	DEFAULT_VERDICT_TTL_MS,
 	getVerdict,
 	loadSkillVerdictCache,
+	loadSkillVerdictCacheReadOnly,
 	loadSkillVerdictCacheSync,
 	putVerdict,
 	riskyVerdictsSince,
@@ -31,6 +32,8 @@ describe("skill-verdict-cache", () => {
 	it("put / get round-trips through disk", async () => {
 		const cache: SkillVerdictCache = { entries: {} };
 		putVerdict(cache, ID_A, {
+			entryId: "entry-123",
+			jobId: "job-123",
 			verdict: "CRITICAL",
 			summary: "bad",
 			skillName: "evil-skill",
@@ -40,6 +43,8 @@ describe("skill-verdict-cache", () => {
 
 		const loaded = await loadSkillVerdictCache(path);
 		const v = getVerdict(loaded, ID_A);
+		expect(v?.entryId).toBe("entry-123");
+		expect(v?.jobId).toBe("job-123");
 		expect(v?.verdict).toBe("CRITICAL");
 		expect(v?.summary).toBe("bad");
 		expect(v?.skillName).toBe("evil-skill");
@@ -90,6 +95,8 @@ describe("skill-verdict-cache", () => {
 	it("persists snake_case on disk", async () => {
 		const cache: SkillVerdictCache = { entries: {} };
 		putVerdict(cache, ID_A, {
+			entryId: "entry-safe",
+			jobId: "job-safe",
 			verdict: "SAFE",
 			summary: "all good",
 			skillName: "my-skill",
@@ -99,6 +106,8 @@ describe("skill-verdict-cache", () => {
 		const onDisk = JSON.parse(await readFile(path, "utf-8"));
 		expect(onDisk.schema_version).toBe(1);
 		expect(onDisk.entries[ID_A]).toHaveProperty("verdict", "SAFE");
+		expect(onDisk.entries[ID_A]).toHaveProperty("entry_id", "entry-safe");
+		expect(onDisk.entries[ID_A]).toHaveProperty("job_id", "job-safe");
 		expect(onDisk.entries[ID_A]).toHaveProperty("skill_name", "my-skill");
 		expect(onDisk.entries[ID_A]).toHaveProperty("analyzed_at");
 	});
@@ -160,6 +169,23 @@ describe("skill-verdict-cache", () => {
 		const onDisk = JSON.parse(await readFile(path, "utf-8"));
 		expect(ID_A in onDisk.entries).toBe(true);
 		expect(ID_B in onDisk.entries).toBe(false);
+	});
+
+	it("read-only loading filters stale entries without rewriting the file", async () => {
+		const stale = new Date(Date.now() - DEFAULT_VERDICT_TTL_MS - 1000).toISOString();
+		const content = JSON.stringify({
+			schema_version: 1,
+			entries: { [ID_A]: { verdict: "HIGH", analyzed_at: stale } },
+		});
+		await writeFile(path, content);
+		const before = await stat(path);
+
+		const loaded = await loadSkillVerdictCacheReadOnly(path);
+
+		expect(loaded.entries).toEqual({});
+		const after = await stat(path);
+		expect(after.mtimeMs).toBe(before.mtimeMs);
+		expect(await readFile(path, "utf-8")).toBe(content);
 	});
 
 	it("fails open to empty cache on missing or corrupt file", async () => {

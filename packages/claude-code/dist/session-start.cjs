@@ -13892,6 +13892,7 @@ var PENDING_STALE_MS = 60 * 60 * 1e3;
 var APPROVED_TTL_MS = 10 * 60 * 1e3;
 
 // ../core/dist/audit-log.js
+var import_node_crypto2 = require("node:crypto");
 init_config();
 
 // ../core/dist/content-snapshot.js
@@ -13930,6 +13931,47 @@ function scrubHomePath(value) {
     return `~/${normalizedValue.slice(normalizedHome.length + 1)}`;
   }
   return value;
+}
+
+// ../core/dist/detection-names.js
+var REPORTING_ENGINE_SHORTHANDS = {
+  package: "sgpk",
+  amsi: "sgam",
+  heuristics: "sghe",
+  ml: "sgml",
+  skill: "skan"
+};
+var REPORTING_DETECTION_SUFFIX = "sage";
+function formatReportingDetectionName(canonicalName, engine, optionalData = "") {
+  const engineMetadata = optionalData ? `${REPORTING_ENGINE_SHORTHANDS[engine]}:${optionalData}` : REPORTING_ENGINE_SHORTHANDS[engine];
+  return `${canonicalName}|${engineMetadata}|${REPORTING_DETECTION_SUFFIX}`;
+}
+var SKILL_DETECTION_NAMES = {
+  HIGH: "Other:SageSuspiciousSkill-A [Susp]",
+  CRITICAL: "Other:SageMaliciousSkill-A [Trj]"
+};
+function skillDetectionName(verdict) {
+  return SKILL_DETECTION_NAMES[verdict.toUpperCase()];
+}
+function isSkillId(value) {
+  return /^[0-9a-f]{64}$/i.test(value);
+}
+function skillReportingDetectionName(verdict, skillId) {
+  const canonicalName = skillDetectionName(verdict);
+  return canonicalName && isSkillId(skillId) ? formatReportingDetectionName(canonicalName, "skill", skillId.toLowerCase()) : void 0;
+}
+function buildSkillCheckSignal(skillId, analyzerVerdict, jobId) {
+  const normalizedSkillId = skillId.toLowerCase();
+  const normalizedVerdict = analyzerVerdict.toUpperCase();
+  const detectionName = skillReportingDetectionName(normalizedVerdict, normalizedSkillId);
+  if (!detectionName)
+    return void 0;
+  return {
+    detection_name: detectionName,
+    skill_id: normalizedSkillId,
+    ...jobId ? { job_id: jobId } : {},
+    analyzer_verdict: normalizedVerdict
+  };
 }
 
 // ../core/dist/audit-log.js
@@ -13995,6 +14037,7 @@ async function appendJsonlEntry(config, entry) {
 
 // ../core/dist/audit-log.js
 init_types2();
+var MAX_SUMMARY_LEN = 200;
 var AUDIT_LOG_SCHEMA_VERSION = 1;
 async function appendEntry(config, entry) {
   const stamped = { ...entry, schema_version: AUDIT_LOG_SCHEMA_VERSION };
@@ -14030,6 +14073,37 @@ async function logSkillQueued(config, skillId, pluginKey, skillFolder) {
       ...skillFolder ? { skill_folder: scrubHomePath(skillFolder) } : {}
     });
   } catch {
+  }
+}
+async function logSkillVerdict(config, skillId, status, verdict, summary, context = {}) {
+  if (!config.enabled)
+    return false;
+  const entry = {
+    type: "skill_verdict",
+    entry_id: context.entryId ?? (0, import_node_crypto2.randomUUID)(),
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    skill_id: skillId,
+    status
+  };
+  if (context.jobId !== void 0)
+    entry.job_id = context.jobId;
+  if (context.agentRuntime !== void 0)
+    entry.agent_runtime = context.agentRuntime;
+  if (verdict !== void 0)
+    entry.verdict = verdict;
+  if (summary !== void 0)
+    entry.summary = summary.slice(0, MAX_SUMMARY_LEN);
+  const skillSignal = status === "analyzed" && verdict !== void 0 ? buildSkillCheckSignal(skillId, verdict, context.jobId) : void 0;
+  if (skillSignal) {
+    entry.signals = {
+      skill_checks: [skillSignal]
+    };
+  }
+  try {
+    await appendEntry(config, entry);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -14605,7 +14679,7 @@ init_file_utils();
 var import_meta = {};
 function resolveVersion() {
   if (true)
-    return "0.13.0";
+    return "0.14.0";
   try {
     const pkgPath = (0, import_node_path5.join)((0, import_node_path5.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
     const pkg = JSON.parse(getFileContentSync(pkgPath));
@@ -15061,6 +15135,7 @@ var SkillCheckClient = class {
   parseResult(skillId, raw) {
     return {
       skillId,
+      jobId: typeof raw.job_id === "string" ? raw.job_id : void 0,
       verdict: typeof raw.verdict === "string" ? raw.verdict : void 0,
       summary: typeof raw.summary === "string" ? raw.summary : void 0
     };
@@ -15371,7 +15446,7 @@ function mergeExtendedInfo(envelope, extendedInfo) {
 }
 
 // ../core/dist/installation-id.js
-var import_node_crypto2 = require("node:crypto");
+var import_node_crypto3 = require("node:crypto");
 var import_promises5 = require("node:fs/promises");
 var import_node_path9 = require("node:path");
 init_config();
@@ -15389,7 +15464,7 @@ async function getInstallationId(sageDirPath) {
   } catch {
   }
   try {
-    const id = (0, import_node_crypto2.randomUUID)();
+    const id = (0, import_node_crypto3.randomUUID)();
     await (0, import_promises5.mkdir)(sageDir, { recursive: true, mode: 448 });
     await (0, import_promises5.writeFile)(idPath, id, { encoding: "utf-8", mode: 384, flag: fileExists ? "w" : "wx" });
     return id;
@@ -15422,7 +15497,7 @@ init_types2();
 init_config();
 
 // ../core/dist/exceptions.js
-var import_node_crypto3 = require("node:crypto");
+var import_node_crypto4 = require("node:crypto");
 init_config();
 init_file_utils();
 
@@ -15435,7 +15510,7 @@ init_types2();
 init_types2();
 var MAX_RULES_WARNING = 100;
 function computeRuleId(decision, match, pattern) {
-  const hash = (0, import_node_crypto3.createHash)("sha256").update(`${decision}:${match}:${pattern}`).digest("hex");
+  const hash = (0, import_node_crypto4.createHash)("sha256").update(`${decision}:${match}:${pattern}`).digest("hex");
   return hash.slice(0, 8);
 }
 async function loadExceptions(config, logger2 = nullLogger) {
@@ -16084,7 +16159,7 @@ function createOperationalLogger(config, runtime) {
 }
 
 // ../core/dist/plugin-scan-cache.js
-var import_node_crypto4 = require("node:crypto");
+var import_node_crypto5 = require("node:crypto");
 var import_promises6 = require("node:fs/promises");
 var import_node_path12 = require("node:path");
 init_config();
@@ -16097,7 +16172,7 @@ function cacheKey(pluginKey, version, lastUpdated) {
   return `${pluginKey}:${version}:${lastUpdated}`;
 }
 async function computeConfigHash(sageVersion, ...dirs) {
-  const h = (0, import_node_crypto4.createHash)("sha256");
+  const h = (0, import_node_crypto5.createHash)("sha256");
   if (sageVersion)
     h.update(sageVersion);
   for (const dir of dirs) {
@@ -16208,14 +16283,14 @@ function storeResult(cache2, pluginKey, version, lastUpdated, findings) {
 }
 
 // ../core/dist/plugin-scanner.js
-var import_node_crypto6 = require("node:crypto");
+var import_node_crypto8 = require("node:crypto");
 var import_promises9 = require("node:fs/promises");
 var import_node_path16 = require("node:path");
 init_config();
 init_file_utils();
 
 // ../core/dist/skill-id.js
-var import_node_crypto5 = require("node:crypto");
+var import_node_crypto6 = require("node:crypto");
 var import_promises7 = require("node:fs/promises");
 var import_node_path13 = require("node:path");
 var SKIP_DIRS = /* @__PURE__ */ new Set(["node_modules", ".git", "__pycache__"]);
@@ -16300,14 +16375,14 @@ function computeSkillId(entries) {
   const fileHashes = {};
   const treeEntries = [];
   for (const e of normalized) {
-    const contentHash = (0, import_node_crypto5.createHash)("sha256").update(e.isDir ? Buffer.alloc(0) : e.content).digest("hex");
+    const contentHash = (0, import_node_crypto6.createHash)("sha256").update(e.isDir ? Buffer.alloc(0) : e.content).digest("hex");
     const entryType = e.isDir ? "dir" : "file";
     treeEntries.push({ type: entryType, entryPath: e.entryPath, hash: contentHash });
     if (!e.isDir)
       fileHashes[e.entryPath] = contentHash;
   }
   treeEntries.sort((a, b) => a.entryPath < b.entryPath ? -1 : a.entryPath > b.entryPath ? 1 : 0);
-  const skillHasher = (0, import_node_crypto5.createHash)("sha256");
+  const skillHasher = (0, import_node_crypto6.createHash)("sha256");
   for (const e of treeEntries) {
     skillHasher.update(Buffer.from(`${e.type}\0${e.entryPath}\0${e.hash}
 `, "utf8"));
@@ -16573,7 +16648,7 @@ function mergeSources(existing, incoming) {
 function defaultCachePath2() {
   return (0, import_node_path15.join)(resolvePath(SAGE_DIR), "skill_verdict_cache.json");
 }
-async function loadSkillVerdictCache(cachePath = defaultCachePath2(), ttlMs = DEFAULT_VERDICT_TTL_MS, logger2 = nullLogger) {
+async function loadSkillVerdictCacheInternal(cachePath, ttlMs, logger2, pruneOnLoad) {
   let raw;
   try {
     raw = await getFileContent(cachePath);
@@ -16596,6 +16671,8 @@ async function loadSkillVerdictCache(cachePath = defaultCachePath2(), ttlMs = DE
         continue;
       }
       entries[skillId] = {
+        entryId: typeof entry.entry_id === "string" ? entry.entry_id : void 0,
+        jobId: typeof entry.job_id === "string" ? entry.job_id : void 0,
         verdict: typeof entry.verdict === "string" ? entry.verdict : void 0,
         summary: typeof entry.summary === "string" ? entry.summary : void 0,
         skillName: typeof entry.skill_name === "string" ? entry.skill_name : void 0,
@@ -16604,7 +16681,7 @@ async function loadSkillVerdictCache(cachePath = defaultCachePath2(), ttlMs = DE
       };
     }
     const cache2 = { entries };
-    if (pruned > 0) {
+    if (pruneOnLoad && pruned > 0) {
       logger2.debug(`Pruned ${pruned} stale verdict(s) from cache`, { cachePath });
       await saveSkillVerdictCache(cache2, cachePath, logger2);
     }
@@ -16614,6 +16691,9 @@ async function loadSkillVerdictCache(cachePath = defaultCachePath2(), ttlMs = DE
     return { entries: {} };
   }
 }
+async function loadSkillVerdictCache(cachePath = defaultCachePath2(), ttlMs = DEFAULT_VERDICT_TTL_MS, logger2 = nullLogger) {
+  return loadSkillVerdictCacheInternal(cachePath, ttlMs, logger2, true);
+}
 async function saveSkillVerdictCache(cache2, cachePath = defaultCachePath2(), logger2 = nullLogger) {
   try {
     const data = {
@@ -16621,6 +16701,8 @@ async function saveSkillVerdictCache(cache2, cachePath = defaultCachePath2(), lo
       entries: Object.fromEntries(Object.entries(cache2.entries).map(([skillId, v]) => [
         skillId,
         {
+          entry_id: v.entryId,
+          job_id: v.jobId,
           verdict: v.verdict,
           summary: v.summary,
           skill_name: v.skillName,
@@ -16633,8 +16715,10 @@ async function saveSkillVerdictCache(cache2, cachePath = defaultCachePath2(), lo
       ]))
     };
     await atomicWriteJson(cachePath, data);
+    return true;
   } catch (e) {
     logger2.warn(`Failed to save verdict cache to ${cachePath}`, { error: String(e) });
+    return false;
   }
 }
 function getVerdict(cache2, skillId, ttlMs = DEFAULT_VERDICT_TTL_MS) {
@@ -16654,6 +16738,34 @@ function putVerdict(cache2, skillId, verdict) {
     analyzedAt: (/* @__PURE__ */ new Date()).toISOString()
   };
 }
+
+// ../core/dist/skill-verdict-record.js
+var import_node_crypto7 = require("node:crypto");
+function recordAnalyzedSkillVerdict(cache2, skillId, result, origin) {
+  const entryId = (0, import_node_crypto7.randomUUID)();
+  putVerdict(cache2, skillId, {
+    entryId,
+    jobId: result.jobId,
+    verdict: result.verdict,
+    summary: result.summary,
+    skillName: origin.skillName,
+    sources: [{ agentRuntime: origin.agentRuntime, containerKey: origin.containerKey }]
+  });
+  const { loggingConfig } = origin;
+  return {
+    entryId,
+    writeAuditEntry: async () => {
+      if (!loggingConfig)
+        return;
+      await logSkillVerdict(loggingConfig, skillId, "analyzed", result.verdict, result.summary, {
+        entryId,
+        jobId: result.jobId,
+        agentRuntime: origin.agentRuntime
+      });
+    }
+  };
+}
+var SKILL_ENTRY_ID_NAMESPACE = Buffer.from("75bba79a376142a7bacbf95d791126d3", "hex");
 
 // ../core/dist/plugin-scanner.js
 init_types2();
@@ -16815,7 +16927,7 @@ async function scanPlugin(plugin, options = {}) {
       allUrls.push(...extractUrls(content));
     }
     if (checkFileHashes) {
-      const sha256 = (0, import_node_crypto6.createHash)("sha256").update(rawBytes).digest("hex");
+      const sha256 = (0, import_node_crypto8.createHash)("sha256").update(rawBytes).digest("hex");
       const existing = hashToFiles.get(sha256);
       if (existing) {
         existing.push(filePath);
@@ -16912,6 +17024,8 @@ async function runSkillCheck(plugin, findings, logger2, paths = {}) {
     let markerModified = false;
     let lookupFailed = false;
     let graceDeferred = false;
+    const resolvedPendingSkillIds = /* @__PURE__ */ new Set();
+    const recordedVerdicts = /* @__PURE__ */ new Map();
     for (const { folder, skillId } of uncached) {
       if (!verdicts.has(skillId)) {
         lookupFailed = true;
@@ -16919,17 +17033,18 @@ async function runSkillCheck(plugin, findings, logger2, paths = {}) {
       }
       const verdict = verdicts.get(skillId) ?? null;
       if (verdict) {
-        putVerdict(verdictCache, skillId, {
-          verdict: verdict.verdict,
-          summary: verdict.summary,
-          skillName: (0, import_node_path16.basename)(folder),
-          sources: [{ agentRuntime: paths.agentRuntime, containerKey: plugin.key }]
-        });
-        cacheModified = true;
+        if (!recordedVerdicts.has(skillId)) {
+          recordedVerdicts.set(skillId, recordAnalyzedSkillVerdict(verdictCache, skillId, verdict, {
+            skillName: (0, import_node_path16.basename)(folder),
+            agentRuntime: paths.agentRuntime,
+            containerKey: plugin.key,
+            loggingConfig: paths.loggingConfig
+          }));
+          cacheModified = true;
+        }
         pushSkillFindingIfRisky(findings, plugin, skillId, folder, verdict);
         if (isPending(marker, skillId)) {
-          removePending(marker, skillId);
-          markerModified = true;
+          resolvedPendingSkillIds.add(skillId);
         }
       } else if (!isPending(marker, skillId)) {
         if (paths.uploadEnabled === false) {
@@ -16948,8 +17063,17 @@ async function runSkillCheck(plugin, findings, logger2, paths = {}) {
         }
       }
     }
-    if (cacheModified)
-      await saveSkillVerdictCache(verdictCache, paths.verdictCachePath, logger2);
+    const cacheSaved = cacheModified ? await saveSkillVerdictCache(verdictCache, paths.verdictCachePath, logger2) : true;
+    if (cacheSaved) {
+      await Promise.all([...recordedVerdicts.values()].map((entry) => entry.writeAuditEntry().catch(() => {
+      })));
+      for (const skillId of resolvedPendingSkillIds) {
+        removePending(marker, skillId);
+        markerModified = true;
+      }
+    } else {
+      lookupFailed = true;
+    }
     if (markerModified)
       await savePendingMarker(marker, paths.pendingPath, logger2);
     const anyStillPending = uncached.some(({ skillId }) => isPending(marker, skillId));

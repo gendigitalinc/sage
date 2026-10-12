@@ -4384,6 +4384,16 @@ var init_types2 = __esm({
 });
 
 // ../core/dist/config.js
+function skillCacheTtlMs(config2) {
+  return Math.max(1, config2.skill_check.cache_ttl_days) * MS_PER_DAY;
+}
+function isFreshTimestamp(ts, ttlMs, now = Date.now()) {
+  if (Number.isNaN(ts))
+    return false;
+  if (ts - now > CLOCK_SKEW_TOLERANCE_MS)
+    return false;
+  return now - ts < ttlMs;
+}
 function resolvedSageDir() {
   return resolvePath(SAGE_DIR);
 }
@@ -21088,6 +21098,84 @@ function buildContentSnapshot(toolType, toolInput, artifacts = [], signals = {})
   return content;
 }
 
+// ../core/dist/detection-names.js
+var PI_DETECTION_NAME = "Other:SagePromptInjectionML-A [Susp]";
+var REPORTING_ENGINE_SHORTHANDS = {
+  package: "sgpk",
+  amsi: "sgam",
+  heuristics: "sghe",
+  ml: "sgml",
+  skill: "skan"
+};
+var REPORTING_DETECTION_SUFFIX = "sage";
+function formatReportingDetectionName(canonicalName, engine, optionalData = "") {
+  const engineMetadata = optionalData ? `${REPORTING_ENGINE_SHORTHANDS[engine]}:${optionalData}` : REPORTING_ENGINE_SHORTHANDS[engine];
+  return `${canonicalName}|${engineMetadata}|${REPORTING_DETECTION_SUFFIX}`;
+}
+var PACKAGE_DETECTION_NAMES = {
+  not_found: "Other:SagePackageNotFound-A [Susp]",
+  suspicious_age: "Other:SagePackageNew-A [Susp]",
+  malicious: "Other:SagePackageMalicious-A [Trj]",
+  unknown: "Other:SagePackageUnknown-A [Susp]"
+};
+var AMSI_DETECTION_NAMES = {
+  detected: "Other:SageAmsiDetected-A [Heur]",
+  blocked_by_admin: "Other:SageAmsiBlockedByAdmin-A [Heur]",
+  unknown: "Other:SageAmsiUnknown-A [Susp]"
+};
+var AMSI_REPORTING_RULE_NAMES = {
+  detected: "AMSI_DETECTED",
+  blocked_by_admin: "AMSI_BLOCKED_BY_ADMIN",
+  unknown: "AMSI_UNKNOWN"
+};
+var SKILL_DETECTION_NAMES = {
+  HIGH: "Other:SageSuspiciousSkill-A [Susp]",
+  CRITICAL: "Other:SageMaliciousSkill-A [Trj]"
+};
+function isCanonicalDetectionName(name) {
+  return /^\w+:\w+-[A-Z]+ \[[^\]\r\n]+\]$/.test(name);
+}
+function packageDetectionName(verdict) {
+  return PACKAGE_DETECTION_NAMES[verdict];
+}
+function amsiDetectionClass(amsiResult) {
+  if (amsiResult >= 32768)
+    return "detected";
+  if (amsiResult >= 16384)
+    return "blocked_by_admin";
+  return "unknown";
+}
+function amsiDetectionName(amsiResult) {
+  return AMSI_DETECTION_NAMES[amsiDetectionClass(amsiResult)];
+}
+function amsiReportingData(amsiResult) {
+  const ruleName = AMSI_REPORTING_RULE_NAMES[amsiDetectionClass(amsiResult)];
+  return `${ruleName}:${Math.trunc(amsiResult).toString(16)}`;
+}
+function skillDetectionName(verdict) {
+  return SKILL_DETECTION_NAMES[verdict.toUpperCase()];
+}
+function isSkillId(value) {
+  return /^[0-9a-f]{64}$/i.test(value);
+}
+function skillReportingDetectionName(verdict, skillId) {
+  const canonicalName = skillDetectionName(verdict);
+  return canonicalName && isSkillId(skillId) ? formatReportingDetectionName(canonicalName, "skill", skillId.toLowerCase()) : void 0;
+}
+function buildSkillCheckSignal(skillId, analyzerVerdict, jobId) {
+  const normalizedSkillId = skillId.toLowerCase();
+  const normalizedVerdict = analyzerVerdict.toUpperCase();
+  const detectionName = skillReportingDetectionName(normalizedVerdict, normalizedSkillId);
+  if (!detectionName)
+    return void 0;
+  return {
+    detection_name: detectionName,
+    skill_id: normalizedSkillId,
+    ...jobId ? { job_id: jobId } : {},
+    analyzer_verdict: normalizedVerdict
+  };
+}
+
 // ../core/dist/audit-log.js
 init_file_utils();
 
@@ -22034,7 +22122,7 @@ init_file_utils();
 var import_meta = {};
 function resolveVersion() {
   if (true)
-    return "0.13.0";
+    return "0.14.0";
   try {
     const pkgPath = (0, import_node_path4.join)((0, import_node_path4.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
     const pkg = JSON.parse(getFileContentSync(pkgPath));
@@ -22854,56 +22942,6 @@ var SNIFF_CSV = /^[^,\n]+(?:,[^,\n]+){2,}$/m;
 function isScannableContent(content) {
   const head = content.slice(0, 4096);
   return SNIFF_HTML.test(head) || SNIFF_HTML_TAGS.test(head) || SNIFF_JSON.test(head) || SNIFF_XML.test(head) || SNIFF_YAML.test(head) || SNIFF_SHEBANG_SHELL.test(head) || SNIFF_SHEBANG_PYTHON.test(head) || SNIFF_PYTHON.test(head) || SNIFF_JS_TS.test(head) || SNIFF_C_CPP.test(head) || SNIFF_KOTLIN.test(head) || SNIFF_CSV.test(head);
-}
-
-// ../core/dist/detection-names.js
-var PI_DETECTION_NAME = "Other:SagePromptInjectionML-A [Susp]";
-var REPORTING_ENGINE_SHORTHANDS = {
-  package: "sgpk",
-  amsi: "sgam",
-  heuristics: "sghe",
-  ml: "sgml"
-};
-var REPORTING_DETECTION_SUFFIX = "sage";
-function formatReportingDetectionName(canonicalName, engine, optionalData = "") {
-  const engineMetadata = optionalData ? `${REPORTING_ENGINE_SHORTHANDS[engine]}:${optionalData}` : REPORTING_ENGINE_SHORTHANDS[engine];
-  return `${canonicalName}|${engineMetadata}|${REPORTING_DETECTION_SUFFIX}`;
-}
-var PACKAGE_DETECTION_NAMES = {
-  not_found: "Other:SagePackageNotFound-A [Susp]",
-  suspicious_age: "Other:SagePackageNew-A [Susp]",
-  malicious: "Other:SagePackageMalicious-A [Trj]",
-  unknown: "Other:SagePackageUnknown-A [Susp]"
-};
-var AMSI_DETECTION_NAMES = {
-  detected: "Other:SageAmsiDetected-A [Heur]",
-  blocked_by_admin: "Other:SageAmsiBlockedByAdmin-A [Heur]",
-  unknown: "Other:SageAmsiUnknown-A [Susp]"
-};
-var AMSI_REPORTING_RULE_NAMES = {
-  detected: "AMSI_DETECTED",
-  blocked_by_admin: "AMSI_BLOCKED_BY_ADMIN",
-  unknown: "AMSI_UNKNOWN"
-};
-function isCanonicalDetectionName(name) {
-  return /^\w+:\w+-[A-Z]+ \[[^\]\r\n]+\]$/.test(name);
-}
-function packageDetectionName(verdict) {
-  return PACKAGE_DETECTION_NAMES[verdict];
-}
-function amsiDetectionClass(amsiResult) {
-  if (amsiResult >= 32768)
-    return "detected";
-  if (amsiResult >= 16384)
-    return "blocked_by_admin";
-  return "unknown";
-}
-function amsiDetectionName(amsiResult) {
-  return AMSI_DETECTION_NAMES[amsiDetectionClass(amsiResult)];
-}
-function amsiReportingData(amsiResult) {
-  const ruleName = AMSI_REPORTING_RULE_NAMES[amsiDetectionClass(amsiResult)];
-  return `${ruleName}:${Math.trunc(amsiResult).toString(16)}`;
 }
 
 // ../core/dist/extended-info.js
@@ -24416,7 +24454,7 @@ function extractFromPackageJson(content) {
         continue;
       if (version2 === "" || version2 === "*")
         continue;
-      if (version2.startsWith("file:") || version2.startsWith("link:") || version2.startsWith("git+") || version2.startsWith("git:") || version2.startsWith("http:") || version2.startsWith("https:") || version2.startsWith("workspace:") || version2.startsWith("github:") || version2.startsWith("bitbucket:") || version2.startsWith("gitlab:") || version2.startsWith("portal:") || version2.startsWith("patch:"))
+      if (version2.startsWith("catalog:") || version2.startsWith("file:") || version2.startsWith("link:") || version2.startsWith("git+") || version2.startsWith("git:") || version2.startsWith("http:") || version2.startsWith("https:") || version2.startsWith("workspace:") || version2.startsWith("github:") || version2.startsWith("bitbucket:") || version2.startsWith("gitlab:") || version2.startsWith("portal:") || version2.startsWith("patch:"))
         continue;
       if (version2.startsWith("npm:")) {
         const aliasTarget = version2.slice(4);
@@ -25670,9 +25708,119 @@ init_types2();
 var PENDING_TTL_MS = 60 * 60 * 1e3;
 
 // ../core/dist/skill-verdict-cache.js
+var import_node_path17 = require("node:path");
 init_config();
 init_file_utils();
 init_types2();
+var SCHEMA_VERSION = 1;
+var DEFAULT_VERDICT_TTL_MS = MS_PER_DAY;
+function parseSources(raw) {
+  if (!Array.isArray(raw))
+    return void 0;
+  const sources = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object")
+      continue;
+    const entry = item;
+    const source = {
+      agentRuntime: typeof entry.agent_runtime === "string" ? entry.agent_runtime : void 0,
+      containerKey: typeof entry.container_key === "string" ? entry.container_key : void 0
+    };
+    if (source.agentRuntime || source.containerKey)
+      sources.push(source);
+  }
+  return sources.length > 0 ? sources : void 0;
+}
+function defaultCachePath2() {
+  return (0, import_node_path17.join)(resolvePath(SAGE_DIR), "skill_verdict_cache.json");
+}
+async function loadSkillVerdictCacheInternal(cachePath, ttlMs, logger2, pruneOnLoad) {
+  let raw;
+  try {
+    raw = await getFileContent(cachePath);
+  } catch {
+    return { entries: {} };
+  }
+  try {
+    const data = JSON.parse(raw);
+    const rawEntries = data.entries ?? {};
+    const now = Date.now();
+    const entries = {};
+    let pruned = 0;
+    for (const [skillId, entry] of Object.entries(rawEntries)) {
+      const analyzedAt = entry.analyzed_at;
+      if (!analyzedAt)
+        continue;
+      const ts = Date.parse(analyzedAt);
+      if (!isFreshTimestamp(ts, ttlMs, now)) {
+        pruned++;
+        continue;
+      }
+      entries[skillId] = {
+        entryId: typeof entry.entry_id === "string" ? entry.entry_id : void 0,
+        jobId: typeof entry.job_id === "string" ? entry.job_id : void 0,
+        verdict: typeof entry.verdict === "string" ? entry.verdict : void 0,
+        summary: typeof entry.summary === "string" ? entry.summary : void 0,
+        skillName: typeof entry.skill_name === "string" ? entry.skill_name : void 0,
+        sources: parseSources(entry.sources),
+        analyzedAt
+      };
+    }
+    const cache2 = { entries };
+    if (pruneOnLoad && pruned > 0) {
+      logger2.debug(`Pruned ${pruned} stale verdict(s) from cache`, { cachePath });
+      await saveSkillVerdictCache(cache2, cachePath, logger2);
+    }
+    return cache2;
+  } catch (e) {
+    logger2.warn(`Failed to load verdict cache from ${cachePath}`, { error: String(e) });
+    return { entries: {} };
+  }
+}
+async function loadSkillVerdictCacheReadOnly(cachePath = defaultCachePath2(), ttlMs = DEFAULT_VERDICT_TTL_MS, logger2 = nullLogger) {
+  return loadSkillVerdictCacheInternal(cachePath, ttlMs, logger2, false);
+}
+async function saveSkillVerdictCache(cache2, cachePath = defaultCachePath2(), logger2 = nullLogger) {
+  try {
+    const data = {
+      schema_version: SCHEMA_VERSION,
+      entries: Object.fromEntries(Object.entries(cache2.entries).map(([skillId, v]) => [
+        skillId,
+        {
+          entry_id: v.entryId,
+          job_id: v.jobId,
+          verdict: v.verdict,
+          summary: v.summary,
+          skill_name: v.skillName,
+          sources: v.sources?.map((s) => ({
+            agent_runtime: s.agentRuntime,
+            container_key: s.containerKey
+          })),
+          analyzed_at: v.analyzedAt
+        }
+      ]))
+    };
+    await atomicWriteJson(cachePath, data);
+    return true;
+  } catch (e) {
+    logger2.warn(`Failed to save verdict cache to ${cachePath}`, { error: String(e) });
+    return false;
+  }
+}
+
+// ../core/dist/skill-verdict-record.js
+var import_node_crypto6 = require("node:crypto");
+var SKILL_ENTRY_ID_NAMESPACE = Buffer.from("75bba79a376142a7bacbf95d791126d3", "hex");
+function legacySkillEntryId(skillId, analyzedAt) {
+  const bytes = (0, import_node_crypto6.createHash)("sha1").update(SKILL_ENTRY_ID_NAMESPACE).update(`${skillId.toLowerCase()}:${analyzedAt}`).digest().subarray(0, 16);
+  bytes[6] = (bytes[6] ?? 0) & 15 | 80;
+  bytes[8] = (bytes[8] ?? 0) & 63 | 128;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+function resolveSkillVerdictEntryId(skillId, entry) {
+  return entry.entryId ?? legacySkillEntryId(skillId, entry.analyzedAt);
+}
 
 // ../core/dist/plugin-scanner.js
 init_types2();
@@ -25680,12 +25828,12 @@ var MAX_FILE_SIZE = 512 * 1024;
 
 // ../core/dist/product-version.js
 var import_node_fs3 = require("node:fs");
-var import_node_path17 = __toESM(require("node:path"), 1);
+var import_node_path18 = __toESM(require("node:path"), 1);
 function readProductJsonVersion(appRoot) {
   if (!appRoot)
     return "unknown";
   try {
-    const productJsonPath = import_node_path17.default.join(appRoot, "product.json");
+    const productJsonPath = import_node_path18.default.join(appRoot, "product.json");
     const raw = (0, import_node_fs3.readFileSync)(productJsonPath, "utf8");
     const parsed = JSON.parse(raw);
     const version2 = parsed.version;
@@ -35753,7 +35901,7 @@ var StdioServerTransport = class {
 };
 
 // ../mcp/dist/tools/false-positive.js
-var import_node_crypto6 = require("node:crypto");
+var import_node_crypto7 = require("node:crypto");
 init_zod();
 
 // ../mcp/dist/tools/utils.js
@@ -35791,11 +35939,70 @@ function isRuntimeVerdictEntry(v) {
     return false;
   return v.type === "runtime_verdict";
 }
+function isAnalyzedSkillVerdictEntry(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v))
+    return false;
+  const entry = v;
+  return entry.type === "skill_verdict" && entry.status === "analyzed" && isSkillId(asString2(entry.skill_id) ?? "");
+}
+function isReportableSkillVerdictEntry(v) {
+  if (!isAnalyzedSkillVerdictEntry(v))
+    return false;
+  const entry = v;
+  const verdict = asString2(entry.verdict)?.toUpperCase();
+  return (verdict === "HIGH" || verdict === "CRITICAL") && asString2(entry.entry_id) !== void 0;
+}
+function latestReportableSkillVerdicts(entries, ttlMs, now = Date.now()) {
+  const latestBySkillId = /* @__PURE__ */ new Map();
+  for (const entry of entries) {
+    if (!isAnalyzedSkillVerdictEntry(entry))
+      continue;
+    const timestamp = Date.parse(asString2(entry.timestamp) ?? "");
+    if (!isFreshTimestamp(timestamp, ttlMs, now))
+      continue;
+    const normalizedSkillId = entry.skill_id.toLowerCase();
+    const current = latestBySkillId.get(normalizedSkillId);
+    if (current && timestamp < current.timestamp)
+      continue;
+    latestBySkillId.delete(normalizedSkillId);
+    latestBySkillId.set(normalizedSkillId, { entry, timestamp });
+  }
+  return [...latestBySkillId.values()].map(({ entry }) => entry).filter(isReportableSkillVerdictEntry);
+}
+async function cachedSkillVerdictEntries(config2, logger2) {
+  const cache2 = await loadSkillVerdictCacheReadOnly(void 0, skillCacheTtlMs(config2), logger2);
+  return Object.entries(cache2.entries).flatMap(([skillId, entry]) => {
+    if (!isSkillId(skillId))
+      return [];
+    if (!entry.verdict)
+      return [];
+    const normalizedSkillId = skillId.toLowerCase();
+    const analyzerVerdict = entry.verdict.toUpperCase();
+    const signal = buildSkillCheckSignal(normalizedSkillId, analyzerVerdict, entry.jobId);
+    return [
+      {
+        type: "skill_verdict",
+        entry_id: resolveSkillVerdictEntryId(normalizedSkillId, entry),
+        timestamp: entry.analyzedAt,
+        agent_runtime: entry.sources?.[0]?.agentRuntime,
+        skill_id: normalizedSkillId,
+        job_id: entry.jobId,
+        status: "analyzed",
+        verdict: analyzerVerdict,
+        signals: signal ? { skill_checks: [signal] } : void 0
+      }
+    ];
+  });
+}
 function getConversationId(entry) {
   return asString2(entry.conversation_id) ?? asString2(entry.session_id);
 }
 function getEntryId(entry) {
   return asString2(entry.entry_id);
+}
+function getEntryTimestamp(entry) {
+  const timestamp = Date.parse(asString2(entry.timestamp) ?? "");
+  return Number.isFinite(timestamp) ? timestamp : 0;
 }
 function asHookType(value) {
   const s = asString2(value);
@@ -35817,9 +36024,10 @@ async function postMultipart(endpoint, payload, timeoutSeconds) {
   const bodyText = await res.text().catch(() => "");
   return { ok: res.ok, status: res.status, bodyText };
 }
+var MAX_AUDIT_SCAN_ENTRIES = 5e3;
 var ListInputSchema = external_exports.object({
   conversation_id: external_exports.string().optional().describe("Conversation id to filter audit entries; if omitted, uses the most recent one."),
-  limit: external_exports.number().int().min(1).max(5e3).optional().describe("Max entries to scan and return.")
+  limit: external_exports.number().int().min(1).max(MAX_AUDIT_SCAN_ENTRIES).optional().describe("Max merged entries to return.")
 });
 var MAX_IMPLICIT_ENTRIES = 3;
 var MAX_EXPLICIT_ENTRIES = 10;
@@ -35828,10 +36036,10 @@ var ReportInputSchema = external_exports.object({
   description: external_exports.string().min(1).describe("Short description of what is a false positive."),
   reasoning: external_exports.string().min(1).describe("Reasoning for why this should be treated as a false positive."),
   agent_runtime_version: external_exports.string().optional().describe("Optional agent runtime version override (Cursor/VS Code/Claude version). If omitted, the server resolves the host version from SAGE_APP_ROOT (the application root injected by the Sage extension at MCP-server install time, used to read product.json), then falls back to SAGE_AGENT_RUNTIME_VERSION env, then 'unknown'."),
-  entry_ids: external_exports.array(external_exports.string()).optional().describe(`REQUIRED in normal use: list of specific audit entry_ids to report as false positives. ALWAYS call sage_list_audit_entries first to inspect the audit log and identify the exact deny/ask verdict the user considers a false positive, then pass its entry_id here. Up to ${MAX_EXPLICIT_ENTRIES} entry_ids may be provided per call. Omitting this parameter is a fallback that submits up to ${MAX_IMPLICIT_ENTRIES} most recent deny/ask entries for the conversation, which may include irrelevant verdicts and should only be used when entry_id discovery is impossible.`),
+  entry_ids: external_exports.array(external_exports.string()).max(MAX_EXPLICIT_ENTRIES).optional().describe(`REQUIRED in normal use: list of specific audit entry_ids to report as false positives. ALWAYS call sage_list_audit_entries first to inspect the audit log and identify the exact deny/ask verdict the user considers a false positive, then pass its entry_id here. Up to ${MAX_EXPLICIT_ENTRIES} entry_ids may be provided per call. Omitting this parameter is a fallback that submits up to ${MAX_IMPLICIT_ENTRIES} most recent deny/ask entries for the conversation, which may include irrelevant verdicts and should only be used when entry_id discovery is impossible.`),
   dry_run: external_exports.boolean().optional().describe("If true, do not POST; just show the payload.")
 });
-function parseAuditSignals(raw, options = {}) {
+function parseRuntimeAuditSignals(raw, options = {}) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw))
     return {};
   const includePiContentSnippet = options.includePiContentSnippet ?? true;
@@ -35940,7 +36148,7 @@ function registerFalsePositiveTools(server, opts) {
   const branding = opts.branding ?? defaultBranding;
   server.registerTool("sage_list_audit_entries", {
     title: `${branding.name}: List Audit Entries`,
-    description: `List recent ${branding.name} audit log entries, optionally scoped to a conversation id. Useful for selecting entry_ids to report as false positives.`,
+    description: `List recent ${branding.name} runtime and Skill Analyzer audit entries. Runtime entries are optionally scoped to a conversation id; skill entries are global because analysis can finish outside the originating conversation. Useful for selecting entry_ids to report as false positives.`,
     inputSchema: ListInputSchema
   }, async ({ conversation_id, limit }) => {
     const complete2 = (result, data = {}) => {
@@ -35958,33 +36166,59 @@ function registerFalsePositiveTools(server, opts) {
     });
     try {
       const config2 = await loadConfig(void 0, logger2);
-      const scanLimit = limit ?? 500;
-      const entries = await getRecentEntries(config2.logging, scanLimit);
+      const outputLimit = limit ?? 500;
+      const entries = await getRecentEntries(config2.logging, MAX_AUDIT_SCAN_ENTRIES);
       const runtime = entries.filter(isRuntimeVerdictEntry);
+      const cachedSkills = await cachedSkillVerdictEntries(config2, logger2);
+      const skills = latestReportableSkillVerdicts([...entries, ...cachedSkills], skillCacheTtlMs(config2));
       const inferredConversationId = conversation_id ?? getConversationId(runtime.slice().reverse().find((e) => !!getConversationId(e)) ?? {});
-      if (!inferredConversationId) {
-        complete2("skipped", { skippedReason: "no_runtime_entries", entriesReturned: 0 });
-        return textResult("No runtime_verdict entries found in the audit log.", true);
+      if (!inferredConversationId && skills.length === 0) {
+        complete2("skipped", { skippedReason: "no_reportable_entries", entriesReturned: 0 });
+        return textResult("No reportable runtime or skill verdict entries found.", true);
       }
-      const filtered = runtime.filter((e) => getConversationId(e) === inferredConversationId);
-      const out = filtered.map((e) => ({
-        entry_id: getEntryId(e),
-        timestamp: asString2(e.timestamp),
-        conversation_id: inferredConversationId,
-        agent_runtime: asString2(e.agent_runtime),
-        tool_name: asString2(e.tool_name),
-        tool_input_summary: asString2(e.tool_input_summary),
-        verdict: asString2(e.verdict),
-        severity: asString2(e.severity),
-        source: asString2(e.source),
-        user_override: e.user_override,
-        // PI snippets are untrusted fetched content. Exclude their raw
-        // text—including the generic top-level content_snippet - from this
-        // model-visible response. Retain it only for the backend-only
-        // false-positive report below.
-        signals: parseAuditSignals(e.signals, { includePiContentSnippet: false }),
-        content: readContent(e)
-      }));
+      const filteredRuntime = inferredConversationId ? runtime.filter((e) => getConversationId(e) === inferredConversationId) : [];
+      const selected = [
+        ...filteredRuntime,
+        ...skills
+      ].sort((a, b) => getEntryTimestamp(a) - getEntryTimestamp(b)).slice(-outputLimit);
+      const out = selected.map((entry) => {
+        if (isReportableSkillVerdictEntry(entry)) {
+          const skillId = entry.skill_id;
+          const analyzerVerdict = asString2(entry.verdict)?.toUpperCase() ?? "";
+          const signal = buildSkillCheckSignal(skillId, analyzerVerdict, asString2(entry.job_id));
+          return {
+            type: "skill_verdict",
+            entry_id: getEntryId(entry),
+            timestamp: asString2(entry.timestamp),
+            agent_runtime: asString2(entry.agent_runtime),
+            skill_id: skillId.toLowerCase(),
+            job_id: asString2(entry.job_id),
+            status: asString2(entry.status),
+            analyzer_verdict: analyzerVerdict,
+            signals: signal ? { skill_checks: [signal] } : {}
+          };
+        }
+        const runtimeEntry = entry;
+        return {
+          type: "runtime_verdict",
+          entry_id: getEntryId(runtimeEntry),
+          timestamp: asString2(runtimeEntry.timestamp),
+          conversation_id: inferredConversationId,
+          agent_runtime: asString2(runtimeEntry.agent_runtime),
+          tool_name: asString2(runtimeEntry.tool_name),
+          tool_input_summary: asString2(runtimeEntry.tool_input_summary),
+          verdict: asString2(runtimeEntry.verdict),
+          severity: asString2(runtimeEntry.severity),
+          source: asString2(runtimeEntry.source),
+          user_override: runtimeEntry.user_override,
+          // PI snippets are untrusted fetched content. Exclude their raw
+          // text from this model-visible response.
+          signals: parseRuntimeAuditSignals(runtimeEntry.signals, {
+            includePiContentSnippet: false
+          }),
+          content: readContent(runtimeEntry)
+        };
+      });
       complete2("completed", {
         conversationId: inferredConversationId,
         entriesReturned: out.length
@@ -36001,11 +36235,11 @@ function registerFalsePositiveTools(server, opts) {
   });
   server.registerTool("sage_report_false_positive", {
     title: `${branding.name}: Report False Positive`,
-    description: `Report ${branding.name} audit log entries as false positives to the backend, scoped to the current conversation.
+    description: `Report ${branding.name} runtime or Skill Analyzer audit entries as false positives to the backend. Runtime entries are scoped to the current conversation; skill entries require explicit entry_ids.
 
 USAGE \u2014 IMPORTANT:
-1. ALWAYS call \`sage_list_audit_entries\` FIRST to inspect the audit log and locate the specific deny/ask verdict the user considers a false positive.
-2. ALWAYS pass the \`entry_ids\` parameter with just the relevant deny/ask entry id(s). Up to ${MAX_EXPLICIT_ENTRIES} entry_ids may be reported per call.
+1. ALWAYS call \`sage_list_audit_entries\` FIRST to inspect the audit log and locate the specific runtime or skill verdict the user considers a false positive.
+2. ALWAYS pass the \`entry_ids\` parameter with just the relevant entry id(s); it is required for skill verdicts. Up to ${MAX_EXPLICIT_ENTRIES} entry_ids may be reported per call.
 3. Only when entry_id discovery is impossible should \`entry_ids\` be omitted; in that fallback at most ${MAX_IMPLICIT_ENTRIES} most recent deny/ask entries for the conversation are submitted, which may include irrelevant verdicts and floods the backend with noise.`,
     inputSchema: ReportInputSchema
   }, async ({ conversation_id, description, reasoning, agent_runtime_version, entry_ids, dry_run }) => {
@@ -36029,31 +36263,35 @@ USAGE \u2014 IMPORTANT:
       const config2 = await loadConfig(void 0, logger2);
       const endpoint = resolveEndpoint("/v2/fp-report");
       const timeoutSeconds = Number(process.env.SAGE_FALSE_POSITIVE_TIMEOUT_SECONDS) || 5;
-      const scanLimit = 2e3;
-      const entries = await getRecentEntries(config2.logging, scanLimit);
+      const entries = await getRecentEntries(config2.logging, MAX_AUDIT_SCAN_ENTRIES);
       const runtime = entries.filter(isRuntimeVerdictEntry);
+      const cachedSkills = await cachedSkillVerdictEntries(config2, logger2);
+      const skills = latestReportableSkillVerdicts([...entries, ...cachedSkills], skillCacheTtlMs(config2));
       const inferredConversationId = conversation_id ?? getConversationId(runtime.slice().reverse().find((e) => !!getConversationId(e)) ?? {});
-      if (!inferredConversationId) {
-        complete2("skipped", { skippedReason: "no_runtime_entries", reportsCount: 0 });
-        return textResult("No runtime_verdict entries found in the audit log.", true);
-      }
-      let filtered = runtime.filter((e) => getConversationId(e) === inferredConversationId);
+      let filtered;
       if (entry_ids && entry_ids.length > 0) {
-        const wanted = new Set(entry_ids);
-        filtered = filtered.filter((e) => {
-          const id = getEntryId(e);
-          return id ? wanted.has(id) : false;
-        });
-        if (filtered.length > MAX_EXPLICIT_ENTRIES) {
+        if (entry_ids.length > MAX_EXPLICIT_ENTRIES) {
           complete2("failed_validation", {
             conversationId: inferredConversationId,
-            reportsCount: filtered.length,
+            entryIdsCount: entry_ids.length,
             maxEntries: MAX_EXPLICIT_ENTRIES
           });
-          return textResult(`Too many entry_ids (${filtered.length}). Provide at most ${MAX_EXPLICIT_ENTRIES} specific entry_ids per report call.`, true);
+          return textResult(`Too many entry_ids (${entry_ids.length}). Provide at most ${MAX_EXPLICIT_ENTRIES} specific entry_ids per report call.`, true);
         }
+        const wanted = new Set(entry_ids);
+        const scopedRuntime = inferredConversationId ? runtime.filter((e) => getConversationId(e) === inferredConversationId) : [];
+        filtered = [...scopedRuntime, ...skills].filter((e) => {
+          const id = getEntryId(e);
+          return id !== void 0 && wanted.has(id);
+        });
       } else {
-        filtered = filtered.filter((e) => {
+        if (!inferredConversationId) {
+          complete2("skipped", { skippedReason: "no_runtime_entries", reportsCount: 0 });
+          return textResult("No runtime_verdict entries found. Skill verdicts must be reported with explicit entry_ids.", true);
+        }
+        filtered = runtime.filter((e) => {
+          if (getConversationId(e) !== inferredConversationId)
+            return false;
           const v = asString2(e.verdict);
           return v === "deny" || v === "ask";
         });
@@ -36068,7 +36306,7 @@ USAGE \u2014 IMPORTANT:
             skippedReason: "no_matching_entry_ids",
             reportsCount: 0
           });
-          return textResult("No matching audit entries found for the provided entry_ids in this conversation. Run sage_list_audit_entries first.", true);
+          return textResult("No matching reportable audit entries found for the provided entry_ids. Run sage_list_audit_entries first.", true);
         }
         complete2("skipped", {
           conversationId: inferredConversationId,
@@ -36094,19 +36332,22 @@ USAGE \u2014 IMPORTANT:
 ${reasoning}`;
       const extendedInfo = await loadExtendedInfo(void 0, logger2).catch(() => null);
       const reports = filtered.map((e) => {
+        const isSkill = isReportableSkillVerdictEntry(e);
+        const runtimeEntry = isSkill ? void 0 : e;
         const entry_id = getEntryId(e);
         const timestamp = asString2(e.timestamp) ?? (/* @__PURE__ */ new Date()).toISOString();
         const agent_runtime = asString2(e.agent_runtime) ?? "unknown";
-        const tool_type = asString2(e.tool_name) ?? "Unknown";
-        const verdict = asString2(e.verdict) ?? "deny";
-        const wasAllowed = verdict === "allow" || e.user_override === true;
+        const analyzerVerdict = isSkill ? asString2(e.verdict)?.toUpperCase() : void 0;
+        const tool_type = isSkill ? "Skill" : asString2(runtimeEntry?.tool_name) ?? "Unknown";
+        const verdict = isSkill ? analyzerVerdict === "CRITICAL" ? "deny" : "ask" : asString2(e.verdict) ?? "deny";
+        const wasAllowed = !isSkill && (verdict === "allow" || runtimeEntry?.user_override === true);
         const user_action = wasAllowed ? "allowed" : "blocked";
-        const hook_type = asHookType(e.hook_type) ?? "PreToolUse";
-        const signals = parseAuditSignals(e.signals, {
+        const hook_type = isSkill ? "SessionStart" : asHookType(runtimeEntry?.hook_type) ?? "PreToolUse";
+        const signals = parseRuntimeAuditSignals(e.signals, {
           includePiContentSnippet: !dry_run
         });
-        const content = readContent(e);
-        const contentSnippet = readContentSnippet(e);
+        const content = runtimeEntry ? readContent(runtimeEntry) : {};
+        const contentSnippet = runtimeEntry ? readContentSnippet(runtimeEntry) : void 0;
         const bestEffortSignals = {};
         if (signals.heuristics)
           bestEffortSignals.heuristics = signals.heuristics;
@@ -36120,6 +36361,11 @@ ${reasoning}`;
           bestEffortSignals.pi_checks = signals.pi_checks;
         if (signals.amsi_checks)
           bestEffortSignals.amsi_checks = signals.amsi_checks;
+        if (isSkill) {
+          const signal = analyzerVerdict ? buildSkillCheckSignal(e.skill_id, analyzerVerdict, asString2(e.job_id)) : void 0;
+          if (signal)
+            bestEffortSignals.skill_checks = [signal];
+        }
         const baseReportPayload = {
           ...buildSageProxyEnvelope({
             iid,
@@ -36135,11 +36381,11 @@ ${reasoning}`;
             user_action,
             timestamp,
             ...Object.keys(bestEffortSignals).length > 0 ? { signals: bestEffortSignals } : {},
-            content,
+            ...Object.keys(content).length > 0 ? { content } : {},
             ...contentSnippet && !dry_run ? { content_snippet: contentSnippet } : {}
           },
           comment,
-          event_id: entry_id ?? (0, import_node_crypto6.randomUUID)()
+          event_id: entry_id ?? (0, import_node_crypto7.randomUUID)()
         };
         const reportPayload = mergeExtendedInfo(baseReportPayload, extendedInfo);
         return { entry_id, payload: reportPayload };
@@ -36193,7 +36439,8 @@ ${JSON.stringify(summary, null, 2)}`, true);
         conversationId: inferredConversationId,
         reported: filtered.length
       });
-      return textResult(`Reported ${filtered.length} audit entr${filtered.length === 1 ? "y" : "ies"} for conversation_id=${inferredConversationId}.`);
+      const scope = inferredConversationId ? ` for conversation_id=${inferredConversationId}` : "";
+      return textResult(`Reported ${filtered.length} audit entr${filtered.length === 1 ? "y" : "ies"}${scope}.`);
     } catch (e) {
       logger2.warn("MCP tool failed", {
         toolName: "sage_report_false_positive",
@@ -36218,11 +36465,11 @@ function createSageMcpServer(options) {
 }
 
 // src/hook-handlers.ts
-var import_node_path19 = require("node:path");
+var import_node_path20 = require("node:path");
 
 // src/approval-tracker.ts
 var import_promises7 = require("node:fs/promises");
-var import_node_path18 = require("node:path");
+var import_node_path19 = require("node:path");
 var PENDING_STALE_MS2 = 60 * 60 * 1e3;
 var CONSUMED_TTL_MS = 10 * 60 * 1e3;
 var STALE_FILE_MS = 2 * 60 * 60 * 1e3;
@@ -36230,10 +36477,10 @@ function resolvedSageDir2() {
   return resolvePath(SAGE_DIR);
 }
 function pendingPath(sessionId) {
-  return (0, import_node_path18.join)(resolvedSageDir2(), `pending-approvals-${sanitizeSessionId(sessionId)}.json`);
+  return (0, import_node_path19.join)(resolvedSageDir2(), `pending-approvals-${sanitizeSessionId(sessionId)}.json`);
 }
 function consumedPath(sessionId) {
-  return (0, import_node_path18.join)(resolvedSageDir2(), `consumed-approvals-${sanitizeSessionId(sessionId)}.json`);
+  return (0, import_node_path19.join)(resolvedSageDir2(), `consumed-approvals-${sanitizeSessionId(sessionId)}.json`);
 }
 async function loadJson(path2) {
   try {
@@ -36378,7 +36625,7 @@ function formatBlockReason(verdict, branding = defaultBranding) {
 
 // src/hook-handlers.ts
 function getPluginRoot() {
-  return (0, import_node_path19.resolve)(__dirname, "..", "..", "..");
+  return (0, import_node_path20.resolve)(__dirname, "..", "..", "..");
 }
 function makePreToolUseResponse(verdict, branding = defaultBranding) {
   if (verdict.decision === "allow") return {};
@@ -36469,8 +36716,8 @@ async function handlePreToolUseHook(toolCall, options) {
       toolUseId
     },
     {
-      threatsDir: (0, import_node_path19.join)(pluginRoot, "threats"),
-      trustedDomainsDir: (0, import_node_path19.join)(pluginRoot, "trusted-domains"),
+      threatsDir: (0, import_node_path20.join)(pluginRoot, "threats"),
+      trustedDomainsDir: (0, import_node_path20.join)(pluginRoot, "trusted-domains"),
       config: config2,
       logger: logger2,
       acquireAmsiClientLease: options.acquireAmsiClientLease
@@ -36555,8 +36802,8 @@ async function handlePostToolUseHook(hookInput, options) {
       toolUseId
     },
     {
-      threatsDir: (0, import_node_path19.join)(pluginRoot, "threats"),
-      trustedDomainsDir: (0, import_node_path19.join)(pluginRoot, "trusted-domains"),
+      threatsDir: (0, import_node_path20.join)(pluginRoot, "threats"),
+      trustedDomainsDir: (0, import_node_path20.join)(pluginRoot, "trusted-domains"),
       config: config2,
       logger: logger2
     }
@@ -36994,7 +37241,7 @@ async function main() {
   const shutdown = registerProcessShutdown();
   const branding = resolveBranding(config2.brand_key, logger);
   const server = createSageMcpServer({
-    version: "0.13.0",
+    version: "0.14.0",
     logger,
     branding
   });
@@ -37016,7 +37263,7 @@ async function main() {
   await server.connect(transport);
   logger.debug("MCP server connected", {
     serverName: branding.name.toLowerCase(),
-    version: "0.13.0"
+    version: "0.14.0"
   });
 }
 main().catch(async (e) => {

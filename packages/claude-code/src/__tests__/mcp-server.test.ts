@@ -20,25 +20,43 @@ function createJsonRpcMessage(method: string, params: unknown, id?: number): str
 	return JSON.stringify(msg);
 }
 
+/**
+ * Drive the server over stdio and collect its output.
+ *
+ * Closing stdin is what shuts a stdio MCP server down, so it stays open until
+ * every id in `expectedIds` has been answered — a fixed delay would cut off
+ * responses whenever evaluation outruns it, and would otherwise make every run
+ * wait out the full delay. The timer is only a guard against a hung server.
+ */
 function sendToMcp(
 	messages: string[],
+	expectedIds: number[],
 ): Promise<{ stdout: string; stderr: string; code: number | null }> {
 	return new Promise((done) => {
 		const child = execFile(
 			"node",
 			[MCP_SERVER],
-			{ timeout: 10_000, env: { ...process.env, HOME: TEST_HOME, USERPROFILE: TEST_HOME } },
+			{ timeout: 20_000, env: { ...process.env, HOME: TEST_HOME, USERPROFILE: TEST_HOME } },
 			(error, stdout, stderr) => {
 				done({ stdout, stderr, code: error?.code ? Number(error.code) : child.exitCode });
 			},
 		);
 
+		const hangGuard = setTimeout(() => child.stdin?.end(), 15_000);
+		let received = "";
+		child.stdout?.on("data", (chunk: Buffer | string) => {
+			received += chunk;
+			const answered = new Set(parseJsonRpcResponses(received).map((r) => r.id));
+			if (expectedIds.every((id) => answered.has(id))) {
+				clearTimeout(hangGuard);
+				child.stdin?.end();
+			}
+		});
+
 		// SDK uses newline-delimited JSON
 		for (const msg of messages) {
 			child.stdin?.write(`${msg}\n`);
 		}
-
-		setTimeout(() => child.stdin?.end(), 5_000);
 	});
 }
 
@@ -75,7 +93,7 @@ describe("MCP server integration", () => {
 	it("responds to initialize and lists only public Sage tools", async () => {
 		const messages = [...initSequence(), createJsonRpcMessage("tools/list", {}, 2)];
 
-		const { stdout, code } = await sendToMcp(messages);
+		const { stdout, code } = await sendToMcp(messages, [2]);
 		expect(code).toBe(0);
 
 		const responses = parseJsonRpcResponses(stdout);
@@ -88,7 +106,7 @@ describe("MCP server integration", () => {
 		const result = toolsResponse?.result as { tools: Array<{ name: string }> };
 		const toolNames = result.tools.map((t) => t.name).sort();
 		expect(toolNames).toEqual(["sage_list_audit_entries", "sage_report_false_positive"]);
-	}, 15_000);
+	}, 30_000);
 
 	it("evaluates internal hook tools through MCP tools/call", async () => {
 		const messages = [
@@ -125,7 +143,7 @@ describe("MCP server integration", () => {
 			),
 		];
 
-		const { stdout, code } = await sendToMcp(messages);
+		const { stdout, code } = await sendToMcp(messages, [2, 3]);
 		expect(code).toBe(0);
 
 		const responses = parseJsonRpcResponses(stdout);
@@ -136,5 +154,5 @@ describe("MCP server integration", () => {
 			expect(result.content[0]?.type).toBe("text");
 			expect(JSON.parse(result.content[0]?.text ?? "")).toEqual({});
 		}
-	}, 15_000);
+	}, 30_000);
 });

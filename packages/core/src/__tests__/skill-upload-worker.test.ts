@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -46,11 +46,114 @@ describe("runSkillUploadWorker", () => {
 		expect(result).toEqual({ analyzed: 1, retained: 0 });
 
 		const cache = await loadSkillVerdictCache(verdictCachePath);
+		expect(getVerdict(cache, ID)?.jobId).toBe("job-1");
 		expect(getVerdict(cache, ID)?.verdict).toBe("CRITICAL");
 		expect(getVerdict(cache, ID)?.summary).toBe("reverse shell");
 
 		const marker = await loadPendingMarker(pendingPath);
 		expect(isPending(marker, ID)).toBe(false); // cleared
+	});
+
+	it("logs job id and analyzer verdict for false-positive reporting", async () => {
+		const auditPath = join(dir, "audit.jsonl");
+		const client: SkillAnalyzer = { analyzeZip: vi.fn().mockResolvedValue(CRITICAL) };
+
+		await runSkillUploadWorker({
+			pendingPath,
+			verdictCachePath,
+			client,
+			agentRuntime: "cursor",
+			loggingConfig: {
+				enabled: true,
+				log_clean: false,
+				path: auditPath,
+				max_bytes: 5 * 1024 * 1024,
+				max_files: 3,
+			},
+		});
+
+		const entry = JSON.parse((await readFile(auditPath, "utf-8")).trim());
+		expect(entry.entry_id).toEqual(expect.any(String));
+		expect(getVerdict(await loadSkillVerdictCache(verdictCachePath), ID)?.entryId).toBe(
+			entry.entry_id,
+		);
+		expect(entry.job_id).toBe("job-1");
+		expect(entry.agent_runtime).toBe("cursor");
+		expect(entry.signals.skill_checks[0]).toEqual({
+			detection_name: `Other:SageMaliciousSkill-A [Trj]|skan:${ID}|sage`,
+			skill_id: ID,
+			job_id: "job-1",
+			analyzer_verdict: "CRITICAL",
+		});
+	});
+
+	it("caches a reportable ID when its audit entry cannot be written", async () => {
+		const client: SkillAnalyzer = { analyzeZip: vi.fn().mockResolvedValue(CRITICAL) };
+
+		const result = await runSkillUploadWorker({
+			pendingPath,
+			verdictCachePath,
+			client,
+			loggingConfig: {
+				enabled: true,
+				log_clean: false,
+				path: dir,
+				max_bytes: 5 * 1024 * 1024,
+				max_files: 3,
+			},
+		});
+
+		expect(result).toEqual({ analyzed: 1, retained: 0 });
+		expect(isPending(await loadPendingMarker(pendingPath), ID)).toBe(false);
+		const cached = getVerdict(await loadSkillVerdictCache(verdictCachePath), ID);
+		expect(cached?.entryId).toEqual(expect.any(String));
+		expect(cached?.jobId).toBe("job-1");
+	});
+
+	it("keeps analyzed work pending when the verdict cache cannot be written", async () => {
+		const auditPath = join(dir, "audit.jsonl");
+		const client: SkillAnalyzer = { analyzeZip: vi.fn().mockResolvedValue(CRITICAL) };
+
+		const result = await runSkillUploadWorker({
+			pendingPath,
+			verdictCachePath: dir,
+			client,
+			loggingConfig: {
+				enabled: true,
+				log_clean: false,
+				path: auditPath,
+				max_bytes: 5 * 1024 * 1024,
+				max_files: 3,
+			},
+		});
+
+		expect(result).toEqual({ analyzed: 0, retained: 1 });
+		expect(isPending(await loadPendingMarker(pendingPath), ID)).toBe(true);
+		// No "analyzed" entry: the retry gets a fresh entry id, so an entry logged
+		// here would be an orphan no cache row ever joins to.
+		await expect(readFile(auditPath, "utf-8")).rejects.toThrow();
+	});
+
+	it("clears non-risky work even when its audit entry cannot be written", async () => {
+		const client: SkillAnalyzer = {
+			analyzeZip: vi.fn().mockResolvedValue({ jobId: "job-safe", verdict: "SAFE" }),
+		};
+
+		const result = await runSkillUploadWorker({
+			pendingPath,
+			verdictCachePath,
+			client,
+			loggingConfig: {
+				enabled: true,
+				log_clean: false,
+				path: dir,
+				max_bytes: 5 * 1024 * 1024,
+				max_files: 3,
+			},
+		});
+
+		expect(result).toEqual({ analyzed: 1, retained: 0 });
+		expect(isPending(await loadPendingMarker(pendingPath), ID)).toBe(false);
 	});
 
 	it("passes the skill id and a slug to the analyzer", async () => {

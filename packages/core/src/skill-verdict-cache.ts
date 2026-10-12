@@ -31,6 +31,10 @@ export interface SkillVerdictSource {
 }
 
 export interface CachedSkillVerdict {
+	/** Audit/report event identifier shared with the corresponding skill_verdict entry. */
+	entryId?: string;
+	/** Analyzer job identifier used to correlate false-positive reports. */
+	jobId?: string;
 	verdict?: string;
 	summary?: string;
 	/** Skill folder name (slug), for user-facing display. */
@@ -92,10 +96,11 @@ function defaultCachePath(): string {
  * file is rewritten immediately so the cache stays bounded over time.
  * Fails-open: returns an empty cache on a missing/corrupt file.
  */
-export async function loadSkillVerdictCache(
-	cachePath = defaultCachePath(),
-	ttlMs = DEFAULT_VERDICT_TTL_MS,
-	logger: Logger = nullLogger,
+async function loadSkillVerdictCacheInternal(
+	cachePath: string,
+	ttlMs: number,
+	logger: Logger,
+	pruneOnLoad: boolean,
 ): Promise<SkillVerdictCache> {
 	let raw: string;
 	try {
@@ -119,6 +124,8 @@ export async function loadSkillVerdictCache(
 				continue;
 			}
 			entries[skillId] = {
+				entryId: typeof entry.entry_id === "string" ? entry.entry_id : undefined,
+				jobId: typeof entry.job_id === "string" ? entry.job_id : undefined,
 				verdict: typeof entry.verdict === "string" ? entry.verdict : undefined,
 				summary: typeof entry.summary === "string" ? entry.summary : undefined,
 				skillName: typeof entry.skill_name === "string" ? entry.skill_name : undefined,
@@ -127,7 +134,7 @@ export async function loadSkillVerdictCache(
 			};
 		}
 		const cache = { entries };
-		if (pruned > 0) {
+		if (pruneOnLoad && pruned > 0) {
 			logger.debug(`Pruned ${pruned} stale verdict(s) from cache`, { cachePath });
 			await saveSkillVerdictCache(cache, cachePath, logger);
 		}
@@ -136,6 +143,23 @@ export async function loadSkillVerdictCache(
 		logger.warn(`Failed to load verdict cache from ${cachePath}`, { error: String(e) });
 		return { entries: {} };
 	}
+}
+
+export async function loadSkillVerdictCache(
+	cachePath = defaultCachePath(),
+	ttlMs = DEFAULT_VERDICT_TTL_MS,
+	logger: Logger = nullLogger,
+): Promise<SkillVerdictCache> {
+	return loadSkillVerdictCacheInternal(cachePath, ttlMs, logger, true);
+}
+
+/** TTL-filtered cache load that never rewrites disk; safe for concurrent readers. */
+export async function loadSkillVerdictCacheReadOnly(
+	cachePath = defaultCachePath(),
+	ttlMs = DEFAULT_VERDICT_TTL_MS,
+	logger: Logger = nullLogger,
+): Promise<SkillVerdictCache> {
+	return loadSkillVerdictCacheInternal(cachePath, ttlMs, logger, false);
 }
 
 /**
@@ -153,6 +177,8 @@ export function loadSkillVerdictCacheSync(cachePath = defaultCachePath()): Skill
 			const analyzedAt = entry.analyzed_at;
 			if (typeof analyzedAt !== "string") continue;
 			entries[skillId] = {
+				entryId: typeof entry.entry_id === "string" ? entry.entry_id : undefined,
+				jobId: typeof entry.job_id === "string" ? entry.job_id : undefined,
 				verdict: typeof entry.verdict === "string" ? entry.verdict : undefined,
 				summary: typeof entry.summary === "string" ? entry.summary : undefined,
 				skillName: typeof entry.skill_name === "string" ? entry.skill_name : undefined,
@@ -188,12 +214,16 @@ export function riskyVerdictsSince(
 		.map(({ entry }) => entry);
 }
 
-/** Persist the cache atomically. Fails-open. */
+/**
+ * Persist the cache atomically. Fails-open: a failed write is logged and
+ * reported as `false` rather than thrown, so callers that track retry state can
+ * keep the work pending while callers that don't can ignore the result.
+ */
 export async function saveSkillVerdictCache(
 	cache: SkillVerdictCache,
 	cachePath = defaultCachePath(),
 	logger: Logger = nullLogger,
-): Promise<void> {
+): Promise<boolean> {
 	try {
 		const data = {
 			schema_version: SCHEMA_VERSION,
@@ -201,6 +231,8 @@ export async function saveSkillVerdictCache(
 				Object.entries(cache.entries).map(([skillId, v]) => [
 					skillId,
 					{
+						entry_id: v.entryId,
+						job_id: v.jobId,
 						verdict: v.verdict,
 						summary: v.summary,
 						skill_name: v.skillName,
@@ -214,8 +246,10 @@ export async function saveSkillVerdictCache(
 			),
 		};
 		await atomicWriteJson(cachePath, data);
+		return true;
 	} catch (e) {
 		logger.warn(`Failed to save verdict cache to ${cachePath}`, { error: String(e) });
+		return false;
 	}
 }
 

@@ -37,12 +37,8 @@ import {
 	removePending,
 	savePendingMarker,
 } from "./skill-pending.js";
-import {
-	getVerdict,
-	loadSkillVerdictCache,
-	putVerdict,
-	saveSkillVerdictCache,
-} from "./skill-verdict-cache.js";
+import { getVerdict, loadSkillVerdictCache, saveSkillVerdictCache } from "./skill-verdict-cache.js";
+import { type RecordedSkillVerdict, recordAnalyzedSkillVerdict } from "./skill-verdict-record.js";
 import type {
 	Logger,
 	LoggingConfig,
@@ -392,6 +388,7 @@ export async function scanPlugin(
 
 /** Common shape of a skill verdict from either the live lookup or the cache. */
 interface SkillVerdictLike {
+	jobId?: string;
 	verdict?: string;
 	summary?: string;
 }
@@ -475,6 +472,14 @@ async function runSkillCheck(
 		let markerModified = false;
 		let lookupFailed = false;
 		let graceDeferred = false;
+		const resolvedPendingSkillIds = new Set<string>();
+		/**
+		 * Audit entries held back until the cache save succeeds (see below), keyed
+		 * by skill id: `uncached` is per folder, and a skill id is content-derived,
+		 * so two folders holding the same skill collapse to one cache row and must
+		 * likewise produce one audit entry.
+		 */
+		const recordedVerdicts = new Map<string, RecordedSkillVerdict>();
 
 		for (const { folder, skillId } of uncached) {
 			if (!verdicts.has(skillId)) {
@@ -491,19 +496,26 @@ async function runSkillCheck(
 			// upload it for analysis.
 			const verdict = verdicts.get(skillId) ?? null;
 			if (verdict) {
-				// Known: cache it so later sessions skip the network entirely.
-				putVerdict(verdictCache, skillId, {
-					verdict: verdict.verdict,
-					summary: verdict.summary,
-					skillName: basename(folder),
-					sources: [{ agentRuntime: paths.agentRuntime, containerKey: plugin.key }],
-				});
-				cacheModified = true;
+				// Known: cache it so later sessions skip the network entirely. Record
+				// each skill id once — a second folder with the same content would mint
+				// another entryId, overwrite the cache row with it, and still log the
+				// first one as an orphan. The finding below stays per folder.
+				if (!recordedVerdicts.has(skillId)) {
+					recordedVerdicts.set(
+						skillId,
+						recordAnalyzedSkillVerdict(verdictCache, skillId, verdict, {
+							skillName: basename(folder),
+							agentRuntime: paths.agentRuntime,
+							containerKey: plugin.key,
+							loggingConfig: paths.loggingConfig,
+						}),
+					);
+					cacheModified = true;
+				}
 				pushSkillFindingIfRisky(findings, plugin, skillId, folder, verdict);
-				// Clear from pending if it was queued — verdict is now cached, no upload needed.
+				// Clear after the batch cache write succeeds; otherwise retain it for retry.
 				if (isPending(marker, skillId)) {
-					removePending(marker, skillId);
-					markerModified = true;
+					resolvedPendingSkillIds.add(skillId);
 				}
 			} else if (!isPending(marker, skillId)) {
 				// Server returned null → never seen this skill.
@@ -530,7 +542,24 @@ async function runSkillCheck(
 			}
 		}
 
-		if (cacheModified) await saveSkillVerdictCache(verdictCache, paths.verdictCachePath, logger);
+		const cacheSaved = cacheModified
+			? await saveSkillVerdictCache(verdictCache, paths.verdictCachePath, logger)
+			: true;
+		if (cacheSaved) {
+			// Audit only now: a verdict whose cache row was not persisted is looked up
+			// again next session and recorded under a fresh entryId, so logging before
+			// the save would leave an orphaned "analyzed" row no cache entry joins to.
+			// A failed audit write must not abort the pending-marker clear below.
+			await Promise.all(
+				[...recordedVerdicts.values()].map((entry) => entry.writeAuditEntry().catch(() => {})),
+			);
+			for (const skillId of resolvedPendingSkillIds) {
+				removePending(marker, skillId);
+				markerModified = true;
+			}
+		} else {
+			lookupFailed = true;
+		}
 		if (markerModified) await savePendingMarker(marker, paths.pendingPath, logger);
 		// Defer cache when any skill is still awaiting a verdict — either newly
 		// queued this session OR already in the pending marker from a prior session

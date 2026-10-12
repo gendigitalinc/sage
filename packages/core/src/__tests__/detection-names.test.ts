@@ -4,10 +4,15 @@ import {
 	AMSI_DETECTION_NAMES,
 	amsiReportingData,
 	buildDetectionNameCatalog,
+	buildSkillCheckSignal,
 	formatReportingDetectionName,
 	isCanonicalDetectionName,
+	isSkillId,
 	PACKAGE_DETECTION_NAMES,
 	PI_DETECTION_NAME,
+	SKILL_DETECTION_NAMES,
+	skillDetectionName,
+	skillReportingDetectionName,
 } from "../detection-names.js";
 import { loadThreats } from "../threat-loader.js";
 
@@ -40,12 +45,36 @@ describe("canonical detection names", () => {
 			PI_DETECTION_NAME,
 			...Object.values(PACKAGE_DETECTION_NAMES),
 			...Object.values(AMSI_DETECTION_NAMES),
+			...Object.values(SKILL_DETECTION_NAMES),
 		];
 		expect(names.every(isCanonicalDetectionName)).toBe(true);
 	});
 
 	it("uses a distinct identity for ML prompt-injection signals", () => {
 		expect(PI_DETECTION_NAME).toBe("Other:SagePromptInjectionML-A [Susp]");
+	});
+
+	it("maps risky skill verdicts to stable canonical and reporting names", () => {
+		const skillId = "a".repeat(64);
+
+		expect(skillDetectionName("high")).toBe("Other:SageSuspiciousSkill-A [Susp]");
+		expect(skillDetectionName("CRITICAL")).toBe("Other:SageMaliciousSkill-A [Trj]");
+		expect(skillReportingDetectionName("HIGH", skillId)).toBe(
+			`Other:SageSuspiciousSkill-A [Susp]|skan:${skillId}|sage`,
+		);
+		expect(skillReportingDetectionName("CRITICAL", skillId)).toBe(
+			`Other:SageMaliciousSkill-A [Trj]|skan:${skillId}|sage`,
+		);
+		expect(skillReportingDetectionName("SAFE", skillId)).toBeUndefined();
+		expect(skillReportingDetectionName("HIGH", "not-a-hash")).toBeUndefined();
+		expect(buildSkillCheckSignal(skillId.toUpperCase(), "critical", "job-1")).toEqual({
+			detection_name: `Other:SageMaliciousSkill-A [Trj]|skan:${skillId}|sage`,
+			skill_id: skillId,
+			job_id: "job-1",
+			analyzer_verdict: "CRITICAL",
+		});
+		expect(isSkillId(skillId.toUpperCase())).toBe(true);
+		expect(isSkillId("not-a-hash")).toBe(false);
 	});
 
 	it("adds reporting metadata without changing the canonical name", () => {

@@ -25,6 +25,7 @@ const REQUEST_HEADERS = [
 
 export interface SkillCheckResult {
 	skillId: string;
+	jobId?: string;
 	verdict?: string;
 	summary?: string;
 }
@@ -129,6 +130,7 @@ export class SkillCheckClient {
 	private parseResult(skillId: string, raw: Record<string, unknown>): SkillCheckResult {
 		return {
 			skillId,
+			jobId: typeof raw.job_id === "string" ? raw.job_id : undefined,
 			verdict: typeof raw.verdict === "string" ? raw.verdict : undefined,
 			summary: typeof raw.summary === "string" ? raw.summary : undefined,
 		};

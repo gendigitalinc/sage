@@ -7,6 +7,7 @@ import {
 	getRecentEntries,
 	logPluginScan,
 	logSkillQueued,
+	logSkillVerdict,
 	logVerdict,
 } from "../audit-log.js";
 import type { AuditSignals, LoggingConfig, Verdict } from "../types.js";
@@ -64,6 +65,41 @@ describe("logSkillQueued", () => {
 
 		const entry = JSON.parse((await readFile(config.path, "utf-8")).trim());
 		expect(entry.skill_folder).toBeUndefined();
+	});
+});
+
+describe("logSkillVerdict", () => {
+	it("writes a selectable analyzed verdict with skill correlation metadata", async () => {
+		const dir = await makeTmpDir();
+		const config = makeConfig(dir);
+
+		await logSkillVerdict(config, "a".repeat(64), "analyzed", "CRITICAL", "reverse shell", {
+			entryId: "skill-entry-123",
+			jobId: "job-123",
+			agentRuntime: "cursor",
+		});
+
+		const entry = JSON.parse((await readFile(config.path, "utf-8")).trim());
+		expect(entry).toMatchObject({
+			type: "skill_verdict",
+			entry_id: "skill-entry-123",
+			schema_version: AUDIT_LOG_SCHEMA_VERSION,
+			skill_id: "a".repeat(64),
+			job_id: "job-123",
+			agent_runtime: "cursor",
+			status: "analyzed",
+			verdict: "CRITICAL",
+			signals: {
+				skill_checks: [
+					{
+						skill_id: "a".repeat(64),
+						job_id: "job-123",
+						analyzer_verdict: "CRITICAL",
+					},
+				],
+			},
+		});
+		expect(entry.entry_id).toBe("skill-entry-123");
 	});
 });
 
