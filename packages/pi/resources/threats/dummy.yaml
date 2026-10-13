@@ -1,0 +1,219 @@
+# Dummy threat patterns for Sage smoke-testing
+# Author: Test — NOT real threats
+#
+# Canary rules that match completely harmless, highly-specific marker strings.
+# The markers are deliberately OPAQUE (e.g. "diagmark_cmd_a75bf229", not
+# "__sage_test_deny_cmd_..."): a self-describing name reads as a security probe, and
+# a safety-trained model given security context (e.g. OpenCode, which injects Sage's
+# scan findings into the prompt) will REFUSE to run it — so the artifact never
+# reaches Sage and the E2E deny/ask test can't fire. Opaque markers run as rote yet
+# stay unique random strings, so false positives are essentially impossible. The
+# rule id/title carry the human-readable meaning; the hex suffix aids traceability.
+#
+# Coverage matrix:
+#   Tool           match_on    block(deny)  require_approval(ask)  log(allow)
+#   ───────────    ────────    ───────────  ─────────────────────  ──────────
+#   Bash           command     ✓ ✓          ✓ ✓                    ✓
+#   Write/Edit     file_path   ✓            ✓                      ✓
+#   Write/Edit     content     ✓            ✓                      ✓
+#   WebFetch/Bash  url         ✓            ✓                      ✓
+#   WebFetch/Bash  domain      ✓            —                      —
+#
+# The file_path rules also cover Read, Delete, Glob, and LS tools
+# (they produce the same artifact type).
+# The url rules also cover URLs embedded in Bash commands and file content.
+
+# ─── Command patterns (Bash tool) ───────────────────────────────────
+
+- id: "DUMMY-CMD-DENY-001"
+  version: 1
+  detection_name: "CMD:SageTestCommandDeny-A [Tst]"
+  category: testing
+  severity: critical
+  confidence: 0.95
+  pattern: "diagmark_cmd_a75bf229"
+  match_on: command
+  title: "[TEST] Canary deny command (alpha)"
+  expires_at: null
+  revoked: false
+
+- id: "DUMMY-CMD-DENY-002"
+  version: 1
+  detection_name: "CMD:SageTestCommandDeny-B [Tst]"
+  category: testing
+  severity: critical
+  confidence: 0.95
+  pattern: "diagmark_run_c3d91e4a"
+  match_on: command
+  title: "[TEST] Canary deny command (bravo)"
+  expires_at: null
+  revoked: false
+
+- id: "DUMMY-CMD-ASK-001"
+  version: 1
+  detection_name: "CMD:SageTestCommandAsk-A [Tst]"
+  category: testing
+  severity: warning
+  confidence: 0.60
+  pattern: "diagmark_cmd_8f2e6b71"
+  match_on: command
+  title: "[TEST] Canary approval command (alpha)"
+  expires_at: null
+  revoked: false
+
+- id: "DUMMY-CMD-ASK-002"
+  version: 1
+  detection_name: "CMD:SageTestCommandAsk-B [Tst]"
+  category: testing
+  severity: warning
+  confidence: 0.60
+  pattern: "diagmark_run_d4a09c53"
+  match_on: command
+  title: "[TEST] Canary approval command (bravo)"
+  expires_at: null
+  revoked: false
+
+- id: "DUMMY-CMD-LOG-001"
+  version: 1
+  detection_name: "CMD:SageTestCommandLog-A [Tst]"
+  category: testing
+  severity: info
+  confidence: 0.10
+  pattern: "diagmark_cmd_1b7e3f82"
+  match_on: command
+  title: "[TEST] Canary log-only command"
+  expires_at: null
+  revoked: false
+  flags: ["report"]
+
+# ─── File-path patterns (Write / Edit / Read / Delete tools) ────────
+
+- id: "DUMMY-FILE-DENY-001"
+  version: 1
+  detection_name: "FN:SageTestFileDeny-A [Tst]"
+  category: testing
+  severity: critical
+  confidence: 0.95
+  pattern: "diagmark_file_e6c4a918"
+  match_on: file_path
+  title: "[TEST] Canary deny file path"
+  expires_at: null
+  revoked: false
+
+- id: "DUMMY-FILE-ASK-001"
+  version: 1
+  detection_name: "FN:SageTestFileAsk-A [Tst]"
+  category: testing
+  severity: warning
+  confidence: 0.60
+  pattern: "diagmark_file_52fd7b36"
+  match_on: file_path
+  title: "[TEST] Canary approval file path"
+  expires_at: null
+  revoked: false
+
+- id: "DUMMY-FILE-LOG-001"
+  version: 1
+  detection_name: "FN:SageTestFileLog-A [Tst]"
+  category: testing
+  severity: info
+  confidence: 0.10
+  pattern: "diagmark_file_9a13de74"
+  match_on: file_path
+  title: "[TEST] Canary log-only file path"
+  expires_at: null
+  revoked: false
+  flags: ["report"]
+
+# ─── Content patterns (Write / Edit tools — file body) ──────────────
+
+- id: "DUMMY-CONTENT-DENY-001"
+  version: 1
+  detection_name: "Other:SageTestContentDeny-A [Tst]"
+  category: testing
+  severity: critical
+  confidence: 0.95
+  pattern: "diagmark_content_3c8f15b7"
+  match_on: content
+  title: "[TEST] Canary deny content"
+  expires_at: null
+  revoked: false
+
+- id: "DUMMY-CONTENT-ASK-001"
+  version: 1
+  detection_name: "Other:SageTestContentAsk-A [Tst]"
+  category: testing
+  severity: warning
+  confidence: 0.60
+  pattern: "diagmark_content_7d4ea2c9"
+  match_on: content
+  title: "[TEST] Canary approval content"
+  expires_at: null
+  revoked: false
+
+- id: "DUMMY-CONTENT-LOG-001"
+  version: 1
+  detection_name: "Other:SageTestContentLog-A [Tst]"
+  category: testing
+  severity: info
+  confidence: 0.10
+  pattern: "diagmark_content_f0b683d1"
+  match_on: content
+  title: "[TEST] Canary log-only content"
+  expires_at: null
+  revoked: false
+  flags: ["report"]
+
+# ─── URL patterns (WebFetch / Bash / Write content) ─────────────────
+# Uses .test TLD (RFC 2606 reserved, never resolves) for safety.
+
+- id: "DUMMY-URL-DENY-001"
+  version: 1
+  detection_name: "FN:SageTestUrlDeny-A [Tst]"
+  category: testing
+  severity: critical
+  confidence: 0.95
+  pattern: "diaghost-4e91ca37\\.test"
+  match_on: url
+  title: "[TEST] Canary deny URL"
+  expires_at: null
+  revoked: false
+
+- id: "DUMMY-URL-ASK-001"
+  version: 1
+  detection_name: "FN:SageTestUrlAsk-A [Tst]"
+  category: testing
+  severity: warning
+  confidence: 0.60
+  pattern: "diaghost-b26d80f5\\.test"
+  match_on: url
+  title: "[TEST] Canary approval URL"
+  expires_at: null
+  revoked: false
+
+- id: "DUMMY-URL-LOG-001"
+  version: 1
+  detection_name: "FN:SageTestUrlLog-A [Tst]"
+  category: testing
+  severity: info
+  confidence: 0.10
+  pattern: "diaghost-65f3d7a4\\.test"
+  match_on: url
+  title: "[TEST] Canary log-only URL"
+  expires_at: null
+  revoked: false
+  flags: ["report"]
+
+# ─── Domain pattern (verifies domain→url routing in heuristics) ─────
+
+- id: "DUMMY-DOMAIN-DENY-001"
+  version: 1
+  detection_name: "FN:SageTestDomainDeny-A [Tst]"
+  category: testing
+  severity: critical
+  confidence: 0.95
+  pattern: "diaghost-0c82eb16\\.test"
+  match_on: domain
+  title: "[TEST] Canary deny domain"
+  expires_at: null
+  revoked: false

@@ -1,0 +1,62 @@
+{
+  "name": "@gendigital/sage-pi",
+  "license": "Apache-2.0",
+  "version": "0.13.0",
+  "type": "module",
+  "description": "Safety for Agents — ADR layer for pi",
+  "homepage": "https://github.com/gendigitalinc/sage",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gendigitalinc/sage.git",
+    "directory": "packages/pi"
+  },
+  "bugs": {
+    "url": "https://github.com/gendigitalinc/sage/issues"
+  },
+  "main": "./dist/index.cjs",
+  "files": [
+    "dist/**",
+    "resources/**",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "pnpm -C ../core build && pnpm run clean && pnpm run sync:assets && node esbuild.config.mjs",
+    "clean": "node ../../scripts/clean.mjs dist resources",
+    "prepack": "node ../../scripts/check-workspace-refs.mjs",
+    "sync:assets": "node ../../scripts/sync-connector-assets.mjs",
+    "test": "vitest run"
+  },
+  "optionalDependencies": {
+    "koffi": "^2.9.0"
+  },
+  "devDependencies": {
+    "@gendigital/sage-core": "workspace:*",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.0"
+  },
+  "pi": {
+    "extensions": [
+      "./dist/index.cjs"
+    ]
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "keywords": [
+    "pi",
+    "pi-package",
+    "pi-extension",
+    "security",
+    "adr",
+    "agent-security",
+    "safety",
+    "malware-detection"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

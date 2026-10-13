@@ -1,0 +1,130 @@
+# Windows persistence mechanism threat patterns for Sage
+# Author: Gen Digital Inc.
+# License: DRL-1.1 (see threats/LICENSE)
+# Covers: Registry Run keys, Services, Task Scheduler, Startup folder
+
+# Registry Run key via reg add
+- id: "CLT-WIN-PERSIST-001"
+  version: 1
+  detection_name: "CMD:SageWindowsPersistence-A [Heur]"
+  category: tool
+  severity: critical
+  confidence: 0.90
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009.
+  pattern: "{{CMD_POS}}[Rr][Ee][Gg](?:\\.exe)?{{NOT_FILENAME}}\\s+[Aa][Dd][Dd].*\\\\(Run|RunOnce)\\\\"
+  match_on: command
+  title: "Registry Run key persistence via reg add"
+  expires_at: null
+  revoked: false
+
+# sc create/config service
+- id: "CLT-WIN-PERSIST-002"
+  version: 1
+  detection_name: "CMD:SageWindowsPersistence-B [Heur]"
+  category: tool
+  severity: critical
+  confidence: 0.90
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009.
+  pattern: "{{CMD_POS}}[Ss][Cc](?:\\.exe)?{{NOT_FILENAME}}\\s+(create|config).*binpath"
+  match_on: command
+  title: "Windows service creation/modification via sc"
+  expires_at: null
+  revoked: false
+
+# schtasks /create
+- id: "CLT-WIN-PERSIST-003"
+  version: 1
+  detection_name: "CMD:SageWindowsPersistence-C [Heur]"
+  category: tool
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009.
+  pattern: "{{CMD_POS}}[Ss][Cc][Hh][Tt][Aa][Ss][Kk][Ss](?:\\.exe)?{{NOT_FILENAME}}.*/[Cc]reate"
+  match_on: command
+  title: "Scheduled task creation via schtasks"
+  expires_at: null
+  revoked: false
+
+# PowerShell New-ScheduledTask
+- id: "CLT-WIN-PERSIST-004"
+  version: 1
+  detection_name: "CMD:SageWindowsPersistence-D [Heur]"
+  category: tool
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-WIN-CMD-036. Had no
+  # boundary at all, so it matched inside the distinct, real cmdlets
+  # New-ScheduledTaskAction and New-ScheduledTaskTrigger even when the real
+  # New-ScheduledTask was never called.
+  pattern: "{{CMD_POS}}[Nn]ew-[Ss]cheduled[Tt]ask{{NOT_FILENAME}}"
+  match_on: command
+  title: "PowerShell scheduled task creation"
+  expires_at: null
+  revoked: false
+
+# PowerShell Set-ItemProperty Run key
+- id: "CLT-WIN-PERSIST-005"
+  version: 1
+  detection_name: "CMD:SageWindowsPersistence-E [Heur]"
+  category: tool
+  severity: critical
+  confidence: 0.90
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-WIN-CMD-036. Had no
+  # boundary at all, so it matched inside the distinct, real cmdlet
+  # Set-ItemPropertyValue even when Set-ItemProperty itself was never called.
+  pattern: "{{CMD_POS}}[Ss]et-[Ii]tem[Pp]roperty{{NOT_FILENAME}}.*\\\\(Run|RunOnce)\\\\"
+  match_on: command
+  title: "PowerShell Registry Run key persistence"
+  expires_at: null
+  revoked: false
+
+# PowerShell New-Service
+- id: "CLT-WIN-PERSIST-006"
+  version: 1
+  detection_name: "CMD:SageWindowsPersistence-F [Heur]"
+  category: tool
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-WIN-CMD-036.
+  pattern: "{{CMD_POS}}[Nn]ew-[Ss]ervice{{NOT_FILENAME}}"
+  match_on: command
+  title: "PowerShell Windows service creation"
+  expires_at: null
+  revoked: false
+
+# Startup folder path
+- id: "CLT-WIN-PERSIST-007"
+  version: 1
+  detection_name: "CMD:SageWindowsPersistence-G [Heur]"
+  category: tool
+  severity: warning
+  confidence: 0.60
+  pattern: "\\\\(Startup|Start Menu\\\\Programs\\\\Startup)\\\\"
+  match_on: command
+  title: "Startup folder drop (persistence)"
+  expires_at: null
+  revoked: false
+
+# WMI event subscription persistence
+- id: "CLT-WIN-PERSIST-008"
+  version: 1
+  detection_name: "CMD:SageWindowsPersistence-H [Heur]"
+  category: tool
+  severity: critical
+  confidence: 0.90
+  # A WMI class name legitimately appears as an argument value (`-Class
+  # CommandLineEventConsumer`), so {{CMD_POS}} would break real detections —
+  # only the symmetric boundary guard applies here, plus {{NOT_FILENAME}}
+  # (instead of {{NOT_COMPOUND_RIGHT}}) to also reject a trailing dot
+  # (`CommandLineEventConsumer.md`) and {{NOT_AFTER_TEXT_CMD}} to reject a
+  # mention inside a search/print command (`grep "CommandLineEventConsumer"`)
+  # without gating on quotes, which would just hand an attacker a trivial
+  # evasion. See {{NOT_AFTER_TEXT_CMD}} in _macros.yaml for the full guard
+  # design and its accepted residual gap (an unlisted benign command still
+  # false-positives).
+  pattern: "{{NOT_AFTER_TEXT_CMD}}{{NOT_COMPOUND_LEFT}}(CommandLineEventConsumer|ActiveScriptEventConsumer){{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "WMI event subscription persistence"
+  expires_at: null
+  revoked: false

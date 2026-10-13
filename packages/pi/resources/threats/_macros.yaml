@@ -1,0 +1,193 @@
+# Shared pattern vocabulary for Sage threat rules
+# Author: Gen Digital Inc.
+# License: DRL-1.1 (see threats/LICENSE)
+#
+# These macros all serve one purpose: identifying which word in a command string
+# is the program being run. A rule with `match_on: command` receives the whole
+# command line, with no shell parsing and no notion of argv[0], so a rule meaning
+# "this program is being executed" has to express that itself.
+#
+#   ls;  sudo -u root  bash -c "  env FOO=1  /usr/bin/  shred  -u f"
+#   (1)  (2)           (3)        (4)        (5)        (6)    (7)
+#
+#   (1) command boundary          (5) optional path prefix
+#   (2) {{CMD_PREFIX}}            (6) the program + {{NOT_FILENAME}}
+#   (3) {{DISPATCH_CTX}}          (7) {{HAS_ARG}}
+#   (4) {{CMD_PREFIX}} again, now inside the dispatched payload
+#
+# {{CMD_POS}} is 1 through 5 — everything to the left of the program name. A rule
+# adds the name, {{NOT_FILENAME}}, and {{HAS_ARG}} when a bare mention of the
+# program must not fire:
+#
+#   pattern: "{{CMD_POS}}shred{{NOT_FILENAME}}{{HAS_ARG}}"
+#
+# Mechanics: this is the one file in threats/ the loader reads as a mapping, and
+# every other file must be a rule list. Macros may reference macros; a rule
+# naming an undefined one is skipped with a warning. For the reasoning behind
+# these patterns and the constraints on changing them, see "Writing
+# command-position patterns" in docs/developer-guide.md.
+
+# Interpreters that take a command payload as an argument (`bash -c "..."`).
+# Split from {{SHELLS}} below because the two families disagree on what an
+# *unquoted* payload means: POSIX `-c` takes exactly one argument as the
+# command string — anything after it becomes `$0`, `$1`, ... positional
+# parameters, not executed text (`bash -c sudo mkfs -t ext4 /dev/sdb1` only
+# ever runs `sudo`; `mkfs -t ext4 /dev/sdb1` is inert positional params).
+# PowerShell's `-Command` has no such rule — unquoted trailing words are
+# rejoined into one command line. DISPATCH_CTX below relies on this split to
+# require a quote only for the POSIX family.
+POSIX_SHELLS: "bash|sh|zsh|dash|ksh|ash|busybox"
+# powershell/pwsh admit an optional .exe suffix here, same as {{DISPATCH_CTX}}
+# already does for its own inline powershell/pwsh mention below -- real,
+# common Windows invocations. Left off {{POSIX_SHELLS}}'s own members for now:
+# their Windows ports (WSL/git-bash/busybox-w32) exist but are less certain
+# to appear with an explicit .exe suffix in practice; add if evidenced.
+SHELLS: "{{POSIX_SHELLS}}|powershell(?:\\.exe)?|pwsh(?:\\.exe)?"
+
+# Tokens that may sit between a boundary and the program name without changing
+# which word is the program: wrapper commands, their flags, `--`, `VAR=value`.
+#
+# Keep it an allowlist. Admitting arbitrary words makes prose that merely
+# mentions a command read as an invocation: `echo use bash -c "..."`.
+#
+# Never bound the loop. No token can match two of its branches, so the loop is
+# already linear — 0.9 ms against a 24 KB run that never reaches a program. A cap
+# would instead hand over an evasion, since inert padding is free: nine
+# assignments in `A0=1 ... A8=1 shred -u f` push the program past a cap of eight
+# and the rule goes quiet.
+CMD_PREFIX: "(?:(?:sudo|doas|env|nohup|time|xargs|wsl(?:\\.exe)?)\\s+|--\\s+|--?[\\w][\\w{}.,:-]*(?:=\\S+|\\s[^\\s\\-=][^\\s=]*)?\\s+|[A-Za-z_]\\w*=\\S*\\s+)*"
+
+# Points where a command line starts a *second* command, after which the next
+# word is a program name again: `find ... -exec`, a shell `-c` payload, a
+# `cmd /c` payload, or an `ssh host "..."` payload.
+#
+# Each dispatcher must itself be at program position, which is why every branch
+# sits behind {{CMD_PREFIX}}. A branch that can match anywhere matches inside
+# somebody else's argument, and the rule fires on text about the command rather
+# than the command. Two consequences of the same requirement: `-exec` demands a
+# `find`, and a shell name takes at most a `.exe` suffix — with a looser suffix,
+# `bashful -c "..."` and `shellcheck -c "..."` count as shells.
+#
+# The cmd and PowerShell branches don't require the dispatched payload to be
+# quoted: `cmd /c diskpart` and `powershell -Command shred -u f` are as real
+# an invocation as the quoted forms, since both join unquoted trailing words
+# back into one command line. The POSIX branch mostly keeps the quote
+# mandatory — see {{POSIX_SHELLS}} above for why an unquoted multi-token
+# payload there isn't the same thing — with one exception: a single trailing
+# token with nothing after it (`bash -c diskpart`) has no positional
+# parameters to misattribute, since there is nothing left over for them to
+# be. That token is the entire command string either way, quoted or not.
+#
+# Known misses: a dispatcher named by absolute path (`/bin/bash -c "..."`,
+# `C:\Windows\System32\cmd.exe /c ...`), command-runners that are not shells
+# (`su -c "..."`), and a dispatched payload that is itself another dispatch
+# (`cmd /c powershell -Command shred -u f`) — {{CMD_POS}} models one hop.
+DISPATCH_CTX: "(?:{{CMD_PREFIX}}(?:\\bfind\\s[^;&|(\\n\"']{0,200}?-exec(?:dir)?\\s|\\bcmd(?:\\.exe)?\\s+(?:/[A-Za-z]+(?::\\S+)?\\s+)*/[ckCK]\\s*[\"']?|\\b(?:{{POSIX_SHELLS}})(?:\\.exe)?\\s+(?:-{1,2}[\\w-]+\\s+)*-{1,2}[A-Za-z]*[cC](?:ommand)?\\s*(?:[\"']|(?=[^\\s\"']+(?:$|[;&|(\\n`])))|\\b(?:powershell|pwsh)(?:\\.exe)?\\s+(?:-{1,2}[\\w-]+\\s+)*-{1,2}[A-Za-z]*[cC](?:ommand)?\\s*[\"']?|\\bssh\\s+(?:[^\\s\"']+\\s+){1,6}[\"']))?"
+
+# Everything to the left of the program name — items 1 through 5 above.
+#
+# Known gap: `(` and a backtick are boundaries unconditionally, so a quoted
+# mention containing either still matches: `echo "(shred -u f)"`, or a commit
+# message quoting a command in backticks. Closing it means gating them the way
+# quotes are gated, which costs `$(...)` and backtick substitution. Left open
+# deliberately — one decision for every rule that adopts this macro, not one per
+# rule.
+#
+# Used inside a variable-length lookbehind by {{NOT_AFTER_TEXT_CMD}} below --
+# some regex constructs valid outside a lookbehind are invalid inside one, so
+# check that macro's own comment before changing this pattern's shape.
+CMD_POS: "(?:^|[;&|(\\n`])\\s*{{DISPATCH_CTX}}\\s*{{CMD_PREFIX}}(?:[^\\s\"';|&]{0,200}[\\\\/])?"
+
+# Right-hand guard: reject longer names, so `shred` does not match `shred.py`
+# or `shred-latency-probe`.
+NOT_FILENAME: "(?![-\\w.])"
+
+# Require at least one argument, so a bare mention of the program does not fire.
+HAS_ARG: "(?=\\s+\\S)"
+
+# Symmetric guard for identifiers that are legitimately not in command position
+# — cmdlets, WMI class names — but must still not match as a fragment of a
+# longer identifier or hyphenated compound: `Clear-EventLog` must not match
+# `Clear-EventLogViewer` or `Old-Clear-EventLog`. Unlike {{NOT_FILENAME}}, the
+# right-hand side does not also reject a trailing dot.
+NOT_COMPOUND_LEFT: "(?<![-\\w])"
+NOT_COMPOUND_RIGHT: "(?![-\\w])"
+
+# Backward-looking guard for argument-position identifiers (used alongside
+# {{NOT_COMPOUND_LEFT}}/{{NOT_COMPOUND_RIGHT}} above, on the left side): an
+# argument value can appear in benign prose or a search command instead of a
+# real invocation — `grep "CommandLineEventConsumer"`, `Select-String -Pattern
+# "CommandLineEventConsumer"`. Neither {{NOT_COMPOUND_LEFT}} nor a filename
+# guard catches this, since the identifier isn't a compound fragment or a
+# filename there — it's a plain, correctly-bounded word, just not one being
+# passed to something that acts on it.
+#
+# This suppresses a match only when the nearest preceding command-position
+# token — found by reusing {{CMD_POS}} itself as the lookbehind's prefix, so
+# any boundary, dispatch context, or wrapper prefix it already recognizes
+# (`cmd /c findstr X`, `powershell -Command "Select-String X"`, `sudo grep
+# X`) also counts here — is a command that only ever consumes its argument as
+# inert text: a search, print, or read command. It is a denylist, and
+# deliberately so: it can only ever remove false positives, never true
+# positives, because nothing on the list executes or creates the thing the
+# identifier names, so "not immediately after one of these" never hides a
+# real invocation.
+#
+# Applies per occurrence, not per line: `Write-Host "mentions X"; New-CimInstance
+# -ClassName X` suppresses the first X (immediately after Write-Host) but not
+# the second (immediately after New-CimInstance), because the bounded span
+# below cannot cross the `;` to misattribute the second occurrence to
+# Write-Host. `(` is excluded from that span for the same reason: {{CMD_POS}}
+# treats it as a command boundary (subshell/group open), so without the
+# exclusion `Write-Host $(New-CimInstance -ClassName X)` would misattribute
+# the real invocation inside the subshell to the outer Write-Host and
+# suppress it.
+#
+# That `(` exclusion is narrowed to exempt one when it's glued directly to a
+# preceding quote character (`(?<=["'])\(`): a real subshell/group open is
+# always `$(` or a bare `(` after whitespace/a boundary, never immediately
+# after `"` or `'`, so a `(` there can only be prose/data inside a quoted
+# argument -- `grep "(CommandLineEventConsumer)"` -- not a nested command.
+# Without the exemption this reintroduces the exact false positive the
+# guard exists to remove.
+#
+# Deliberately does not gate on quotes. Real invocations routinely quote
+# string parameters (`-ClassName "CommandLineEventConsumer"`), so treating
+# "inside quotes" as the signal would hand an attacker a trivial evasion —
+# just quote the real value. This guard keys on what precedes the identifier
+# instead, which indirection through a listed command can still dodge
+# (`$c = echo X; New-CimInstance -ClassName $c`) but quoting cannot.
+#
+# Known gaps, accepted:
+# - The denylist is inherently incomplete — an unlisted benign command
+#   (`title X` on Windows) still false-positives. Expand as found, same
+#   posture as {{CMD_PREFIX}}'s wrapper list.
+# - The quote-glued exemption above only catches `(` immediately after the
+#   opening quote. A `(` deeper inside the same quoted string --
+#   `grep "the (CommandLineEventConsumer) tool"` -- still breaks the span
+#   and false-positives, since telling that apart from a real subshell open
+#   would need actual quote-state tracking, which this no-shell-parsing
+#   engine doesn't have (same reason quoting isn't gated on generally,
+#   above). Narrower than before the fix, not eliminated.
+#
+# The {0,500} cap on the gap between the denylisted command and the
+# identifier is a lookbehind-width bound, not a semantic limit -- it only
+# needs to comfortably cover realistic flag/argument text before the
+# identifier (e.g. `grep -rn --include=*.ps1 CommandLineEventConsumer`);
+# widen it if a real invocation needs more room. Raised from 200 -> 500
+# after a longer-than-200-char real grep/Select-String invocation was shown
+# to fall outside it and false-positive; 500 is still a small bounded
+# constant, so it doesn't change the linear-time argument below.
+#
+# Embedding {{CMD_POS}} (rather than a bare boundary-char class) costs
+# nothing extra: {{CMD_POS}}'s own quantifiers are already bounded, so
+# nesting it inside a variable-length lookbehind stays linear -- verified
+# against 10-50K character adversarial inputs (repeated near-miss dispatch
+# fragments, VAR=value chains, boundary characters), all well under 2ms.
+#
+# Depth budget: this macro's chain (NOT_AFTER_TEXT_CMD -> CMD_POS ->
+# {DISPATCH_CTX, CMD_PREFIX} -> {CMD_PREFIX, POSIX_SHELLS}) fully resolves in
+# 4 of MAX_MACRO_PASSES's 5 passes -- one pass of headroom. That limit exists
+# to catch a self-referencing cycle, not to cap legitimate depth, so raise it
+# if a real change needs the extra pass rather than working around it here.
+NOT_AFTER_TEXT_CMD: "(?<!{{CMD_POS}}(?:grep|egrep|fgrep|rg|ag|ack|awk|sed|cat|head|tail|less|more|strings|echo|printf|findstr|type|Select-String|sls|Write-Output|Write-Host|Write-Verbose|Write-Debug|Compare-Object)\\b(?:[^;&|(\\n`]|(?<=[\"'])\\(){0,500})"

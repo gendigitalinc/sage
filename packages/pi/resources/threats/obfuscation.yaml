@@ -1,0 +1,115 @@
+# Obfuscation threat patterns for Sage
+# Author: Gen Digital Inc.
+# License: DRL-1.1 (see threats/LICENSE)
+
+# --- Base64 decode piped to shell ---
+- id: "CLT-OBFUS-001"
+  version: 1
+  detection_name: "CMD:SageObfuscation-A [Heur]"
+  category: tool
+  severity: critical
+  confidence: 0.95
+  # {{CMD_POS}} + {{NOT_FILENAME}} on both sides of the pipe, same shape as
+  # CLT-CMD-009. Had no boundary at all.
+  pattern: "{{CMD_POS}}base64{{NOT_FILENAME}}\\s+(-d|--decode)\\s*\\|\\s*(?:{{SHELLS}}){{NOT_FILENAME}}"
+  match_on: command
+  title: "Base64 decode piped to shell execution"
+  expires_at: null
+  revoked: false
+
+# --- Hex escape sequences in printf ---
+- id: "CLT-OBFUS-002"
+  version: 1
+  detection_name: "CMD:SageObfuscation-B [Heur]"
+  category: tool
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}printf{{NOT_FILENAME}}\\s+[\"']\\\\x[0-9a-fA-F]{2}(\\\\x[0-9a-fA-F]{2}){3,}"
+  match_on: command
+  title: "Hex escape sequences in printf (potential obfuscation)"
+  expires_at: null
+  revoked: false
+
+# --- Reversed string piped to shell ---
+- id: "CLT-OBFUS-003"
+  version: 1
+  detection_name: "CMD:SageObfuscation-C [Heur]"
+  category: tool
+  severity: critical
+  confidence: 0.90
+  pattern: "\\|\\s*rev\\s*\\|\\s*(?:{{SHELLS}})"
+  match_on: command
+  title: "Reversed string piped to shell execution"
+  expires_at: null
+  revoked: false
+
+# --- Eval with decode ---
+- id: "CLT-OBFUS-004"
+  version: 1
+  detection_name: "CMD:SageObfuscation-D [Heur]"
+  category: tool
+  severity: critical
+  confidence: 0.90
+  # {{CMD_POS}} + {{NOT_FILENAME}} on both branches, same shape as
+  # CLT-CMD-009. `eval` had only a bare `\b`; `python` had no boundary at
+  # all.
+  pattern: "{{CMD_POS}}eval{{NOT_FILENAME}}\\s+.*\\$\\(\\s*base64|{{CMD_POS}}python[3]?{{NOT_FILENAME}}\\s+-c\\s+[\"'].*exec\\(.*decode"
+  match_on: [command, content]
+  title: "Eval with decode (obfuscated code execution)"
+  expires_at: null
+  revoked: false
+
+# --- Shell metacharacter escaping ---
+- id: "CLT-OBFUS-005"
+  version: 1
+  detection_name: "CMD:SageObfuscation-E [Heur]"
+  category: tool
+  severity: warning
+  confidence: 0.85
+  pattern: "\\|\\s*[\\\\'\"]+(?:{{SHELLS}})[\\\\'\"]*(\\s|$)"
+  match_on: command
+  title: "Shell metacharacter escaping to hide pipe target"
+  expires_at: null
+  revoked: false
+
+# --- Alias/function redefinition ---
+- id: "CLT-OBFUS-006"
+  version: 1
+  detection_name: "CMD:SageObfuscation-F [Heur]"
+  category: tool
+  severity: warning
+  confidence: 0.60
+  pattern: "\\balias\\s+(?:{{SHELLS}}|curl|wget|nc|netcat|python|ruby|perl|node)="
+  match_on: command
+  title: "Alias redefinition of security-relevant command"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-OBFUS-007"
+  version: 1
+  detection_name: "CMD:SageObfuscation-G [Heur]"
+  category: tool
+  severity: warning
+  confidence: 0.60
+  pattern: "\\b(function\\s+)?(?:{{SHELLS}}|curl|wget|nc|python|ruby|perl|node)\\s*\\(\\s*\\)"
+  match_on: command
+  title: "Function redefinition of security-relevant command"
+  expires_at: null
+  revoked: false
+
+# --- Python encoded payload execution ---
+- id: "CLT-OBFUS-008"
+  version: 1
+  detection_name: "CMD:SageObfuscation-H [Heur]"
+  category: tool
+  severity: critical
+  confidence: 0.85
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}python[23]?{{NOT_FILENAME}}\\s+-c\\s+[\"'].*\\b(exec|eval|compile|__import__)\\b.*\\b(base64|decode|decompress)\\b"
+  match_on: command
+  title: "Python encoded payload execution via -c"
+  expires_at: null
+  revoked: false

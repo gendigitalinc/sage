@@ -1,0 +1,19 @@
+# Supply chain threat patterns for Sage
+# Author: Gen Digital Inc.
+# License: DRL-1.1 (see threats/LICENSE)
+
+# --- Install scripts piped to shell ---
+- id: "CLT-SUPPLY-001"
+  version: 1
+  detection_name: "CMD:SageSupplyChain-A [Heur]"
+  category: supply_chain
+  severity: warning
+  confidence: 0.85
+  # {{CMD_POS}} + {{NOT_FILENAME}} on both the fetcher and the destination
+  # shell, same shape as CLT-CMD-009. The bare pattern fired on prose merely
+  # describing the technique.
+  pattern: "{{CMD_POS}}(curl|wget){{NOT_FILENAME}}\\s+.*install.*\\|\\s*(bash|sh|zsh|sudo\\s+bash|sudo\\s+sh){{NOT_FILENAME}}"
+  match_on: command
+  title: "Install script piped to shell (supply chain risk)"
+  expires_at: null
+  revoked: false

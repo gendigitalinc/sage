@@ -1,0 +1,55 @@
+# Trusted installer domains for Sage
+#
+# Pipe-to-shell commands (curl | bash) targeting these domains are suppressed
+# from CLT-CMD-001, CLT-CMD-002, CLT-SUPPLY-001, and CLT-SUPPLY-004 heuristic matches.
+#
+# Only dedicated installer endpoints are listed here — generic hosting
+# platforms (e.g. raw.githubusercontent.com) are deliberately excluded.
+#
+# Format: list of {domain, reason} entries. Domains are matched by suffix
+# with dot boundary (e.g. "bun.sh" matches "cdn.bun.sh" but not "notbun.sh").
+
+- domain: bun.sh
+  reason: Bun JavaScript runtime installer
+
+- domain: astral.sh
+  reason: Astral tools (uv, ruff) installer
+
+- domain: brew.sh
+  reason: Homebrew package manager installer
+
+- domain: sh.rustup.rs
+  reason: Rust toolchain installer (rustup)
+
+- domain: rustup.rs
+  reason: Rust toolchain installer (alternate domain)
+
+- domain: get.docker.com
+  reason: Docker installer
+
+- domain: install.python-poetry.org
+  reason: Python Poetry installer
+
+- domain: get.volta.sh
+  reason: Volta Node.js version manager installer
+
+- domain: volta.sh
+  reason: Volta Node.js version manager (alternate domain)
+
+- domain: get.sdkman.io
+  reason: SDKMAN JVM toolchain manager installer
+
+- domain: pyenv.run
+  reason: pyenv Python version manager installer
+
+- domain: deno.land
+  reason: Deno runtime installer
+
+- domain: get.pnpm.io
+  reason: pnpm package manager installer
+
+- domain: nodesource.com
+  reason: Node.js binary distribution installer
+
+- domain: ohmyz.sh
+  reason: Oh My Zsh shell framework installer

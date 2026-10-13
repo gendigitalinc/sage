@@ -1,0 +1,442 @@
+# Prompt injection detection heuristic rules (tier 1)
+# Catches common PI patterns with zero model dependency, ~1ms.
+# Designed for low false-positive rate on coding content.
+#
+# Sources: original Sage PI prototype, PR #90 (promptware), @stackone/defender patterns.
+# These complement the ML model (tier 2) which handles subtler attacks.
+
+# ── Instruction Override ────────────────────────────────────────────
+# The most common PI pattern family. Well-established attack surface.
+
+- id: "CLT-PI-001"
+  version: 1
+  detection_name: "Other:SagePromptInjection-A [Heur]"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  case_insensitive: true
+  pattern: "ignore\\s+(all\\s+)?(previous|prior|above|earlier)\\s+(instructions?|directives?|rules?|guidelines?|prompts?|directions?)"
+  match_on: content
+  title: "Instruction override: ignore previous"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-002"
+  version: 1
+  detection_name: "Other:SagePromptInjection-B [Heur]"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  case_insensitive: true
+  pattern: "disregard\\s+(all\\s+)?(previous|prior|above|your)\\s+(instructions?|directives?|rules?|guidelines?|safety)"
+  match_on: content
+  title: "Instruction override: disregard directives"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-003"
+  version: 1
+  detection_name: "Other:SagePromptInjection-C [Heur]"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  case_insensitive: true
+  pattern: "forget\\s+(all\\s+)?(your\\s+)?(previous\\s+)?(instructions?|rules?|guidelines?|restrictions?|constraints?|context)"
+  match_on: content
+  title: "Instruction override: forget instructions"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-004"
+  version: 1
+  detection_name: "Other:SagePromptInjection-D [Heur]"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  case_insensitive: true
+  pattern: "override\\s+(the\\s+)?(system\\s+)?(prompt|instructions?|rules?|guidelines?)"
+  match_on: content
+  title: "Instruction override: direct override"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-005"
+  version: 1
+  detection_name: "Other:SagePromptInjection-E [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  case_insensitive: true
+  pattern: "(new|updated?|revised?|changed?)\\s+instructions?:\\s*"
+  match_on: content
+  title: "Instruction override: inject new instructions"
+  expires_at: null
+  revoked: false
+
+# ── Role / Persona Override ─────────────────────────────────────────
+# Attempts to reassign the AI's identity or role.
+
+- id: "CLT-PI-010"
+  version: 1
+  detection_name: "Other:SagePromptInjection-J [Heur]"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  case_insensitive: true
+  pattern: "you\\s+are\\s+now\\s+(a\\s+)?(different|new|the|my|an?\\s+unrestricted|an?\\s+unfiltered)"
+  match_on: content
+  title: "Role override: identity reassignment"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-011"
+  version: 1
+  detection_name: "Other:SagePromptInjection-K [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  case_insensitive: true
+  pattern: "\\bDAN\\b.*?(do\\s+anything|jailbreak|no\\s+restrictions)"
+  match_on: content
+  title: "Role override: DAN jailbreak"
+  expires_at: null
+  revoked: false
+  # Intentional layering with CLT-PI-092 (ATR): this rule requires an explicit
+  # qualifier (jailbreak/no restrictions) after DAN; CLT-PI-092 instead requires
+  # an activation prefix (pretend/act as/you are) before the persona name.
+
+- id: "CLT-PI-012"
+  version: 1
+  detection_name: "Other:SagePromptInjection-L [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  case_insensitive: true
+  pattern: "developer\\s+mode\\s+(is\\s+)?(now\\s+)?(enabled?|activated?|on).{0,50}(comply|content\\s+polic|no\\s+restrict|without\\s+restrict|any\\s+request)"
+  match_on: content
+  title: "Role override: developer mode jailbreak"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-013"
+  version: 1
+  detection_name: "Other:SagePromptInjection-M [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  case_insensitive: true
+  pattern: "act\\s+(as|like)\\s+(a\\s+)?(system|admin|root|superuser)"
+  match_on: content
+  title: "Role override: privileged role assumption"
+  expires_at: null
+  revoked: false
+
+# ── Security Bypass ─────────────────────────────────────────────────
+# Attempts to disable safety mechanisms.
+
+- id: "CLT-PI-020"
+  version: 1
+  detection_name: "Other:SagePromptInjection-T [Heur]"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.85
+  case_insensitive: true
+  pattern: "(bypass|disable)\\s+(the\\s+)?(security|safety|guardrails?|filters?|restrictions?)"
+  match_on: content
+  title: "Security bypass: disable safety features"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-021"
+  version: 1
+  detection_name: "Other:SagePromptInjection-U [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  case_insensitive: true
+  pattern: "ignore\\s+(the\\s+)?(safety|security|ethical)\\s+(guidelines?|rules?|restrictions?)"
+  match_on: content
+  title: "Security bypass: ignore safety guidelines"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-022"
+  version: 1
+  detection_name: "Other:SagePromptInjection-V [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.80
+  case_insensitive: true
+  pattern: "skip\\s+(all\\s+)?security\\s+checks"
+  match_on: content
+  title: "Security bypass: skip security checks"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-023"
+  version: 1
+  detection_name: "Other:SagePromptInjection-W [Heur]"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  case_insensitive: true
+  pattern: "system\\s+override.{0,50}(execut|disabl|bypass|security|safet|comply|filter)"
+  match_on: content
+  title: "Security bypass: system override with action"
+  expires_at: null
+  revoked: false
+
+# ── Anti-Transparency ──────────────────────────────────────────────
+# Instructions to hide activity from the user.
+
+- id: "CLT-PI-030"
+  version: 1
+  detection_name: "Other:SagePromptInjection-AD [Heur]"
+  category: prompt_injection
+  severity: critical
+  confidence: 0.90
+  case_insensitive: true
+  pattern: "do\\s+not\\s+(tell|inform|mention|reveal|show|disclose)\\s+(the\\s+)?(user|human|operator|developer)"
+  match_on: content
+  title: "Anti-transparency: hide from user"
+  expires_at: null
+  revoked: false
+
+# ── Prompt Exfiltration ────────────────────────────────────────────
+# Attempts to extract the system prompt or instructions.
+
+- id: "CLT-PI-040"
+  version: 1
+  detection_name: "Other:SagePromptInjection-AN [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  case_insensitive: true
+  pattern: "reveal\\s+(your\\s+)?(system\\s+)?prompt"
+  match_on: content
+  title: "Prompt exfiltration: reveal system prompt"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-041"
+  version: 1
+  detection_name: "Other:SagePromptInjection-AO [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  case_insensitive: true
+  pattern: "show\\s+(me\\s+)?(your\\s+)?(initial|original|system|hidden)\\s+instructions?"
+  match_on: content
+  title: "Prompt exfiltration: show hidden instructions"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-042"
+  version: 1
+  detection_name: "Other:SagePromptInjection-AP [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  case_insensitive: true
+  pattern: "repeat\\s+(back\\s+)?(everything|all|your\\s+instructions?)"
+  match_on: content
+  title: "Prompt exfiltration: repeat instructions"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-043"
+  version: 1
+  detection_name: "Other:SagePromptInjection-AQ [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  case_insensitive: true
+  pattern: "output\\s+(your\\s+)?(initialization|system\\s+prompt|initial\\s+instructions?)"
+  match_on: content
+  title: "Prompt exfiltration: output initialization"
+  expires_at: null
+  revoked: false
+
+# ── Structural Injection ───────────────────────────────────────────
+# Injection hiding in HTML, markdown, or JSON structures.
+
+- id: "CLT-PI-050"
+  version: 1
+  detection_name: "Other:SagePromptInjection-AX [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  case_insensitive: true
+  pattern: "<!--\\s*(?:system|ignore|instruction|prompt|important|override|execute).*?-->"
+  match_on: content
+  title: "Structural injection: HTML comment with injection keywords"
+  expires_at: null
+  revoked: false
+  # Intentional layering with CLT-PI-091 (ATR): this rule matches injection
+  # keywords anywhere in the comment body; CLT-PI-091 adds a distinct signal
+  # for keywords appearing within 20 chars of the opening tag.
+
+- id: "CLT-PI-051"
+  version: 1
+  detection_name: "Other:SagePromptInjection-AY [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  case_insensitive: true
+  # Require a reasonably long hidden link target/title plus a high-signal PI phrase.
+  pattern: "\\[[^\\]]*\\]\\((?=[^)]{40,}\\))[^)]*(?:ignore\\s+previous\\s+instructions|forget\\s+instructions|system\\s+prompt|override\\s+instructions)[^)]*\\)"
+  match_on: content
+  title: "Structural injection: markdown link with hidden injection"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-052"
+  version: 1
+  detection_name: "Other:SagePromptInjection-AZ [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  case_insensitive: true
+  pattern: "<important>[\\s\\S]{0,600}?\\b(send|exec|fetch|invoke|extract|pass|forward|upload)\\b[\\s\\S]{0,300}?</important>"
+  match_on: content
+  title: "Structural injection: MCP IMPORTANT-tag cross-tool shadowing"
+  expires_at: null
+  revoked: false
+  # Adapted from ATR-2026-00161: uses ATR Layer 1 only (upstream has 5 detection
+  # layers); dropped verbs read/include/must to reduce FP on benign documentation.
+  # Fires in pre-hook (Write/Edit content blocking) and post-hook advisory
+  # output scanning (Read/Bash/WebFetch); also caught by session-start plugin scan.
+
+# ── Role Marker Injection ──────────────────────────────────────────
+# Fake conversation turn markers to confuse the model.
+
+- id: "CLT-PI-060"
+  version: 1
+  detection_name: "Other:SagePromptInjection-BH [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  case_insensitive: true
+  pattern: "\\n\\s*\\n\\s*(Human|User|Assistant|System)\\s*:"
+  match_on: content
+  title: "Role marker injection: fake conversation turn"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-061"
+  version: 1
+  detection_name: "Other:SagePromptInjection-BI [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  case_insensitive: true
+  pattern: "\\[INST\\]|\\[/INST\\]"
+  match_on: content
+  title: "Role marker injection: Llama instruction format"
+  expires_at: null
+  revoked: false
+
+# ── Encoding / Obfuscation ─────────────────────────────────────────
+# Obfuscated injection attempts.
+
+- id: "CLT-PI-070"
+  version: 1
+  detection_name: "Other:SagePromptInjection-BR [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.60
+  case_insensitive: true
+  pattern: "1gn0r3|f0rg3t|byp4ss|syst3m|4dm1n"
+  match_on: content
+  title: "Encoding: leetspeak obfuscation of injection keywords"
+  expires_at: null
+  revoked: false
+
+# ── Credential Exfiltration via Injection ──────────────────────────
+# PI-driven data exfiltration patterns. Note: bare curl/wget commands
+# are NOT PI — these only match when combined with credential targets.
+
+- id: "CLT-PI-080"
+  version: 1
+  detection_name: "Other:SagePromptInjection-CB [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.80
+  case_insensitive: true
+  pattern: "cat\\s+~/\\.(env|ssh|aws|gnupg).*\\|.*curl"
+  match_on: content
+  title: "Credential exfiltration: pipe dotfile to curl"
+  expires_at: null
+  revoked: false
+
+- id: "CLT-PI-081"
+  version: 1
+  detection_name: "Other:SagePromptInjection-CC [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.80
+  case_insensitive: true
+  pattern: "output\\s+(all\\s+)?(the\\s+)?environment\\s+variables.{0,50}(send|post|upload|exfiltrat|curl|fetch)"
+  match_on: content
+  title: "Credential exfiltration: dump env vars and send"
+  expires_at: null
+  revoked: false
+
+# ── ATR Delivery Variants ──────────────────────────────────────────────────
+# Rules below are adapted from the ATR project
+# (https://github.com/Agent-Threat-Rule/agent-threat-rules),
+# Copyright (c) 2026 ATR Contributors, MIT License.
+# Included in Sage under the ATR MIT license per issue #30.
+# See threats/agent-layer.yaml for companion non-PI rules from the same contribution.
+# Sage-specific modifications to each rule are noted in its comment block.
+
+- id: "CLT-PI-091"
+  version: 1
+  detection_name: "Other:SagePromptInjection-CM [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  pattern: "<!--[\\s\\S]{0,20}?(ignore|disregard|override|new\\s+instructions?|you\\s+must|you\\s+are\\s+now|forget\\s+previous|send\\s+to|exfiltrate)\\b"
+  match_on: content
+  case_insensitive: true
+  title: "Indirect prompt injection hidden in HTML comment"
+  expires_at: null
+  revoked: false
+  # Adapted from ATR-2026-00002: extracted HTML-comment delivery condition only;
+  # narrowed keyword list (dropped reveal, disclose, output, execute, perform)
+  # to reduce FP; changed [^>] to [\s\S] so comparisons (a>b) before the keyword
+  # don't cause false negatives. Intentional layering with CLT-PI-050 (which
+  # matches keywords anywhere in the comment body): this rule adds a near-tag
+  # precision signal.
+
+- id: "CLT-PI-092"
+  version: 1
+  detection_name: "Other:SagePromptInjection-CN [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  pattern: "(?:(?:pretend|Pretend|act(?:ing)?\\s+as|Act(?:ing)?\\s+as|you\\s+are(?:\\s+now)?|You\\s+are(?:\\s+now)?|be(?:come)|Be(?:come))\\s+(?:(?:a|the|in|into|on)\\s+)?\\b(DAN|D\\.A\\.N|STAN|DUDE|AIM|UCAR|BH|BetterDAN|Evil\\s*Confidant|God\\s*Mode|Jailbreak\\s*Mode|Unrestricted\\s*Mode|Sudo\\s*Mode|Root\\s*Mode|Admin\\s*Mode)\\b)"
+  match_on: content
+  case_insensitive: false
+  title: "Jailbreak persona activation attempt (DAN/STAN/God-Mode family)"
+  expires_at: null
+  revoked: false
+  # Adapted from ATR-2026-00003: curated 16 highest-signal personas from ATR's
+  # 20+ (dropped KEVIN, Maximum, Omega, EvilGPT etc.); added space-separated
+  # mode names (God Mode, Jailbreak Mode). Case-sensitive (ATR is case-insensitive)
+  # to avoid FP on the common first name "Dan"; activation verbs include
+  # capitalized variants (Act/You/Pretend/Be) to cover sentence-start phrasing.
+
+- id: "CLT-PI-093"
+  version: 1
+  detection_name: "Other:SagePromptInjection-CO [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.85
+  pattern: "(?:忽略|无视|無視|忘记|忘記|跳过|跳過|绕过|繞過|覆盖|覆蓋|不要遵守|不要遵循)(?:之前|先前|以前|上述|上面)?(?:的)?(?:所有|一切|全部)?(?:指令|命令|指示|要求|规则|規則|系统|系統|提示|提醒|对话|對話)|(?:無視して|忘れて|無効にし)(?:以前|先の|上記)の(?:指示|命令|ルール|システム)|(?:이전|전의|앞의)(?:\\s*)(?:명령|지시|규칙|시스템|프롬프트)(?:을|를|은|는)?(?:\\s*)(?:무시|잊|건너뛰|우회)"
+  match_on: content
+  case_insensitive: false
+  title: "CJK prompt-injection override (Chinese/Japanese/Korean)"
+  expires_at: null
+  revoked: false
+  # Source: ATR-2026-00097 (pattern unchanged from upstream). Covers zh-CN, zh-TW, ja, ko.

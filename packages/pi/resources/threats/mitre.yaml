@@ -1,0 +1,1011 @@
+# MITRE ATT&CK threat detection patterns for Sage
+# Author: Gen Digital Inc.
+# License: DRL-1.1 (see threats/LICENSE)
+# Schema: id, category, severity, confidence, pattern, match_on, title, expires_at, revoked, flags
+
+# --- T1003.001: LSASS Memory ---
+- id: "CLT-MITRE-001"
+  version: 1
+  detection_name: "CMD:SageMitre-A [Heur]"
+  category: credential_access
+  severity: critical
+  confidence: 0.90
+  # {{CMD_POS}} + {{NOT_FILENAME}} on the two program names, same shape as
+  # CLT-CMD-009. The `sekurlsa::` module references are left as-is -- like
+  # WIN-CRED-006's Mimikatz rule, they're arguments to a running mimikatz
+  # session, never a program name themselves.
+  pattern: "{{CMD_POS}}rundll32(?:\\.exe)?{{NOT_FILENAME}}.*comsvcs\\.dll,MiniDump.*|{{CMD_POS}}procdump(?:\\.exe)?{{NOT_FILENAME}}.*-ma.*lsass\\.exe.*lsass_dump|sekurlsa::Minidump.*lsassdump\\.dmp|sekurlsa::logonPasswords"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1003.001 - LSASS Memory"
+  expires_at: null
+  revoked: false
+
+# --- T1003.002: Security Account Manager ---
+- id: "CLT-MITRE-002"
+  version: 1
+  detection_name: "CMD:SageMitre-B [Heur]"
+  category: credential_access
+  severity: critical
+  confidence: 0.90
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}reg(?:\\.exe)?{{NOT_FILENAME}}.*save.*HKLM.*sam.*sam|{{CMD_POS}}reg(?:\\.exe)?{{NOT_FILENAME}}.*save.*HKLM.*system.*system"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1003.002 - Security Account Manager"
+  expires_at: null
+  revoked: false
+
+# --- T1003.003: NTDS ---
+- id: "CLT-MITRE-003"
+  version: 1
+  detection_name: "CMD:SageMitre-C [Heur]"
+  category: credential_access
+  severity: critical
+  confidence: 0.90
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}ntdsutil(?:\\.exe)?{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1003.003 - NTDS"
+  expires_at: null
+  revoked: false
+
+# --- T1003.004: LSA Secrets ---
+- id: "CLT-MITRE-004"
+  version: 1
+  detection_name: "CMD:SageMitre-D [Heur]"
+  category: credential_access
+  severity: critical
+  confidence: 0.90
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}Get-LSASecret\\.ps1{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1003.004 - LSA Secrets"
+  expires_at: null
+  revoked: false
+
+# --- T1003.005: Cached Domain Credentials ---
+- id: "CLT-MITRE-005"
+  version: 1
+  detection_name: "CMD:SageMitre-E [Heur]"
+  category: credential_access
+  severity: critical
+  confidence: 0.90
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}cmdkey(?:\\.exe)?{{NOT_FILENAME}}.*/list"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1003.005 - Cached Domain Credentials"
+  expires_at: null
+  revoked: false
+
+# --- T1003.006: DC Sync ---
+- id: "CLT-MITRE-006"
+  version: 1
+  detection_name: "CMD:SageMitre-F [Heur]"
+  category: credential_access
+  severity: critical
+  confidence: 0.90
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Unlike
+  # CLT-WIN-CRED-006, "Invoke-Mimikatz" here is the complete identifier being
+  # matched, not a suffix of one, so {{CMD_POS}} applies cleanly. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}Invoke-Mimikatz{{NOT_FILENAME}}.*-Command.*lsadump::dcsync.*/user:"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1003.006 - DC Sync"
+  expires_at: null
+  revoked: false
+
+# --- T1003: OS Credential Dumping ---
+- id: "CLT-MITRE-007"
+  version: 1
+  detection_name: "CMD:SageMitre-G [Heur]"
+  category: credential_access
+  severity: critical
+  confidence: 0.90
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}reg(?:\\.exe)?{{NOT_FILENAME}} (save|export).*SAM|{{CMD_POS}}(PasswordDump|CreateMiniDump){{NOT_FILENAME}}|{{CMD_POS}}Invoke-PowerDump\\.ps1{{NOT_FILENAME}}|{{CMD_POS}}Get-PassHashes\\.ps1{{NOT_FILENAME}}|{{CMD_POS}}Get-RegAutoLogon\\.ps1{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1003 - OS Credential Dumping"
+  expires_at: null
+  revoked: false
+
+# --- T1020: Automated Exfiltration ---
+- id: "CLT-MITRE-012"
+  version: 1
+  detection_name: "CMD:SageMitre-L [Heur]"
+  category: exfiltration
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}rar(?:\\.exe)?{{NOT_FILENAME}}.*[afu].*\\s(-dw|-tb|-ta)|{{CMD_POS}}7z(?:\\.exe)?{{NOT_FILENAME}}.*[au].*-sdel|{{CMD_POS}}Add-Exfiltration\\.ps1{{NOT_FILENAME}}|{{CMD_POS}}Do-Exfiltration\\.ps1{{NOT_FILENAME}}|{{CMD_POS}}Invoke-PostExfil\\.ps1{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1020 - Automated Exfiltration"
+  expires_at: null
+  revoked: false
+
+# --- T1021.003: Distributed Component Object Model ---
+- id: "CLT-MITRE-014"
+  version: 1
+  detection_name: "CMD:SageMitre-N [Heur]"
+  category: lateral_movement
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}Invoke-DCOM{{NOT_FILENAME}}.*\\-ComputerName"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1021.003 - Distributed Component Object Model"
+  expires_at: null
+  revoked: false
+
+# --- T1027.003: Steganography ---
+- id: "CLT-MITRE-016"
+  version: 1
+  detection_name: "CMD:SageMitre-P [Heur]"
+  category: defense_evasion
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}Invoke-PSImage{{NOT_FILENAME}}.*-Script|{{CMD_POS}}Invoke-PSImage{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1027.003 - Steganography"
+  expires_at: null
+  revoked: false
+
+# --- T1027.005: Indicator Removalfrom Tools ---
+- id: "CLT-MITRE-017"
+  version: 1
+  detection_name: "CMD:SageMitre-Q [Heur]"
+  category: defense_evasion
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}Find-AVSignature{{NOT_FILENAME}}.*-Startbyte"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1027.005 - Indicator Removalfrom Tools"
+  expires_at: null
+  revoked: false
+
+# --- T1040: Network Sniffing ---
+- id: "CLT-MITRE-020"
+  version: 1
+  detection_name: "CMD:SageMitre-T [Heur]"
+  category: credential_access
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}netsh(?:\\.exe)?{{NOT_FILENAME}}.*start.*trace"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1040 - Network Sniffing"
+  expires_at: null
+  revoked: false
+
+# --- T1046: Network Service Scanning ---
+- id: "CLT-MITRE-022"
+  version: 1
+  detection_name: "CMD:SageMitre-V [Heur]"
+  category: discovery
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009. The old bare `\b` boundaries already blocked matching inside
+  # a longer identifier (`UnmapViewOfFile`) but not quoted prose or
+  # argument position.
+  pattern: "{{CMD_POS}}telnet(?:\\.exe)?{{NOT_FILENAME}}|{{CMD_POS}}nmap(?:\\.exe)?{{NOT_FILENAME}}|{{CMD_POS}}Invoke-ARPScan\\.ps1{{NOT_FILENAME}}|{{CMD_POS}}Invoke-PortScan\\.ps1{{NOT_FILENAME}}|{{CMD_POS}}Invoke-SMBScanner\\.ps1{{NOT_FILENAME}}|{{CMD_POS}}Port-Scan\\.ps1{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1046 - Network Service Scanning"
+  expires_at: null
+  revoked: false
+
+# --- T1048: Exfiltration Over Alternative Protocol ---
+- id: "CLT-MITRE-023"
+  version: 1
+  detection_name: "CMD:SageMitre-W [Heur]"
+  category: exfiltration
+  severity: critical
+  confidence: 0.90
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009. Both tools ship real Windows .exe builds (dnscat2's client
+  # is commonly compiled for Windows targets; iodine has official Windows
+  # binaries), so both need the optional .exe suffix.
+  pattern: "{{CMD_POS}}dnscat2(?:\\.exe)?{{NOT_FILENAME}}|{{CMD_POS}}iodine(?:\\.exe)?{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1048 - Exfiltration Over Alternative Protocol"
+  expires_at: null
+  revoked: false
+
+# --- T1053.005: Scheduled Task ---
+- id: "CLT-MITRE-026"
+  version: 1
+  detection_name: "CMD:SageMitre-Z [Heur]"
+  category: persistence
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}schtasks(?:\\.exe)?{{NOT_FILENAME}}\\s+/create|{{CMD_POS}}schtasks(?:\\.exe)?{{NOT_FILENAME}}\\s+/%windir:~0,1%reate|{{CMD_POS}}at\\.exe{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1053.005 - Scheduled Task"
+  expires_at: null
+  revoked: false
+
+# --- T1055.001: Dynamiclink Library Injection ---
+- id: "CLT-MITRE-027"
+  version: 1
+  detection_name: "CMD:SageMitre-AA [Heur]"
+  category: defense_evasion
+  severity: critical
+  confidence: 0.90
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}Invoke-DllInjection\\.ps1{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1055.001 - Dynamiclink Library Injection"
+  expires_at: null
+  revoked: false
+
+# --- T1069: Permission Groups Discovery ---
+- id: "CLT-MITRE-032"
+  version: 1
+  detection_name: "CMD:SageMitre-AF [Heur]"
+  category: discovery
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}Get-ManagementRoleAssignment{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1069 - Permission Groups Discovery"
+  expires_at: null
+  revoked: false
+
+# --- T1070.004: File Deletion ---
+- id: "CLT-MITRE-033"
+  version: 1
+  detection_name: "CMD:SageMitre-AG [Heur]"
+  category: defense_evasion
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}cmd(?:\\.exe)?{{NOT_FILENAME}}\\s+/c\\s+del\\s+/[sqf]|{{CMD_POS}}fsutil(?:\\.exe)?{{NOT_FILENAME}}.*usn.*deleteJournal"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1070.004 - File Deletion"
+  expires_at: null
+  revoked: false
+
+# --- T1070.005: Network Share Connection Removal ---
+- id: "CLT-MITRE-034"
+  version: 1
+  detection_name: "CMD:SageMitre-AH [Heur]"
+  category: defense_evasion
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}net(?:1)?(?:\\.exe)?{{NOT_FILENAME}}.*use.*\\\\\\\\.*\\\\.*/delete$"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1070.005 - Network Share Connection Removal"
+  expires_at: null
+  revoked: false
+
+# --- T1087.002: Domain Account ---
+- id: "CLT-MITRE-037"
+  version: 1
+  detection_name: "CMD:SageMitre-AK [Heur]"
+  category: discovery
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}net1(?:\\.exe)?{{NOT_FILENAME}}.*user.*/dom|{{CMD_POS}}net(?:\\.exe)?{{NOT_FILENAME}}.*user.*/dom|{{CMD_POS}}net1(?:\\.exe)?{{NOT_FILENAME}}.*group.*/dom|{{CMD_POS}}net(?:\\.exe)?{{NOT_FILENAME}}.*group.*/dom"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1087.002 - Domain Account"
+  expires_at: null
+  revoked: false
+
+# --- T1087.003: Email Account ---
+- id: "CLT-MITRE-038"
+  version: 1
+  detection_name: "CMD:SageMitre-AL [Heur]"
+  category: discovery
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}Get-.*GlobalAddressList{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1087.003 - Email Account"
+  expires_at: null
+  revoked: false
+
+# --- T1098.002: Exchange Email Delegate Permissions ---
+- id: "CLT-MITRE-039"
+  version: 1
+  detection_name: "CMD:SageMitre-AM [Heur]"
+  category: persistence
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}Add-MailboxPermission{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1098.002 - Exchange Email Delegate Permissions"
+  expires_at: null
+  revoked: false
+
+# --- T1098: Account Manipulation ---
+- id: "CLT-MITRE-040"
+  version: 1
+  detection_name: "CMD:SageMitre-AN [Heur]"
+  category: persistence
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}net(?:1)?(?:\\.exe)?{{NOT_FILENAME}}.*user.*\\w+.*/add|{{CMD_POS}}net(?:1)?(?:\\.exe)?{{NOT_FILENAME}}.*group.*Administrators.*\\w+ /add|{{CMD_POS}}net(?:1)?(?:\\.exe)?{{NOT_FILENAME}}.*localgroup.*Administrators.*\\w+ /add"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1098 - Account Manipulation"
+  expires_at: null
+  revoked: false
+
+# --- T1105: Ingress Tool Transfer ---
+- id: "CLT-MITRE-041"
+  version: 1
+  detection_name: "CMD:SageMitre-AO [Heur]"
+  category: command_and_control
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009. The `New-Object` branch keeps its literal opening paren
+  # instead of {{CMD_POS}} -- the closing `\)` is already a literal
+  # requirement, so pairing it with {{CMD_POS}}'s wider boundary set (`;`,
+  # `&`, `|`, ...) would accept an unmatched close paren with nothing real to
+  # pair it with. Same pipe-boundary exception shape as CLT-MAC-CMD-003.
+  pattern: "{{CMD_POS}}certutil(?:\\.exe)?{{NOT_FILENAME}}.*-(decode|decodehex|encode|ping|url|urlcache|verifyctl)|{{CMD_POS}}MpCmdRun(?:\\.exe)?{{NOT_FILENAME}}.*-DownloadFile.*-url.*http|\\(New-Object{{NOT_FILENAME}} System\\.Net\\.WebClient\\)\\.DownloadFile|{{CMD_POS}}bitsadmin(?:\\.exe)?{{NOT_FILENAME}}.*/(transfer|download|create|addfile|setnotifycmdline|resume|complete)|{{CMD_POS}}Start-BitsTransfer{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1105 - Ingress Tool Transfer"
+  expires_at: null
+  revoked: false
+
+# --- T1110.004: Credential Stuffing ---
+- id: "CLT-MITRE-042"
+  version: 1
+  detection_name: "CMD:SageMitre-AP [Heur]"
+  category: credential_access
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}Invoke-CredentialInjection\\.ps1{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1110.004 - Credential Stuffing"
+  expires_at: null
+  revoked: false
+
+# --- T1120: Peripheral Device Discovery ---
+- id: "CLT-MITRE-043"
+  version: 1
+  detection_name: "CMD:SageMitre-AQ [Heur]"
+  category: discovery
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}Get-WMIObject{{NOT_FILENAME}}.*Win32_PnPEntity|{{CMD_POS}}pnputil(?:\\.exe)?{{NOT_FILENAME}}.*/enum-devices"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1120 - Peripheral Device Discovery"
+  expires_at: null
+  revoked: false
+
+# --- T1136.001: Local Account ---
+- id: "CLT-MITRE-048"
+  version: 1
+  detection_name: "CMD:SageMitre-AV [Heur]"
+  category: persistence
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}net(?:1)?(?:\\.exe)?{{NOT_FILENAME}}.*user.*/add"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1136.001 - Local Account"
+  expires_at: null
+  revoked: false
+
+# --- T1136.002: Domain Account ---
+- id: "CLT-MITRE-049"
+  version: 1
+  detection_name: "CMD:SageMitre-AW [Heur]"
+  category: persistence
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}net(?:1)?(?:\\.exe)?{{NOT_FILENAME}}.*user.*/add.*/domain"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1136.002 - Domain Account"
+  expires_at: null
+  revoked: false
+
+# --- T1201: Password Policy Discovery ---
+- id: "CLT-MITRE-050"
+  version: 1
+  detection_name: "CMD:SageMitre-AX [Heur]"
+  category: discovery
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}net(?:\\.exe)?{{NOT_FILENAME}}.*accounts|{{CMD_POS}}Get-ADDefaultDomainPasswordPolicy{{NOT_FILENAME}}|{{CMD_POS}}Get-PassPol{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1201 - Password Policy Discovery"
+  expires_at: null
+  revoked: false
+
+# --- T1202: Indirect Command Execution ---
+- id: "CLT-MITRE-051"
+  version: 1
+  detection_name: "CMD:SageMitre-AY [Heur]"
+  category: defense_evasion
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}regsvr32(?:\\.exe)?{{NOT_FILENAME}}.*/i:http(s)?://.+.*scrobj\\.dll|{{CMD_POS}}rundll32(?:\\.exe)?{{NOT_FILENAME}}.*pcwutl\\.dll,LaunchApplication|{{CMD_POS}}rundll32(?:\\.exe)?{{NOT_FILENAME}}.*shell32\\.dll,ShellExec_RunDLL|{{CMD_POS}}rundll32(?:\\.exe)?{{NOT_FILENAME}}.*url\\.dll,OpenURL|{{CMD_POS}}msiexec(?:\\.exe)?{{NOT_FILENAME}}.*-(Y|Z)|{{CMD_POS}}regasm(?:\\.exe)?{{NOT_FILENAME}}.*/u.*\\\\"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1202 - Indirect Command Execution"
+  expires_at: null
+  revoked: false
+
+# --- T1203: Exploitationfor Client Execution ---
+- id: "CLT-MITRE-052"
+  version: 1
+  detection_name: "CMD:SageMitre-AZ [Heur]"
+  category: execution
+  severity: critical
+  confidence: 0.90
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}p\\^+o\\^+w\\^+e\\^+r\\^+s\\^+h\\^+e\\^+l\\^+l{{NOT_FILENAME}}|{{CMD_POS}}w\\^+s\\^+c\\^+r\\^+i\\^+p\\^+t{{NOT_FILENAME}}|{{CMD_POS}}c\\^+e\\^+r\\^+t\\^+u\\^+t\\^+i\\^+l{{NOT_FILENAME}}|{{CMD_POS}}m\\^+s\\^+h\\^+t\\^+a{{NOT_FILENAME}}|{{CMD_POS}}explorer\\.exe{{NOT_FILENAME}} .*\\.vbs$"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1203 - Exploitationfor Client Execution"
+  expires_at: null
+  revoked: false
+
+# --- T1216.001: Pub Prn ---
+- id: "CLT-MITRE-053"
+  version: 1
+  detection_name: "CMD:SageMitre-BA [Heur]"
+  category: defense_evasion
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}pubprn\\.vbs{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1216.001 - Pub Prn"
+  expires_at: null
+  revoked: false
+
+# --- T1218.012: Verclsid ---
+- id: "CLT-MITRE-064"
+  version: 1
+  detection_name: "CMD:SageMitre-BL [Heur]"
+  category: defense_evasion
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}verclsid(?:\\.exe)?{{NOT_FILENAME}}.*/S.*/C.*\\{[0-9a-fA-F]{8}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1218.012 - Verclsid"
+  expires_at: null
+  revoked: false
+
+# --- T1220: XSL Script Processing ---
+- id: "CLT-MITRE-065"
+  version: 1
+  detection_name: "CMD:SageMitre-BM [Heur]"
+  category: defense_evasion
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}msxsl(?:\\.exe)?{{NOT_FILENAME}}.+\\.xsl|{{CMD_POS}}wmic(?:\\.exe)?{{NOT_FILENAME}}.*process.*list.*/FORMAT:.+\\.xsl|{{CMD_POS}}wmic(?:\\.exe)?{{NOT_FILENAME}}.*os.*get.*/FORMAT:.+\\.xsl|{{CMD_POS}}wmic(?:\\.exe)?{{NOT_FILENAME}}.*process.*list.*/FORMAT:evil\\[\\.\\]xsl|{{CMD_POS}}wmic(?:\\.exe)?{{NOT_FILENAME}}.*os.*get.*/FORMAT:https\\[:\\]//example\\[\\.\\]com/evil\\[\\.\\]xsl"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1220 - XSL Script Processing"
+  expires_at: null
+  revoked: false
+
+# --- T1482: Domain Trust Discovery ---
+- id: "CLT-MITRE-066"
+  version: 1
+  detection_name: "CMD:SageMitre-BN [Heur]"
+  category: discovery
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}nltest(?:\\.exe)?{{NOT_FILENAME}}.*/domain_trusts|{{CMD_POS}}dsquery(?:\\.exe)?{{NOT_FILENAME}}.*/trustedDomain|{{CMD_POS}}Get-NetDomainTrust{{NOT_FILENAME}}|{{CMD_POS}}Get-NetForestTrust{{NOT_FILENAME}}|{{CMD_POS}}Get-ADDomain{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1482 - Domain Trust Discovery"
+  expires_at: null
+  revoked: false
+
+# --- T1484.001: Group Policy Modification ---
+- id: "CLT-MITRE-067"
+  version: 1
+  detection_name: "CMD:SageMitre-BO [Heur]"
+  category: defense_evasion
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}New-GPOImmediateTask{{NOT_FILENAME}}|{{CMD_POS}}New-.*GPOImmediateTask{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1484.001 - Group Policy Modification"
+  expires_at: null
+  revoked: false
+
+# --- T1518.001: Security Software Discovery ---
+- id: "CLT-MITRE-071"
+  version: 1
+  detection_name: "CMD:SageMitre-BS [Heur]"
+  category: discovery
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}tasklist(?:\\.exe)?{{NOT_FILENAME}}.+(virus|defender|cylance)|{{CMD_POS}}wmic(?:\\.exe)?{{NOT_FILENAME}}.+Path.*AntiVirusProduct"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1518.001 - Security Software Discovery"
+  expires_at: null
+  revoked: false
+
+# --- T1518: Software Discovery ---
+- id: "CLT-MITRE-072"
+  version: 1
+  detection_name: "CMD:SageMitre-BT [Heur]"
+  category: discovery
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}wmic(?:\\.exe)?{{NOT_FILENAME}} product get name"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1518 - Software Discovery"
+  expires_at: null
+  revoked: false
+
+# --- T1546.001: Change Default File Association ---
+- id: "CLT-MITRE-075"
+  version: 1
+  detection_name: "CMD:SageMitre-BW [Heur]"
+  category: persistence
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}cmd(?:\\.exe)?{{NOT_FILENAME}}.*/c.+assoc"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1546.001 - Change Default File Association"
+  expires_at: null
+  revoked: false
+
+# --- T1546.003: Windows Management Instrumentation Event Subscription ---
+- id: "CLT-MITRE-076"
+  version: 1
+  detection_name: "CMD:SageMitre-BX [Heur]"
+  category: persistence
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}scrcons\\.exe{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1546.003 - Windows Management Instrumentation Event Subscription"
+  expires_at: null
+  revoked: false
+
+# --- T1546.007: Netsh Helper DLL ---
+- id: "CLT-MITRE-077"
+  version: 1
+  detection_name: "CMD:SageMitre-BY [Heur]"
+  category: persistence
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}netsh\\.exe{{NOT_FILENAME}} add helper"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1546.007 - Netsh Helper DLL"
+  expires_at: null
+  revoked: false
+
+# --- T1546.012: Image File Execution Options Injection ---
+- id: "CLT-MITRE-078"
+  version: 1
+  detection_name: "CMD:SageMitre-BZ [Heur]"
+  category: persistence
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}Add-ScrnSaveBackdoor\\.ps1{{NOT_FILENAME}}|{{CMD_POS}}Add-RegBackdoor\\.ps1{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1546.012 - Image File Execution Options Injection"
+  expires_at: null
+  revoked: false
+
+# --- T1547: Bootor Logon Autostart Execution ---
+- id: "CLT-MITRE-081"
+  version: 1
+  detection_name: "CMD:SageMitre-CC [Heur]"
+  category: persistence
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}Add-Persistence\\.ps1{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1547 - Bootor Logon Autostart Execution"
+  expires_at: null
+  revoked: false
+
+# --- T1548.002: Bypass User Account Control ---
+- id: "CLT-MITRE-082"
+  version: 1
+  detection_name: "CMD:SageMitre-CD [Heur]"
+  category: privilege_escalation
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}Invoke-BypassUAC\\.ps1{{NOT_FILENAME}}|{{CMD_POS}}Invoke-WScriptBypassUAC\\.ps1{{NOT_FILENAME}}|{{CMD_POS}}Add-MpPreference\\.ps1{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1548.002 - Bypass User Account Control"
+  expires_at: null
+  revoked: false
+
+# --- T1552.002: Credentialsin Registry ---
+- id: "CLT-MITRE-083"
+  version: 1
+  detection_name: "CMD:SageMitre-CE [Heur]"
+  category: credential_access
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}reg(?:\\.exe)?{{NOT_FILENAME}} query (HKLM|HKCU) /f password /t REG_SZ /s"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1552.002 - Credentialsin Registry"
+  expires_at: null
+  revoked: false
+
+# --- T1553.004: Install Root Certificate ---
+- id: "CLT-MITRE-085"
+  version: 1
+  detection_name: "CMD:SageMitre-CG [Heur]"
+  category: defense_evasion
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}certutil(?:\\.exe)?{{NOT_FILENAME}} -addstore|{{CMD_POS}}certmgr(?:\\.exe)?{{NOT_FILENAME}} -add"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1553.004 - Install Root Certificate"
+  expires_at: null
+  revoked: false
+
+# --- T1555.003: Credentialsfrom Web Browsers ---
+- id: "CLT-MITRE-086"
+  version: 1
+  detection_name: "CMD:SageMitre-CH [Heur]"
+  category: credential_access
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}Get-ChromeDump\\.ps1{{NOT_FILENAME}}|{{CMD_POS}}Get-FoxDump\\.ps1{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1555.003 - Credentialsfrom Web Browsers"
+  expires_at: null
+  revoked: false
+
+# --- T1555: Credentialsfrom Password Stores ---
+- id: "CLT-MITRE-087"
+  version: 1
+  detection_name: "CMD:SageMitre-CI [Heur]"
+  category: credential_access
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}Get-VaultCredential\\.ps1{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1555 - Credentialsfrom Password Stores"
+  expires_at: null
+  revoked: false
+
+# --- T1558.001: Golden Ticket ---
+- id: "CLT-MITRE-088"
+  version: 1
+  detection_name: "CMD:SageMitre-CJ [Heur]"
+  category: credential_access
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009. "Invoke-Mimikatz" here is the complete identifier, not a
+  # suffix, so {{CMD_POS}} applies cleanly (see CLT-MITRE-006 note).
+  pattern: "{{CMD_POS}}net(?:1)?(?:\\.exe)?{{NOT_FILENAME}}.*group.*(domain admins|enterprise admins|organization management).*/domain$|{{CMD_POS}}Invoke-Mimikatz{{NOT_FILENAME}}.*Golden.*Ticket"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1558.001 - Golden Ticket"
+  expires_at: null
+  revoked: false
+
+# --- T1558.002: Silver Ticket ---
+- id: "CLT-MITRE-089"
+  version: 1
+  detection_name: "CMD:SageMitre-CK [Heur]"
+  category: credential_access
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009 (see
+  # CLT-MITRE-006 note on why {{CMD_POS}} applies to Invoke-Mimikatz here).
+  pattern: "{{CMD_POS}}Invoke-Mimikatz{{NOT_FILENAME}}.*Silver.*Ticket"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1558.002 - Silver Ticket"
+  expires_at: null
+  revoked: false
+
+# --- T1558.003: Kerberoasting ---
+- id: "CLT-MITRE-090"
+  version: 1
+  detection_name: "CMD:SageMitre-CL [Heur]"
+  category: credential_access
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}Invoke-Kerberoast{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1558.003 - Kerberoasting"
+  expires_at: null
+  revoked: false
+
+# --- T1558.004: ASREP Roasting ---
+- id: "CLT-MITRE-091"
+  version: 1
+  detection_name: "CMD:SageMitre-CM [Heur]"
+  category: credential_access
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}Get-ASREPHash{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1558.004 - ASREP Roasting"
+  expires_at: null
+  revoked: false
+
+# --- T1560.001: Archive Via Utility ---
+- id: "CLT-MITRE-092"
+  version: 1
+  detection_name: "CMD:SageMitre-CN [Heur]"
+  category: collection
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}rar(?:\\.exe)?{{NOT_FILENAME}}\\s+.*\\b[afu]\\b|{{CMD_POS}}WinRAR(?:\\.exe)?{{NOT_FILENAME}}\\s|{{CMD_POS}}7z(?:\\.exe)?{{NOT_FILENAME}}\\s+.*\\ba\\b|{{CMD_POS}}zip(?:\\.exe)?{{NOT_FILENAME}}\\s+.*-u|{{CMD_POS}}WinZip32(?:\\.exe)?{{NOT_FILENAME}}\\s"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1560.001 - Archive Via Utility"
+  expires_at: null
+  revoked: false
+
+# --- T1562.002: Disable Windows Event Logging ---
+- id: "CLT-MITRE-093"
+  version: 1
+  detection_name: "CMD:SageMitre-CO [Heur]"
+  category: defense_evasion
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}AUDITPOL(?:\\.exe)?{{NOT_FILENAME}}.*/set.*/category:Detailed Tracking"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1562.002 - Disable Windows Event Logging"
+  expires_at: null
+  revoked: false
+
+# --- T1562.003: Impair Command History Logging ---
+- id: "CLT-MITRE-094"
+  version: 1
+  detection_name: "CMD:SageMitre-CP [Heur]"
+  category: defense_evasion
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}Set-.*PSReadLineOption{{NOT_FILENAME}}.*-HistorySavePath.*\\{File.*Path\\}|{{CMD_POS}}Set-PSReadlineOption{{NOT_FILENAME}}.*-HistorySaveStyle.*SaveNothing"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1562.003 - Impair Command History Logging"
+  expires_at: null
+  revoked: false
+
+# --- T1562.006: Indicator Blocking ---
+- id: "CLT-MITRE-095"
+  version: 1
+  detection_name: "CMD:SageMitre-CQ [Heur]"
+  category: defense_evasion
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}wevtutil(?:\\.exe)?{{NOT_FILENAME}}.*(sl|set-log).+/e:false|{{CMD_POS}}wevtutil(?:\\.exe)?{{NOT_FILENAME}}.*(cl|clear-log)|{{CMD_POS}}Set-.*EtwTraceProvider{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1562.006 - Indicator Blocking"
+  expires_at: null
+  revoked: false
+
+# --- T1563.002: RDP Hijacking ---
+- id: "CLT-MITRE-096"
+  version: 1
+  detection_name: "CMD:SageMitre-CR [Heur]"
+  category: lateral_movement
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{HAS_ARG}}, same shape as CLT-CMD-009. The old
+  # `(^|\s|[;&|])` boundary plus a "match inside any quoted string" branch
+  # accepted argument position and quoted prose alike (`grep -rn tscon`,
+  # `echo "use tscon.exe ... to hijack"`).
+  pattern: "{{CMD_POS}}tscon(?:\\.exe)?{{NOT_FILENAME}}{{HAS_ARG}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1563.002 - RDP Hijacking"
+  expires_at: null
+  revoked: false
+
+# --- T1567.001: Exfiltrationto Code Repository ---
+- id: "CLT-MITRE-099"
+  version: 1
+  detection_name: "CMD:SageMitre-CU [Heur]"
+  category: exfiltration
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}Invoke-ExfilDataToGitHub{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1567.001 - Exfiltrationto Code Repository"
+  expires_at: null
+  revoked: false
+
+# --- T1567.002: Exfiltrationto Cloud Storage ---
+- id: "CLT-MITRE-100"
+  version: 1
+  detection_name: "CMD:SageMitre-CV [Heur]"
+  category: exfiltration
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}}, same shape as CLT-CMD-009. Had no
+  # boundary at all.
+  pattern: "{{CMD_POS}}Invoke-DropboxUpload{{NOT_FILENAME}}"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1567.002 - Exfiltrationto Cloud Storage"
+  expires_at: null
+  revoked: false
+
+# --- T1569: System Services ---
+- id: "CLT-MITRE-102"
+  version: 1
+  detection_name: "CMD:SageMitre-CX [Heur]"
+  category: execution
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}subinacl(?:\\.exe){{NOT_FILENAME}} /service|{{CMD_POS}}sc(?:\\.exe)?{{NOT_FILENAME}} sdset"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1569 - System Services"
+  expires_at: null
+  revoked: false
+
+# --- T1592.002: Software ---
+- id: "CLT-MITRE-104"
+  version: 1
+  detection_name: "CMD:SageMitre-CZ [Heur]"
+  category: reconnaissance
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}powershell(?:\\.exe)?{{NOT_FILENAME}}.*-Class.*AntiVirusProduct|{{CMD_POS}}powershell(?:\\.exe)?{{NOT_FILENAME}}.*path.*AntiVirusProduct"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1592.002 - Software"
+  expires_at: null
+  revoked: false
+
+# --- T1592.004: Client Configurations ---
+- id: "CLT-MITRE-105"
+  version: 1
+  detection_name: "CMD:SageMitre-DA [Heur]"
+  category: reconnaissance
+  severity: warning
+  confidence: 0.60
+  # {{CMD_POS}} + {{NOT_FILENAME}} on each alternative, same shape as
+  # CLT-CMD-009.
+  pattern: "{{CMD_POS}}powershell(?:\\.exe)?{{NOT_FILENAME}}.*-Class.*Win32_UserAccount|{{CMD_POS}}powershell(?:\\.exe)?{{NOT_FILENAME}}.*Get-SmbShare"
+  case_insensitive: true
+  match_on: command
+  title: "MITRE ATT&CK T1592.004 - Client Configurations"
+  expires_at: null
+  revoked: false
