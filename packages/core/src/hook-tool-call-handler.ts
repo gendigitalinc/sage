@@ -3,9 +3,9 @@
  * for agent extensibility platforms (pi, OpenClaw, etc).
  */
 
-import type { Artifact, Branding, Logger } from "./types.js";
+import type { Artifact, Branding, Logger, Verdict } from "./types.js";
 import type { CanonicalToolType } from "./tool-names.js";
-import { defaultBranding, formatDenyMessage, ruleLabel, summarizeArtifacts } from "./index.js";
+import { defaultBranding, kv, PAD, remediationHint, ruleLabel, SEPARATOR_WIDTH, separatorLine, severityEmoji, summarizeArtifacts } from "./index.js";
 import { ApprovalStore } from "./approval-store.js";
 import { guardToolCall } from "./guard.js";
 import { resolve } from "node:path";
@@ -34,6 +34,7 @@ export interface HookHostAPI {
 	ui?: {
 		confirm(options: { message: string; title?: string }): Promise<boolean>;
 		setStatus(message: string): Promise<void>;
+		setFooter?(message: string): Promise<void>;
 	};
 }
 
@@ -46,8 +47,9 @@ export interface ToolCallEvent {
 export interface ToolCallContext {
 	hasUI: boolean;
 	ui?: {
-		confirm(options?: { message?: string }): Promise<boolean>;
+		confirm(message: string): Promise<boolean>;
 		setStatus(message: string): Promise<void>;
+		setFooter?(message: string): Promise<void>;
 	};
 	sessionManager?: { getSessionId(): string };
 }
@@ -55,6 +57,36 @@ export interface ToolCallContext {
 export interface ToolCallResult {
 	block?: boolean;
 	reason?: string;
+}
+
+/** Rich shield banner matching the Claude Code format. */
+function formatShieldBanner(verdict: Verdict, branding: Branding, action: string): string {
+	const isDeny = verdict.decision === "deny";
+	const emoji = severityEmoji(verdict.severity);
+	const reasonText = verdict.reasons.length > 0 ? verdict.reasons[0] : verdict.category;
+	const header = isDeny
+		? `🛡️ ${branding.name}: Threat Blocked`
+		: `🛡️ ${branding.name}: Suspicious Activity Detected`;
+	const lines: string[] = [header, separatorLine(SEPARATOR_WIDTH)];
+	lines.push(`${emoji} ${"Threat".padEnd(PAD)}${reasonText}`);
+	const rule = ruleLabel(verdict);
+	if (rule) lines.push(kv("Rule", rule));
+	lines.push(kv("Severity", verdict.severity.toUpperCase()));
+	if (verdict.artifacts.length > 0) {
+		lines.push(kv("Artifact", verdict.artifacts[0]!));
+		for (const a of verdict.artifacts.slice(1)) {
+			lines.push(kv("", a));
+		}
+	}
+	if (verdict.source && verdict.source !== "none") {
+		lines.push(kv("Source", verdict.source));
+	}
+	lines.push(kv("Action", action));
+	if (isDeny) {
+		lines.push("");
+		lines.push(remediationHint(verdict));
+	}
+	return lines.join("\n");
 }
 
 export function registerHookHandlers(
@@ -65,6 +97,13 @@ export function registerHookHandlers(
 	const approvalStore = new ApprovalStore();
 	const threatsDir = resolve(packageRoot, "resources", "threats");
 	const trustedDomainsDir = resolve(packageRoot, "resources", "trusted-domains");
+
+	// Show the shield in the footer when the session starts.
+	// setFooter persists in a dedicated area that pi's own status bar won't overwrite.
+	host.on("session_start", async (_event: unknown, ctx: ToolCallContext): Promise<undefined> => {
+		try { await ctx.ui?.setFooter?.(`🛡️ ${branding.name}: ✅`); } catch { /* fail open */ }
+		return undefined;
+	});
 
 	host.on("tool_call", async (event: ToolCallEvent, ctx: ToolCallContext): Promise<ToolCallResult | undefined> => {
 		try {
@@ -79,7 +118,12 @@ export function registerHookHandlers(
 				return undefined;
 			}
 
-			// Guard the tool call
+			// Guard the tool call.
+			// Compute action ID from the RAW input so two calls with different
+			// raw payloads that normalize to the same toolInput (e.g. edits
+			// with different oldText but identical newText) get distinct
+			// approval entries.
+			const rawActionId = ApprovalStore.actionId(canonicalName, input, sessionId);
 			const guardResult = await guardToolCall(
 				{
 					toolName: canonicalName,
@@ -89,22 +133,27 @@ export function registerHookHandlers(
 				},
 				{ logger, threatsDir, trustedDomainsDir },
 				approvalStore,
+				rawActionId,
 			);
 
 			const { verdict, actionId } = guardResult;
 
-			// Handle verdict
+			// Handle verdict — update both status and footer (footer persists in pi's TUI).
 			if (verdict.decision === "allow") {
+				try { await ctx.ui?.setFooter?.(`🛡️ ${branding.name}: ✅`); } catch { /* fail open */ }
 				return undefined;
 			}
 
 			if (verdict.decision === "deny") {
-				const reason = formatDenyMessage(verdict, branding);
+				const reason = formatShieldBanner(verdict, branding, "Blocked");
+				try { await ctx.ui?.setFooter?.(`🛡️ ${branding.name}: 🚨 Blocked`); } catch { /* fail open */ }
 				return { block: true, reason };
 			}
 
 			// Ask decision
-			const message = `Sage ${branding.name} requires approval:\n\n${summarizeArtifacts(artifacts)}\n\n${ruleLabel(verdict)}`;
+			const message = formatShieldBanner(verdict, branding, "Requires confirmation");
+
+			try { await ctx.ui?.setFooter?.(`🛡️ ${branding.name}: ⚠️ Suspicious`); } catch { /* fail open */ }
 
 			// Check for UI
 			if (!ctx.hasUI) {
@@ -112,7 +161,7 @@ export function registerHookHandlers(
 			}
 
 			try {
-				const approved = await ctx.ui?.confirm?.({ message });
+				const approved = await ctx.ui?.confirm?.(message);
 				if (!approved) {
 					return { block: true, reason: "User denied" };
 				}

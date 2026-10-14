@@ -35,6 +35,7 @@ const AGENT_RUNTIME_LABELS: Record<string, string> = {
 	vscode: "VS Code",
 	openclaw: "OpenClaw",
 	opencode: "OpenCode",
+	pi: "Pi",
 };
 
 /** User-facing label for an agent runtime id; unknown ids pass through. */

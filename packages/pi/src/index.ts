@@ -38,6 +38,16 @@ const factory: ExtensionFactory = (pi) => {
 		branding,
 	});
 
+	// Show the shield indicator in pi's footer immediately on load so the user
+	// sees that Sage is active before the first tool call or session_start event.
+	const shieldStatus = `🛡️ ${branding.name}: ✅`;
+	pi.ui?.setFooter?.(shieldStatus)?.catch(() => {
+		/* fail open */
+	});
+	pi.ui?.setStatus?.(shieldStatus)?.catch(() => {
+		/* fail open */
+	});
+
 	logger.debug(`${branding.name} extension registered`, { packageRoot });
 };
 

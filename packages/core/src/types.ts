@@ -520,7 +520,7 @@ export interface Branding {
 
 // ── Agent runtime ──────────────────────────────────────────────────
 
-export type AgentRuntime = "claude-code" | "openclaw" | "opencode" | "cursor" | "vscode";
+export type AgentRuntime = "claude-code" | "openclaw" | "opencode" | "cursor" | "vscode" | "pi";
 
 // ── Hook types (FP reporting) ───────────────────────────────────────
 
