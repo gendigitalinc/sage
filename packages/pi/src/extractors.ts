@@ -17,11 +17,13 @@
  */
 
 import {
+	type Artifact,
 	canonicalizeToolName,
 	extractFromBash,
 	extractFromEdit,
 	extractFromRead,
 	extractFromWrite,
+	extractUrls,
 	type HookToolMapping,
 } from "@gendigital/sage-core";
 
@@ -71,6 +73,23 @@ export function mapToolCall(toolName: string, input: Record<string, unknown>): H
 		case "read": {
 			const toolInput = { file_path: stringOrEmpty(input.path) };
 			return { toolName: "Read", toolInput, artifacts: extractFromRead(toolInput) };
+		}
+		case "gui_targets": {
+			return { toolName: "Unknown", toolInput: input, artifacts: [] };
+		}
+		case "gui_act": {
+			const artifacts: Artifact[] = [];
+			const action = input.action;
+			if (action && typeof action === "object") {
+				const actionObj = action as Record<string, unknown>;
+				if (actionObj.kind === "set_text" && typeof actionObj.text === "string") {
+					const urls = extractUrls(actionObj.text);
+					for (const url of urls) {
+						artifacts.push({ type: "url", value: url });
+					}
+				}
+			}
+			return { toolName: "Unknown", toolInput: input, artifacts };
 		}
 		default:
 			return { toolName: canonicalizeToolName({}, toolName), toolInput: input, artifacts: [] };

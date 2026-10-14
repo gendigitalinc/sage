@@ -81,6 +81,26 @@ describe("extractArtifacts", () => {
 		expect(extractArtifacts("ls", { path: "." })).toEqual([]);
 		expect(extractArtifacts("codemode", { code: "return 1" })).toEqual([]);
 	});
+
+	it("gui_act: extracts URLs from set_text action", () => {
+		const artifacts = extractArtifacts("gui_act", {
+			action: { kind: "set_text", text: "visit https://example.com for info" },
+		});
+		expect(urls(artifacts)).toContain("https://example.com");
+	});
+
+	it("gui_act: returns empty for other actions", () => {
+		expect(extractArtifacts("gui_act", { action: { kind: "click", ref: "e1" } })).toEqual([]);
+		expect(
+			extractArtifacts("gui_act", {
+				action: { kind: "focus", target: "tab-1" },
+			}),
+		).toEqual([]);
+	});
+
+	it("gui_targets: returns empty (listing tool)", () => {
+		expect(extractArtifacts("gui_targets", {})).toEqual([]);
+	});
 });
 
 describe("resolveCanonicalToolName", () => {
