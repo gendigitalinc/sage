@@ -1,5 +1,16 @@
 // @gendigital/sage-core public API
 
+// Hook tool call handler
+export {
+	registerHookHandlers,
+	type HookHandlerOptions,
+	type HookHostAPI,
+	type HookToolMapping,
+	type ToolCallAdapter,
+	type ToolCallContext,
+	type ToolCallEvent,
+	type ToolCallResult,
+} from "./hook-tool-call-handler.js";
 // Allowlist migration warning
 export {
 	checkAllowlistMigration,
