@@ -45,3 +45,5 @@ e2e/output/*
 
 # Local git worktrees
 .worktrees/
+packages/pi/resources/
+packages/omp/resources/

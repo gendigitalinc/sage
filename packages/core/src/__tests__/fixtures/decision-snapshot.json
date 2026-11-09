@@ -1,6 +1,6 @@
 {
 	"generatedAt": "2026-06-10T12:51:34.526Z",
-	"threatCount": 366,
+	"threatCount": 369,
 	"entries": {
 		"CLT-PI-091": {
 			"paranoid": "deny",
@@ -1831,6 +1831,21 @@
 			"paranoid": "deny",
 			"balanced": "deny",
 			"relaxed": "ask"
+		},
+		"CLT-PI-094": {
+			"paranoid": "deny",
+			"balanced": "ask",
+			"relaxed": "ask"
+		},
+		"DUMMY-CMD-SUBMIT-001": {
+			"paranoid": "allow",
+			"balanced": "allow",
+			"relaxed": "allow"
+		},
+		"DUMMY-FILE-SUBMIT-001": {
+			"paranoid": "allow",
+			"balanced": "allow",
+			"relaxed": "allow"
 		}
 	}
 }

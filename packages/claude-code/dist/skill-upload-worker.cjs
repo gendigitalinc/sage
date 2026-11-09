@@ -4591,7 +4591,7 @@ var import_node_path4 = require("node:path");
 var import_node_url = require("node:url");
 var import_meta = {};
 function resolveVersion() {
-  if (true) return "0.14.0";
+  if (true) return "0.15.0";
   try {
     const pkgPath = (0, import_node_path4.join)((0, import_node_path4.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
     const pkg = JSON.parse(getFileContentSync(pkgPath));

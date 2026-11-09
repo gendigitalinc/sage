@@ -27,16 +27,25 @@ export const OPENCODE_TOOL_MAP: Record<string, CanonicalToolType> = {
 	question: "Question",
 	task: "Task",
 	read_lines: "ReadLines",
+	// OpenCode v2 tool names
+	shell: "Bash",
+	patch: "ApplyPatch",
+	subagent: "Task",
 };
 
 import { SageVerdictBlockError, SageVerdictError } from "./error.js";
-import { extractFromOpenCodeTool } from "./extractors.js";
+import { extractFromOpenCodeTool, openCodeFilePath, openCodePatchTexts } from "./extractors.js";
 
 function asString(value: unknown): string | undefined {
 	return typeof value === "string" ? value : undefined;
 }
 
-function normalizeToolInput(
+/**
+ * Map OpenCode argument names onto the Claude-style keys core reads
+ * (`file_path`, `new_string`, and `patch` for ApplyPatch AMSI scans and
+ * content snapshots).
+ */
+export function normalizeToolInput(
 	toolName: string,
 	args: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -44,14 +53,19 @@ function normalizeToolInput(
 		case "write":
 			return {
 				...args,
-				file_path: asString(args.filePath) ?? asString(args.file_path) ?? "",
+				file_path: openCodeFilePath(args) || (asString(args.file_path) ?? ""),
 				content: asString(args.content) ?? "",
 			};
 		case "edit":
 			return {
 				...args,
-				file_path: asString(args.filePath) ?? asString(args.file_path) ?? "",
+				file_path: openCodeFilePath(args) || (asString(args.file_path) ?? ""),
 				new_string: asString(args.newString) ?? asString(args.new_string) ?? "",
+			};
+		case "patch":
+			return {
+				...args,
+				patch: asString(args.patch) ?? asString(args.patchText) ?? "",
 			};
 		default:
 			return args;
@@ -95,6 +109,12 @@ export function createToolHandlers(
 
 		try {
 			const args = output.args ?? {};
+			if (input.tool === "patch" && openCodePatchTexts(args).length > 1) {
+				completeHook("blocked", { skippedReason: "conflicting_patch_fields" });
+				throw new SageVerdictBlockError(
+					`${branding.name} blocked this patch: patchText and patch contain different content.`,
+				);
+			}
 
 			// E2E payload-drift capture (drift loop). OpenCode is an in-process
 			// ESM plugin (not MCP, not a CJS hook), so the "raw wire" payload is the

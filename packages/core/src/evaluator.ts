@@ -23,19 +23,19 @@ import {
 	safeTruncate,
 	scrubHomePath,
 } from "./content-snapshot.js";
+import { describeDeobfuscation } from "./deobfuscate.js";
 import {
 	amsiDetectionName,
 	amsiReportingData,
 	formatReportingDetectionName,
 	type PackageDetectionVerdict,
-	PI_DETECTION_NAME,
 	packageDetectionName,
+	piReportingDetectionName,
 } from "./detection-names.js";
 import { sendCommunityIqTelemetry } from "./detection-telemetry.js";
 import { DecisionEngine } from "./engine.js";
 import { findAllowException, findDenyException, loadExceptions } from "./exceptions.js";
 import { HeuristicsEngine } from "./heuristics.js";
-import { MODEL_SCHEMA_VERSION } from "./model-storage.js";
 import { PackageChecker } from "./package-checker.js";
 import {
 	extractPackagesFromCommand,
@@ -43,7 +43,8 @@ import {
 	type ParsedPackage,
 } from "./package-extractor.js";
 import { updateSessionStatus } from "./statusline.js";
-import { loadThreats } from "./threat-loader.js";
+import { claimRuleSubmissions } from "./submit-limits.js";
+import { getUserThreatsDir, loadThreats } from "./threat-loader.js";
 import type { CanonicalToolType } from "./tool-names.js";
 import { loadTrustedDomains } from "./trusted-domains.js";
 import type {
@@ -59,6 +60,7 @@ import type {
 	Logger,
 	PackageCheckResult,
 	PiCheckResult,
+	SignalSources,
 	UrlCheckResult,
 	Verdict,
 } from "./types.js";
@@ -67,6 +69,7 @@ import {
 	DEFAULT_PI_HIGH_RISK_THRESHOLD,
 	DEFAULT_PI_MEDIUM_RISK_THRESHOLD,
 	DEFAULT_PI_TELEMETRY_THRESHOLD,
+	isSubmitOnlyThreat,
 	nullLogger,
 } from "./types.js";
 import { VERSION } from "./version.js";
@@ -111,6 +114,8 @@ export interface AmsiClientLease {
 export interface ToolEvaluationContext {
 	threatsDir: string;
 	trustedDomainsDir: string;
+	/** Sage state directory; defaults to `~/.sage`. */
+	sageDirPath?: string;
 	config?: Config;
 	configPath?: string;
 	logger?: Logger;
@@ -134,11 +139,13 @@ export const AMSI_CONTENT_NAME_MAX = 256;
 export const HEURISTIC_PI_CONTENT_SNIPPET_MAX = 200;
 
 /**
- * Build a heuristic signal entry.
+ * Build a reportable heuristic signal. Custom rules are intentionally omitted
+ * so their IDs cannot enter telemetry or false-positive reports.
  */
 export function buildHeuristicSignal(
 	match: HeuristicMatch,
-): NonNullable<AuditSignals["heuristics"]>[number] {
+): NonNullable<AuditSignals["heuristics"]>[number] | undefined {
+	if (match.threat.customRule) return undefined;
 	return {
 		detection_name: formatReportingDetectionName(
 			match.threat.detectionName,
@@ -148,6 +155,37 @@ export function buildHeuristicSignal(
 		rule_id: match.threat.id,
 		rule_version: match.threat.version,
 	};
+}
+
+/**
+ * Whether an event contains reportable detection evidence independent of any
+ * custom rule match. Low-risk PI scores are retained for audit context but do
+ * not count as detections on their own.
+ */
+export function hasReportableDetectionSignals(value: unknown): boolean {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+	const signals = value as Record<string, unknown>;
+	const hasEntries = (key: string): boolean => {
+		const entries = signals[key];
+		return Array.isArray(entries) && entries.length > 0;
+	};
+	return Boolean(
+		hasEntries("heuristics") ||
+			hasEntries("url_checks") ||
+			hasEntries("file_checks") ||
+			hasEntries("package_checks") ||
+			hasEntries("amsi_checks") ||
+			(Array.isArray(signals.pi_checks) &&
+				signals.pi_checks.some((result) => {
+					if (!result || typeof result !== "object" || Array.isArray(result)) return false;
+					const risk = (result as Record<string, unknown>).risk;
+					return (
+						typeof risk === "number" &&
+						Number.isFinite(risk) &&
+						risk >= DEFAULT_PI_MEDIUM_RISK_THRESHOLD
+					);
+				})),
+	);
 }
 
 /**
@@ -172,7 +210,7 @@ export function resolvePiContentSnippet(
 	if (highestRiskResult?.contentSnippet) return scrubHomePath(highestRiskResult.contentSnippet);
 
 	const heuristicMatch = heuristicMatches.find(
-		(match) => match.threat.category === "prompt_injection",
+		(match) => !match.threat.customRule && match.threat.category === "prompt_injection",
 	);
 	if (!heuristicMatch) return undefined;
 
@@ -374,7 +412,9 @@ export async function evaluateToolCall(
 
 	let heuristicMatches: ReturnType<HeuristicsEngine["match"]> = [];
 	if (config.heuristics_enabled) {
-		let threats = await loadThreats(context.threatsDir, logger);
+		let threats = await loadThreats(context.threatsDir, logger, {
+			customThreatsDir: getUserThreatsDir(context.sageDirPath),
+		});
 		if (config.disabled_threats.length > 0) {
 			const disabledSet = new Set(config.disabled_threats);
 			threats = threats.filter((t) => !disabledSet.has(t.id));
@@ -385,6 +425,9 @@ export async function evaluateToolCall(
 		const trustedDomains = await loadTrustedDomains(context.trustedDomainsDir, logger);
 		const heuristics = new HeuristicsEngine(threats, trustedDomains);
 		heuristicMatches = heuristics.match(request.artifacts);
+		// Hidden instructions (leet, spacing, base64, hex): scan decoded variants with the PI rules.
+		const rawMatchedIds = new Set(heuristicMatches.map((m) => m.threat.id));
+		heuristicMatches.push(...heuristics.matchDeobfuscated(request.artifacts, rawMatchedIds));
 	}
 
 	let urlCheckResults: Awaited<ReturnType<UrlCheckClient["checkUrls"]>> = [];
@@ -473,12 +516,13 @@ export async function evaluateToolCall(
 	// Compute preliminary verdict from non-PI signals.
 	// If already deny, skip the expensive PI check entirely.
 	const engine = new DecisionEngine(config.sensitivity, logger);
-	const preliminaryVerdict = await engine.decide({
+	const preliminarySources: SignalSources = {
 		heuristicMatches,
 		urlCheckResults,
 		packageCheckResults: packageCheckResults.length > 0 ? packageCheckResults : undefined,
 		amsiCheckResults: amsiCheckResults.length > 0 ? amsiCheckResults : undefined,
-	});
+	};
+	const preliminaryVerdict = await engine.decide(preliminarySources);
 
 	const allPiResults: PiCheckResult[] = [];
 	const alreadyDenied =
@@ -519,18 +563,17 @@ export async function evaluateToolCall(
 	}
 
 	let verdict: Verdict;
+	let verdictSources = preliminarySources;
 	if (allPiResults.length > 0) {
-		verdict = await engine.decide({
-			heuristicMatches,
-			urlCheckResults,
-			packageCheckResults: packageCheckResults.length > 0 ? packageCheckResults : undefined,
-			amsiCheckResults: amsiCheckResults.length > 0 ? amsiCheckResults : undefined,
+		verdictSources = {
+			...preliminarySources,
 			piCheckResults: allPiResults,
 			piThresholds: {
 				highRisk: DEFAULT_PI_HIGH_RISK_THRESHOLD,
 				mediumRisk: DEFAULT_PI_MEDIUM_RISK_THRESHOLD,
 			},
-		});
+		};
+		verdict = await engine.decide(verdictSources);
 	} else {
 		verdict = preliminaryVerdict;
 	}
@@ -559,11 +602,23 @@ export async function evaluateToolCall(
 		}
 	}
 
+	const customThreatMatched = heuristicMatches.some((match) => match.threat.customRule === true);
+	const hasCachedUrlDetection = [...cachedUrlVerdicts.values()].some(
+		(cachedVerdict) => cachedVerdict.verdict !== "allow",
+	);
+	const nonCustomThreatMatched =
+		customThreatMatched && (engine.hasNonCustomDetection(verdictSources) || hasCachedUrlDetection);
+	verdict.customThreatMatched = customThreatMatched;
+
 	await cacheUrlResults(urlCheckResults, cache);
 
 	const auditSignals: AuditSignals = {};
 	if (heuristicMatches.length > 0) {
-		auditSignals.heuristics = heuristicMatches.map(buildHeuristicSignal);
+		const heuristicSignals = heuristicMatches.flatMap((match) => {
+			const signal = buildHeuristicSignal(match);
+			return signal ? [signal] : [];
+		});
+		if (heuristicSignals.length > 0) auditSignals.heuristics = heuristicSignals;
 	}
 	if (urlCheckResults.length > 0) {
 		const relevant = urlCheckResults.filter((r) => r.isMalicious);
@@ -626,11 +681,7 @@ export async function evaluateToolCall(
 	if (allPiResults.length > 0) {
 		const piSnippetFloor = DEFAULT_PI_MEDIUM_RISK_THRESHOLD;
 		auditSignals.pi_checks = allPiResults.map((r) => ({
-			detection_name: formatReportingDetectionName(
-				PI_DETECTION_NAME,
-				"ml",
-				`${r.modelId}:${MODEL_SCHEMA_VERSION}`,
-			),
+			detection_name: piReportingDetectionName(r),
 			risk: r.risk,
 			model_id: r.modelId,
 			content_name: r.contentName,
@@ -671,6 +722,7 @@ export async function evaluateToolCall(
 			toolName: request.toolName,
 			toolInput: request.toolInput,
 			verdict,
+			nonCustomThreatMatched,
 			conversationId: request.conversationId,
 			agentRuntime: request.agentRuntime,
 			hookType: request.hookType,
@@ -685,9 +737,13 @@ export async function evaluateToolCall(
 		// Fail open.
 	}
 
-	// Community IQ telemetry: a `deny` sends a blocking event; a PI score in the
-	// suspicious band [0.95, 0.99) on a non-deny verdict sends a non-blocking hit.
-	const submitTelemetry = async (blocking: boolean): Promise<void> => {
+	// Community IQ telemetry: a `deny` sends a blocking event; on a non-deny
+	// verdict, a PI score in the suspicious band [0.95, 0.99) or a submit-only
+	// rule match within its per-rule submit cap sends a non-blocking hit.
+	const submitTelemetry = async (
+		blocking: boolean,
+		signals: AuditSignals | undefined = resolvedSignals,
+	): Promise<void> => {
 		try {
 			await sendCommunityIqTelemetry({
 				eventId,
@@ -697,7 +753,7 @@ export async function evaluateToolCall(
 				toolName: request.toolName,
 				content: resolvedContent,
 				contentSnippet,
-				signals: resolvedSignals,
+				signals,
 				communityIqEnabled: config.community_iq,
 				config,
 				blocking,
@@ -710,13 +766,33 @@ export async function evaluateToolCall(
 	};
 
 	if (verdict.decision === "deny") {
-		await submitTelemetry(true);
-	} else if (
-		allPiResults.some(
+		if (customThreatMatched && !nonCustomThreatMatched) {
+			logger.debug(
+				"Custom threat matched without non-custom detections; skipping Community IQ telemetry",
+				{ eventId },
+			);
+		} else {
+			await submitTelemetry(true);
+		}
+	} else {
+		const piSuspicious = allPiResults.some(
 			(r) => r.risk >= DEFAULT_PI_TELEMETRY_THRESHOLD && r.risk < DEFAULT_PI_HIGH_RISK_THRESHOLD,
-		)
-	) {
-		await submitTelemetry(false);
+		);
+		// Submit-only rules are split by responsibility: DecisionEngine.collectSignals
+		// already excluded them from the verdict; here we only handle capped telemetry
+		// for bundled rules. Custom-rule matches are excluded individually.
+		const submitOnlyIds = new Set(
+			heuristicMatches
+				.filter((m) => !m.threat.customRule && isSubmitOnlyThreat(m.threat))
+				.map((m) => m.threat.id),
+		);
+		const claimedRuleIds = await claimSubmitOnlySubmissions(submitOnlyIds, config, logger);
+		if (piSuspicious || claimedRuleIds.size > 0) {
+			await submitTelemetry(
+				false,
+				withoutCappedSubmitOnly(resolvedSignals, submitOnlyIds, claimedRuleIds),
+			);
+		}
 	}
 
 	if (verdict.decision !== "allow") {
@@ -736,6 +812,44 @@ export async function evaluateToolCall(
 	logEvaluationCompleted(verdict);
 
 	return verdict;
+}
+
+/**
+ * Claim submit slots for the submit-only rules that matched. Returns the
+ * rule ids allowed to submit now (empty when Community IQ is off, so opting
+ * out never consumes the cap). Never throws.
+ */
+async function claimSubmitOnlySubmissions(
+	submitOnlyIds: ReadonlySet<string>,
+	config: Config,
+	logger: Logger,
+): Promise<Set<string>> {
+	if (!config.community_iq || submitOnlyIds.size === 0) return new Set();
+	try {
+		return new Set(await claimRuleSubmissions([...submitOnlyIds], { logger }));
+	} catch (error) {
+		logger.debug("Submit-limit claim failed open", { error: String(error) });
+		return new Set();
+	}
+}
+
+/**
+ * Drop heuristic signals of submit-only rules that did not claim a submit
+ * slot, so a capped rule isn't re-reported piggybacking on another event.
+ */
+function withoutCappedSubmitOnly(
+	signals: AuditSignals | undefined,
+	submitOnlyIds: ReadonlySet<string>,
+	claimedRuleIds: ReadonlySet<string>,
+): AuditSignals | undefined {
+	if (!signals?.heuristics) return signals;
+	const heuristics = signals.heuristics.filter(
+		(h) => !submitOnlyIds.has(h.rule_id) || claimedRuleIds.has(h.rule_id),
+	);
+	if (heuristics.length === signals.heuristics.length) return signals;
+	const { heuristics: _dropped, ...rest } = signals;
+	const next: AuditSignals = heuristics.length > 0 ? { ...rest, heuristics } : rest;
+	return Object.keys(next).length > 0 ? next : undefined;
 }
 
 function partitionUrlsByCache(
@@ -1027,14 +1141,19 @@ export async function evaluateToolOutput(
 
 	// Tier 1: heuristic rules — only prompt_injection category for PostToolUse output scanning
 	let heuristicMatch: HeuristicMatch | undefined;
+	let heuristicMatches: HeuristicMatch[] = [];
+	let customThreatMatched = false;
 	try {
 		if (config.heuristics_enabled) {
-			let threats = await loadThreats(context.threatsDir);
+			let threats = await loadThreats(context.threatsDir, logger, {
+				customThreatsDir: getUserThreatsDir(context.sageDirPath),
+			});
 			const trustedDomains = await loadTrustedDomains(context.trustedDomainsDir);
 
 			// Only PI rules apply to output scanning — other categories (credentials, commands)
 			// are already handled by PreToolUse and would produce misleading "PI detected" warnings.
-			threats = threats.filter((t) => t.category === "prompt_injection");
+			// Submit-only rules never warn (they are telemetry-only on PreToolUse).
+			threats = threats.filter((t) => t.category === "prompt_injection" && !isSubmitOnlyThreat(t));
 
 			if (config.disabled_threats.length > 0) {
 				const disabledSet = new Set(config.disabled_threats);
@@ -1045,13 +1164,21 @@ export async function evaluateToolOutput(
 			const artifacts: Artifact[] = [
 				{ type: "content", value: extracted.content, context: request.toolName },
 			];
-			const matches = engine.match(artifacts);
-			const top = matches[0];
+			const rawMatches = engine.match(artifacts);
+			const rawMatchedIds = new Set(rawMatches.map((m) => m.threat.id));
+			// Raw matches come first, so a plainly visible injection is reported as such and
+			// the warning only mentions decoding when a variant was the only way to find it.
+			heuristicMatches = [...rawMatches, ...engine.matchDeobfuscated(artifacts, rawMatchedIds)];
+			customThreatMatched = heuristicMatches.some((match) => match.threat.customRule === true);
+			const top = heuristicMatches[0];
 			if (top) {
 				heuristicMatch = top;
 				warnings.push({
 					source: "heuristic",
-					message: formatOutputWarning(request.toolName, `${top.threat.title} (${top.threat.id})`),
+					message: formatOutputWarning(
+						request.toolName,
+						`${top.threat.title} (${top.threat.id})${describeDeobfuscation(top.context)}`,
+					),
 				});
 			}
 		}
@@ -1063,11 +1190,17 @@ export async function evaluateToolOutput(
 	// Log and send telemetry for PostToolUse detections
 	if (warnings.length > 0) {
 		const auditSignals: AuditSignals = {};
-		if (heuristicMatch) {
-			auditSignals.heuristics = [buildHeuristicSignal(heuristicMatch)];
+		const heuristicSignals = heuristicMatches.flatMap((match) => {
+			const signal = buildHeuristicSignal(match);
+			return signal ? [signal] : [];
+		});
+		if (heuristicSignals.length > 0) {
+			auditSignals.heuristics = heuristicSignals;
 		}
 		const resolvedSignals = Object.keys(auditSignals).length > 0 ? auditSignals : undefined;
-		const contentSnippet = resolvePiContentSnippet([], heuristicMatch ? [heuristicMatch] : []);
+		const nonCustomThreatMatched =
+			customThreatMatched && heuristicMatches.some((match) => match.threat.customRule !== true);
+		const contentSnippet = resolvePiContentSnippet([], heuristicMatches);
 
 		const builtContent = buildContentSnapshot(request.toolName, request.toolInput);
 		const resolvedContent = Object.keys(builtContent).length > 0 ? builtContent : undefined;
@@ -1081,6 +1214,8 @@ export async function evaluateToolOutput(
 				source: "heuristic",
 				artifacts: [],
 				matchedThreatId: heuristicMatch?.threat.id ?? "PROMPT_INJECTION",
+				customThreat: heuristicMatch?.threat.customRule === true,
+				customThreatMatched,
 				reasons: ["Prompt injection detected in tool output"],
 			};
 			await logVerdict(config.logging, {
@@ -1088,6 +1223,7 @@ export async function evaluateToolOutput(
 				toolName: request.toolName,
 				toolInput: request.toolInput,
 				verdict,
+				nonCustomThreatMatched,
 				conversationId: request.conversationId,
 				agentRuntime: request.agentRuntime,
 				hookType: request.hookType ?? "PostToolUse",
@@ -1102,25 +1238,32 @@ export async function evaluateToolOutput(
 			// Fail open
 		}
 
-		try {
-			await sendCommunityIqTelemetry({
-				eventId,
-				agentRuntime: request.agentRuntime,
-				agentRuntimeVersion: request.agentRuntimeVersion,
-				hookType: request.hookType ?? "PostToolUse",
-				toolName: request.toolName,
-				content: resolvedContent,
-				contentSnippet,
-				signals: resolvedSignals,
-				communityIqEnabled: config.community_iq,
-				config,
-				// PostToolUse heuristic matches are real detections the user is warned about.
-				blocking: true,
-				logger,
-			});
-		} catch (error) {
-			logger.debug("PostToolUse Community IQ telemetry failed open", { error: String(error) });
-			// Fail open
+		if (customThreatMatched && !nonCustomThreatMatched) {
+			logger.debug(
+				"Custom threat matched without non-custom detections; skipping PostToolUse Community IQ telemetry",
+				{ eventId },
+			);
+		} else {
+			try {
+				await sendCommunityIqTelemetry({
+					eventId,
+					agentRuntime: request.agentRuntime,
+					agentRuntimeVersion: request.agentRuntimeVersion,
+					hookType: request.hookType ?? "PostToolUse",
+					toolName: request.toolName,
+					content: resolvedContent,
+					contentSnippet,
+					signals: resolvedSignals,
+					communityIqEnabled: config.community_iq,
+					config,
+					// PostToolUse heuristic matches are real detections the user is warned about.
+					blocking: true,
+					logger,
+				});
+			} catch (error) {
+				logger.debug("PostToolUse Community IQ telemetry failed open", { error: String(error) });
+				// Fail open
+			}
 		}
 	}
 

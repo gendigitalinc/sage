@@ -77,6 +77,17 @@ For privacy considerations, please refer to [Privacy](docs/user-guide.md#privacy
 | [Decision Pipeline](docs/decision-pipeline.md) | Signal sources, policy model, evaluation order |
 | [Branding](docs/branding.md) | Product name configuration |
 
+## Connectors
+
+| Host | Package | How it hooks |
+| --- | --- | --- |
+| Claude Code | `@gendigital/sage-claude-code` | MCP hook tools |
+| OpenClaw | `@gendigital/sage-openclaw` | In-process `before_tool_call` |
+| OpenCode | `@gendigital/sage-opencode` | In-process plugin |
+| Cursor / VS Code / Copilot CLI | `sage-cursor` | Installed hook script |
+| pi | `@gendigital/sage-pi` | In-process `tool_call` extension |
+| Oh My Pi | `@gendigital/sage-omp` | In-process hook (`--hook`) |
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding conventions, and the threat rule contribution process.

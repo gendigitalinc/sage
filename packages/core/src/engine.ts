@@ -17,6 +17,7 @@ import type {
 import {
 	DEFAULT_PI_HIGH_RISK_THRESHOLD,
 	DEFAULT_PI_MEDIUM_RISK_THRESHOLD,
+	isSubmitOnlyThreat,
 	nullLogger,
 } from "./types.js";
 
@@ -26,6 +27,7 @@ interface Signal {
 	severity: VerdictSeverity;
 	source: string;
 	threatId: string | null;
+	customThreat?: boolean;
 	reason: string;
 	artifact: string;
 }
@@ -72,6 +74,18 @@ export class DecisionEngine {
 		this.logger = logger;
 	}
 
+	/** Whether these sources contain a decision signal independent of custom rules. */
+	hasNonCustomDetection(sources: SignalSources): boolean {
+		return this.collectSignals(
+			sources.heuristicMatches,
+			sources.urlCheckResults,
+			sources.packageCheckResults,
+			sources.amsiCheckResults,
+			sources.piCheckResults,
+			sources.piThresholds,
+		).some((signal) => signal.customThreat !== true);
+	}
+
 	async decide(sources: SignalSources): Promise<Verdict> {
 		const signals = this.collectSignals(
 			sources.heuristicMatches,
@@ -101,6 +115,7 @@ export class DecisionEngine {
 			source: top.source,
 			artifacts: allArtifacts,
 			matchedThreatId: top.threatId,
+			customThreat: top.customThreat,
 			reasons: allReasons,
 		};
 	}
@@ -118,7 +133,10 @@ export class DecisionEngine {
 		// Heuristics can fire hundreds of times per call (one match per pattern per extracted artifact).
 		// Other sources (URL, package, AMSI, PI) produce at most a handful of results and are always collected.
 		// Early-filtering allow-results here is safe: allow signals never influence the final verdict.
+		// Submit-only rules are telemetry-only and never contribute a verdict signal;
+		// their capped telemetry is handled by evaluateToolCall (evaluator.ts).
 		for (const match of heuristicMatches) {
+			if (isSubmitOnlyThreat(match.threat)) continue;
 			const { confidence, category, severity, id, title } = match.threat;
 			if (applyPolicy(confidence, this.denyThreshold, this.askThreshold, this.logger) === "allow")
 				continue;
@@ -128,6 +146,7 @@ export class DecisionEngine {
 				severity,
 				source: "heuristic",
 				threatId: id,
+				customThreat: match.threat.customRule === true,
 				reason: title,
 				artifact: match.artifact,
 			});

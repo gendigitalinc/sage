@@ -100,7 +100,7 @@ This is a **multi-platform plugin** with three connectors and a shared core:
 
 ## Key Conventions
 
-- **Never skip git hooks.** Do not use `--no-verify` on `git commit` or `git push`. The hooks run gitleaks, lint, build, typecheck, and tests. If a hook fails, fix the underlying issue.
+- **Never skip git hooks.** Do not use `--no-verify` on `git commit` or `git push`. The hooks run lint, build, typecheck, and tests. If a hook fails, fix the underlying issue.
 - All detection patterns are data (YAML in `threats/`), not hardcoded
 - Fail-open: every internal error path returns an allow verdict; extension hooks always exit with code `0`
 - Verdicts use three decisions: `allow`, `deny`, `ask` with confidence scoring

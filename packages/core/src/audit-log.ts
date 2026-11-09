@@ -27,6 +27,8 @@ export interface VerdictLogEntry {
 	toolName: string;
 	toolInput: Record<string, unknown>;
 	verdict: Verdict;
+	/** A non-custom detection also contributed to this evaluation. */
+	nonCustomThreatMatched?: boolean;
 	userOverride?: boolean;
 	conversationId?: string;
 	agentRuntime?: AgentRuntime;
@@ -109,6 +111,8 @@ export async function logVerdict(config: LoggingConfig, input: VerdictLogEntry):
 		reasons: input.verdict.reasons,
 		source: input.verdict.source,
 		threat_id: input.verdict.matchedThreatId,
+		...(input.verdict.customThreatMatched ? { custom_threat_matched: true } : {}),
+		...(input.nonCustomThreatMatched ? { non_custom_detection_matched: true } : {}),
 		user_override: userOverride,
 		signals: input.signals,
 		tool_use_id: input.toolUseId,

@@ -16,6 +16,7 @@ import { MODEL_SCHEMA_VERSION, missingRequiredModels } from "./model-storage.js"
 import { SKILL_UPLOAD_NOTICE } from "./notices.js";
 import { runSessionStartScan } from "./session-start-scan.js";
 import { listPending, loadPendingMarker } from "./skill-pending.js";
+import { getUserThreatsDir, loadThreats } from "./threat-loader.js";
 import type { AgentRuntime, Logger, PluginInfo, PluginScanResult } from "./types.js";
 import { nullLogger } from "./types.js";
 import { checkForUpdate, type VersionCheckResult } from "./version-check.js";
@@ -72,6 +73,19 @@ export interface SessionStartResult {
 export async function runSessionStart(ctx: SessionStartContext): Promise<SessionStartResult> {
 	const logger = ctx.logger ?? nullLogger;
 	const sageDirPath = resolvePath(ctx.sageDirPath ?? "~/.sage");
+
+	// Load once at session start so each active custom rule is visible in the
+	// operational log. Runtime evaluations load the same files when matching.
+	try {
+		await loadThreats(ctx.threatsDir, logger, {
+			customThreatsDir: getUserThreatsDir(sageDirPath),
+			logCustomRuleIds: true,
+		});
+	} catch (error) {
+		logger.warn("Threat rules failed to load at session start (fail-open)", {
+			error: String(error),
+		});
+	}
 
 	// Fire-and-forget temp cleanup
 	pruneOrphanedTmpFiles(sageDirPath).catch(() => {});

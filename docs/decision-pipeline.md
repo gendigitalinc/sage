@@ -56,6 +56,7 @@ Source label: `"heuristic"`. Defined in YAML threat files in `threats/`.
 - **Severity**: set by the threat author using the 3-level scale (`critical`, `warning`, `info`). Passed through directly — no mapping.
 - **Trusted domain suppression**: rules `CLT-CMD-001`, `CLT-CMD-002`, `CLT-SUPPLY-001`, and `CLT-SUPPLY-004` are suppressed when the matched substring exclusively references domains in `trusted-domains/`. See `heuristics.ts`.
 - **PI rules skipped for local markdown**: when the tool is `Write` or `Edit` and the file path ends in `.md/.mdx/.markdown/.mdown/.mkdn`, the `prompt_injection` category is filtered out before matching.
+- **Deobfuscated variants**: after the raw match, `HeuristicsEngine.matchDeobfuscated()` scans deobfuscated variants (leet, letter spacing, zero-width characters, base64, hex) of `content` artifacts against the `prompt_injection` rules only. A rule the raw text already tripped is not reported twice, a variant match stays attributed to the original artifact, and the filters above (`disabled_threats`, local markdown) apply because the engine is built from the already-filtered rules. See [Deobfuscation](prompt-injection.md#deobfuscation).
 
 ### URL Check
 
@@ -108,7 +109,7 @@ These thresholds are fixed constants (`0.99` / `0.5`). Medium-risk results that 
 
 **Suspicious-band telemetry (observability only).** PI results scoring in the band `[0.95, 0.99)` on a non-`deny` verdict emit a non-blocking event to `/v2/heuristic`, gated on `config.community_iq`. This never changes the decision.
 
-PI audit and telemetry signals append the engine shorthand, model ID, model schema, and common Sage suffix to the stable canonical name: `Other:SagePromptInjectionML-A [Susp]|sgml:pi-model:v2|sage`. User-facing notifications keep the unsuffixed canonical name. The raw `risk` score and model ID also remain in separate metadata fields for debugging and model rollout analysis.
+PI hits (`risk >= 0.5`) are reported as `Text:OnlineClassifier [Misc]|<model version>-<text hash>|sgpi`, unique per model version and highest-risk chunk. Lower scores append the engine shorthand, model ID, model schema, and common Sage suffix to the stable canonical name: `Other:SagePromptInjectionML-A [Susp]|sgml:pi-model:v2|sage`. User-facing notifications keep the unsuffixed canonical name. The raw `risk` score and model ID also remain in separate metadata fields for debugging and model rollout analysis.
 
 ---
 
@@ -147,9 +148,15 @@ The top signal's `category`, `severity`, `source`, and `threatId` are used in th
 
 ## Flags
 
-Threat rules carry an optional `flags: string[]` field (default `[]`). The only defined value is `"report"`.
+Threat rules carry an optional `flags: string[]` field (default `[]`), loaded by `threat-loader.ts` and stored on the `Threat` object. Defined values:
 
-The field is loaded by `threat-loader.ts` and stored on the `Threat` object. It is not currently consumed by any production code — no runtime behavior is attached to it.
+| Flag | Behavior |
+|------|----------|
+| `"submit_only"` | Hunting / canary rule. `DecisionEngine` skips its matches, so it never contributes a `deny`/`ask` signal. When a bundled rule matches on a non-`deny` verdict and `community_iq` is enabled, the evaluator sends a non-blocking Community IQ event (`blocking: false` → `/v2/heuristic`, `verdict: "suspicious"`), subject to the per-rule submit cap below. Custom-rule signals are omitted; a custom-only event is not submitted, while co-occurring non-custom detections can still be submitted. Helper: `isSubmitOnlyThreat()`. |
+
+### Per-rule submit cap
+
+`submit-limits.ts` keeps `~/.sage/submit-limits.json` (rule id → epoch ms of the last submission) and allows at most one submission per submit-only rule per client per 24h (`SUBMIT_WINDOW_MS`). `claimRuleSubmissions()` checks and records under a file lock with an atomic write before telemetry is sent. A missing or corrupt file reads as empty; if the claim cannot be persisted the submission is suppressed (so a broad rule can't flood telemetry). Nothing on this path throws or affects the verdict. Capped submit-only rules are stripped from `signals.heuristics` of any other non-blocking event (e.g. a PI suspicious-band hit) so they are not re-reported. Blocking `deny` telemetry to `/v2/detection` is never capped.
 
 ---
 
@@ -165,7 +172,7 @@ Implemented in `evaluateToolCall` (`packages/core/src/evaluator.ts`). All error 
 | **4. Allow exceptions** | Calls `findAllowException` on the same loaded exceptions. Match semantics are type-aware: `domain` rules apply only when ALL artifacts are URLs and every URL must match at least one domain rule (intentional — prevents a trusted domain from bypassing unrelated command threats in mixed-artifact evaluations); `path`/`executable` rules short-circuit on any match; `regex` rules require ALL artifacts to each match at least one regex rule. Returns `allow("exception")` with `userOverride: true` in the audit log. Fails open. |
 | **5. Cache init** | Creates `VerdictCache` and loads from disk. If this fails, cache is `null` for the rest of the pipeline (all sources are checked live). |
 | **6. URL cache partition** | Splits URL artifacts into `cachedUrlVerdicts` (hit in cache) and `uncachedUrls` (to be checked live). |
-| **7. Heuristic matching** | If `config.heuristics_enabled`: loads threats, filters out `config.disabled_threats`, filters out PI rules for local markdown writes, loads trusted domains, runs `HeuristicsEngine.match()`. |
+| **7. Heuristic matching** | If `config.heuristics_enabled`: loads threats, filters out `config.disabled_threats`, filters out PI rules for local markdown writes, loads trusted domains, runs `HeuristicsEngine.match()`, then `matchDeobfuscated()` for prompt-injection variants. |
 | **8. URL check** | URLs to check are `uncachedUrls` when cache loaded successfully, or all URL artifacts when cache is unavailable. If any remain and `config.url_check.enabled`: calls `UrlCheckClient.checkUrls()`. Fails open. |
 | **9. Package check** | If `config.package_check.enabled`: extracts packages from `Bash` commands or `Write`/`Edit` manifests, checks cache, queries `PackageChecker` for uncached packages. |
 | **10. AMSI scan** | Windows only. Scans `Bash`, `Write`, `Edit`, `ApplyPatch` tool input. Fails open. |
@@ -176,7 +183,7 @@ Implemented in `evaluateToolCall` (`packages/core/src/evaluator.ts`). All error 
 | **15. Cache URL results** | Persists new URL check results to the verdict cache. |
 | **16. Audit signal assembly** | Builds the `AuditSignals` object (`heuristics`, `url_checks`, `file_checks`, `package_checks`, `pi_checks`, `amsi_checks`). Only non-clean signals are included. |
 | **17. Audit logging** | Calls `logVerdict()`. `allow` verdicts are skipped unless `config.log_clean`, `userOverride`, or `AuditSignals` is non-empty. Fails open. |
-| **18. Detection telemetry** | `deny` verdicts call `sendCommunityIqTelemetry()` → `/v2/detection` (blocking event). Otherwise, PI results in the suspicious band (`[0.95, 0.99)`) send a non-blocking event → `/v2/heuristic`. Both gated on `config.community_iq`. Fails open. |
+| **18. Detection telemetry** | `deny` verdicts call `sendCommunityIqTelemetry()` → `/v2/detection` (blocking event). Otherwise, PI results in the suspicious band (`[0.95, 0.99)`) or a `submit_only` rule match that claims a submit slot (see [Flags](#flags)) send a single non-blocking event → `/v2/heuristic`. Both gated on `config.community_iq`. Fails open. |
 | **19. Session status update** | Non-`allow` verdicts: calls `updateSessionStatus()` to update the Claude Code status line. Fails open. |
 | **20. PI warnings attachment** | Medium-risk PI results (`mediumRisk ≤ risk < highRisk`) are attached to `verdict.piWarnings` when sensitivity is not `relaxed`. These are informational only — the verdict decision is already set. |
 
@@ -188,7 +195,7 @@ Implemented in `evaluateToolOutput` (`packages/core/src/evaluator.ts`). A separa
 
 **Key differences from PreToolUse:**
 - **Cannot block.** Returns `ToolOutputWarning[]` injected as `additionalContext`. The agent sees the warning but the tool output is not suppressed.
-- **Heuristic PI rules only.** Only `category === "prompt_injection"` threats are matched against output content. No ML model, no URL/package/AMSI checks.
+- **Heuristic PI rules only.** Only `category === "prompt_injection"` threats are matched against output content, including deobfuscated variants (the warning notes how a hidden injection was found, e.g. `[after decoding: base64]`; when the raw text and a variant both match, the raw match is reported). No ML model, no URL/package/AMSI checks.
 - **No exceptions or cache.** Every tool output is scanned live.
 
 **Scanned tools and content extracted:**

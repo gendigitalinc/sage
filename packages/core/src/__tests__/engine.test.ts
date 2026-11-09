@@ -135,6 +135,49 @@ describe("DecisionEngine", () => {
 	});
 });
 
+describe("DecisionEngine submit-only rules", () => {
+	it.each([
+		"paranoid",
+		"balanced",
+		"relaxed",
+	])("does not escalate a deny-level submit-only match (%s)", async (sensitivity) => {
+		const engine = new DecisionEngine(sensitivity);
+		const match = makeMatch({ confidence: 0.99, flags: ["submit_only"] });
+		const verdict = await engine.decide({ heuristicMatches: [match], urlCheckResults: [] });
+		expect(verdict.decision).toBe("allow");
+		expect(verdict.matchedThreatId).toBeNull();
+		expect(verdict.reasons).toEqual([]);
+	});
+
+	it("does not escalate an ask-level submit-only match", async () => {
+		const engine = new DecisionEngine();
+		const match = makeMatch({ confidence: 0.75, flags: ["submit_only"] });
+		const verdict = await engine.decide({ heuristicMatches: [match], urlCheckResults: [] });
+		expect(verdict.decision).toBe("allow");
+	});
+
+	it("leaves blocking rules alongside a submit-only match unaffected", async () => {
+		const engine = new DecisionEngine();
+		const verdict = await engine.decide({
+			heuristicMatches: [
+				makeMatch({ id: "DETECT-1", confidence: 0.99, flags: ["submit_only"] }),
+				makeMatch({ id: "BLOCK-1", confidence: 0.9, title: "Blocking rule" }),
+			],
+			urlCheckResults: [],
+		});
+		expect(verdict.decision).toBe("deny");
+		expect(verdict.matchedThreatId).toBe("BLOCK-1");
+		expect(verdict.reasons).toEqual(["Blocking rule"]);
+	});
+
+	it("treats unknown flags as blocking-eligible", async () => {
+		const engine = new DecisionEngine();
+		const match = makeMatch({ confidence: 0.95, flags: ["some_future_flag"] });
+		const verdict = await engine.decide({ heuristicMatches: [match], urlCheckResults: [] });
+		expect(verdict.decision).toBe("deny");
+	});
+});
+
 describe("PackageCheckSignals", () => {
 	it("package not_found produces deny/critical", async () => {
 		const engine = new DecisionEngine();

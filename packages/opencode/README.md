@@ -38,7 +38,17 @@ Add the plugin to your OpenCode config (`~/.config/opencode/opencode.json`):
 }
 ```
 
+OpenCode v2 (beta) uses the `plugins` key instead — the same package works on both:
+
+```json
+{
+  "plugins": ["@gendigital/sage-opencode"]
+}
+```
+
 Or [build from source](https://github.com/gendigitalinc/sage/blob/main/docs/user-guide.md#opencode).
+
+For OpenCode v2 source installs, add the built package directory to `plugins` in `opencode.jsonc`. The root `index.js` is required for local directory loading. Verify with `opencode plugin list`; it should show `@gendigital/sage-opencode`.
 
 > To verify it's working, ask your agent to run `echo diagmark_cmd_a75bf229`. Sage should block this harmless canary command.
 
@@ -46,8 +56,8 @@ Or [build from source](https://github.com/gendigitalinc/sage/blob/main/docs/user
 
 Sage hooks into OpenCode's plugin system:
 
-- **bash** — shell commands
-- **write / edit** — file modifications
+- **bash** (v2: **shell**) — shell commands
+- **write / edit** (v2 also **patch**) — file modifications
 - **read** — file reads (sensitive paths)
 - **webfetch** — URL fetches and downloads
 - **ls / glob / grep** — file system operations
@@ -63,6 +73,8 @@ When your agent makes a tool call, Sage evaluates it and returns a verdict:
 | **Deny** | Threat detected — the action is blocked |
 
 For `ask` verdicts, Sage blocks the tool call and the agent calls `sage_approve({ actionId })`, which surfaces OpenCode's native approval dialog. If you approve, the agent retries the original tool call.
+
+On OpenCode v2, `sage_approve` asks through OpenCode's native permission prompt. Approve the `sage_approval` request to allow the flagged call with the same arguments; rejecting it keeps the action blocked. The permission prompt does not save an "always allow" rule. v2 server plugins have no toast API yet, so Sage's notifications (blocked actions, risky skills) go to the Sage operational log instead of the TUI.
 
 Sage is designed to fail open: if anything goes wrong internally, the action proceeds. Your agent is never blocked due to a Sage error.
 

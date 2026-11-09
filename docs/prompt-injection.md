@@ -15,7 +15,7 @@ Sage scans content using two independent tiers:
 
 ### Tier 1: Heuristic Rules
 
-25 regex-based patterns in `threats/prompt-injection.yaml` covering:
+30 regex-based patterns in `threats/prompt-injection.yaml` covering:
 
 - **Instruction override** — "ignore previous instructions", "forget your rules", "disregard all directives"
 - **Role/persona override** — "you are now DAN", "developer mode enabled", "act as admin"
@@ -24,10 +24,30 @@ Sage scans content using two independent tiers:
 - **Prompt exfiltration** — "reveal your system prompt", "show me your instructions", "repeat everything"
 - **Structural injection** — hidden instructions in HTML comments, markdown links
 - **Role marker injection** — fake `Human:`/`Assistant:` conversation turns, `[INST]` tags
-- **Encoding/obfuscation** — leetspeak variants (`1gn0r3`, `byp4ss`)
+- **Encoding/obfuscation** — leetspeak variants (`1gn0r3`, `byp4ss`); hidden or encoded instructions are also caught by [deobfuscation](#deobfuscation)
 - **Credential exfiltration** — piping dotfiles to curl, requests to dump environment variables
 
-Heuristic rules run in ~0.001ms and are always active (controlled by `heuristics_enabled` config). They can be individually disabled via `disabled_threats`.
+Heuristic rules are always active (controlled by `heuristics_enabled` config) and cost well under a millisecond on short content and a few milliseconds on a 64 KB file, including deobfuscation. They can be individually disabled via `disabled_threats`.
+
+#### Deobfuscation
+
+Before the prompt-injection rules run, Sage also scans *variants* of written, edited and read content (`Write`/`Edit`/`Read` at PreToolUse, and tool output at PostToolUse) in which common obfuscation has been undone, so the same rules can match instructions that were hidden from a plain-text scan:
+
+| Technique | What is undone |
+|-----------|----------------|
+| Unicode | zero-width, bidi-control and soft-hyphen characters are removed; fullwidth letters are folded (NFKC) |
+| Letter spacing | `i g n o r e` is collapsed; wider gaps are word breaks, and a uniformly spaced run is regrouped only when every word is a known instruction word |
+| Leetspeak | `0 3 4 5 7 @ $` (and `1` as `i` or `l`) are folded, **only when the token becomes an instruction word** such as `ignore`, `previous` or `system`; tokens like `python3`, `v1beta1`, `x01`, `45K` or a tool called `el3v3n` are never touched |
+| Base64 and hex | plain, URL-safe, `\xNN`, separated bytes and a truncated final nibble, up to two levels deep; a snippet counts only if it decodes to valid UTF-8 that reads as text, so hashes, keys, images and JWTs are ignored |
+
+Properties worth knowing:
+
+- Variants are matched against **prompt-injection rules only**. Command, credential and URL rules never see decoded text, and decoded content is only ever treated as text — it is never executed, fetched or passed back to the agent. Sage never rewrites tool input.
+- A match is attributed to the original content; only the matched snippet (capped at 200 characters, home paths scrubbed) comes from decoded text. At PostToolUse the warning says how the injection was found, for example `[after decoding: base64]`.
+- Everything is bounded: input size (64 KB), decoding depth (2), decoded bytes, variants per call and a time budget checked between stages. Failures fall back to the plain scan.
+- `disabled_threats` and the local-markdown exemption apply to variants exactly as they do to plain text.
+- The instruction-word list that gates leet and spacing recovery lives in `packages/core/src/deobfuscate.ts` rather than in `threats/`, because it is a gate for the transforms and not a detection pattern. When a prompt-injection rule starts to depend on a new keyword, add that keyword to the list too.
+- Not decoded: percent-encoding, ROT13, MIME-wrapped (multi-line) base64, UTF-16 base64, `0x41, 0x42` lists, homoglyphs and Unicode tag characters.
 
 ### Tier 2: ML Model
 

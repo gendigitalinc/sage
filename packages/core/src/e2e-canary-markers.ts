@@ -29,6 +29,8 @@ export const CANARY_MARKERS = {
 	urlAsk: "diaghost-b26d80f5",
 	urlLog: "diaghost-65f3d7a4",
 	domainDeny: "diaghost-0c82eb16",
+	cmdSubmit: "diagmark_cmd_d7e7127e",
+	fileSubmit: "diagmark_file_57871281",
 } as const;
 
 /**

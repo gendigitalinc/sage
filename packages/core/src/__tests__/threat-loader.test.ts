@@ -325,12 +325,12 @@ ${detectionNameLine}  category: tool
   pattern: "test_pattern"
   match_on: command
   title: "Flagged rule"
-  flags: ["report"]
+  flags: ["submit_only"]
 `,
 		);
 		const threats = await loadThreats(dir);
 		expect(threats).toHaveLength(1);
-		expect(threats[0]?.flags).toEqual(["report"]);
+		expect(threats[0]?.flags).toEqual(["submit_only"]);
 	});
 
 	it("loads real threat files", async () => {

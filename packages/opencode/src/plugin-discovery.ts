@@ -25,6 +25,9 @@ function getCacheHome(): string {
 
 const PROJECT_CONFIG_NAME = "opencode.json";
 
+/** Local plugin directory names OpenCode loads inside its config directories. */
+const LOCAL_PLUGIN_DIRS = ["plugins", "plugin"];
+
 /**
  * Loose-skill roots OpenCode loads, at both scopes. Global (personal) skills
  * live under the user profile; project skills live inside the project dir.
@@ -69,16 +72,19 @@ export async function discoverOpenCodePlugins(
 	const npmPlugins = await discoverNpmPlugins(logger, projectDir);
 	plugins.push(...npmPlugins);
 
-	// 2. Discover local plugin files (global)
-	const globalPluginsDir = join(getConfigHome(), "opencode", "plugins");
-	const globalPlugins = await discoverLocalPlugins(globalPluginsDir, "global", logger);
-	plugins.push(...globalPlugins);
+	// 2. Discover local plugin files (global). OpenCode globs both `plugins/`
+	// and `plugin/` inside its config directories.
+	for (const dirName of LOCAL_PLUGIN_DIRS) {
+		const globalPluginsDir = join(getConfigHome(), "opencode", dirName);
+		plugins.push(...(await discoverLocalPlugins(globalPluginsDir, "global", logger)));
+	}
 
 	// 3. Discover local plugin files (project)
 	if (projectDir) {
-		const projectPluginsDir = join(projectDir, ".opencode", "plugins");
-		const projectPlugins = await discoverLocalPlugins(projectPluginsDir, "project", logger);
-		plugins.push(...projectPlugins);
+		for (const dirName of LOCAL_PLUGIN_DIRS) {
+			const projectPluginsDir = join(projectDir, ".opencode", dirName);
+			plugins.push(...(await discoverLocalPlugins(projectPluginsDir, "project", logger)));
+		}
 	}
 
 	// 4. Discover loose skills as pseudo-plugins (deduped by resolved path,
@@ -89,6 +95,38 @@ export async function discoverOpenCodePlugins(
 
 	logger.debug(`${branding.name} plugin discovery: found ${plugins.length} plugin(s)`);
 	return plugins;
+}
+
+/** Plugin specs that point at local files rather than npm packages. */
+function isPathSpec(spec: string): boolean {
+	return (
+		spec.startsWith("file:") ||
+		spec.startsWith("./") ||
+		spec.startsWith("../") ||
+		spec.startsWith("/") ||
+		spec.startsWith("~")
+	);
+}
+
+/**
+ * NPM package names from an `opencode.json`. OpenCode v1 lists plugins under
+ * `plugin` (`"name"` or `["name", options]`); v2 uses `plugins` (`"name"` or
+ * `{ package: "name", options }`). Both keys are read so either host's config
+ * is covered. Malformed entries and local file specs are ignored.
+ */
+export function configPluginNames(config: Record<string, unknown>): string[] {
+	const names: string[] = [];
+	for (const key of ["plugin", "plugins"]) {
+		const entries = config[key];
+		if (!Array.isArray(entries)) continue;
+		for (const entry of entries) {
+			let spec: unknown = entry;
+			if (Array.isArray(entry)) spec = entry[0];
+			else if (entry && typeof entry === "object") spec = (entry as { package?: unknown }).package;
+			if (typeof spec === "string" && spec && !isPathSpec(spec)) names.push(spec);
+		}
+	}
+	return names;
 }
 
 /**
@@ -105,8 +143,7 @@ async function discoverNpmPlugins(logger: Logger, projectDir?: string): Promise<
 			string,
 			unknown
 		>;
-		const globalPlugins = (globalConfig.plugin ?? []) as string[];
-		for (const name of globalPlugins) {
+		for (const name of configPluginNames(globalConfig)) {
 			pluginNames.add(name);
 		}
 	} catch {
@@ -121,8 +158,7 @@ async function discoverNpmPlugins(logger: Logger, projectDir?: string): Promise<
 				string,
 				unknown
 			>;
-			const projectPlugins = (projectConfig.plugin ?? []) as string[];
-			for (const name of projectPlugins) {
+			for (const name of configPluginNames(projectConfig)) {
 				pluginNames.add(name);
 			}
 		} catch {

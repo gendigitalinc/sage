@@ -13,6 +13,8 @@
  * Fail-open: returns null on any error.
  */
 
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import { getModelDir } from "../model-storage.js";
 import type { Logger, PiCheckResult } from "../types.js";
@@ -31,6 +33,29 @@ const MODEL_METADATA_FILES = [
 	"vocab.txt",
 	MODEL_FILE,
 ];
+
+/**
+ * First 8 hex characters of the SHA-256 over every file that shapes a
+ * classification, or undefined when one cannot be read — the version only names
+ * detections and must never make the model unusable.
+ */
+export async function computeModelVersion(
+	modelPath: string,
+	logger: Logger = nullLogger,
+): Promise<string | undefined> {
+	try {
+		const hash = createHash("sha256");
+		for (const name of MODEL_METADATA_FILES) {
+			hash.update(await readFile(resolve(modelPath, name)));
+		}
+		return hash.digest("hex").slice(0, 8);
+	} catch (err) {
+		logger.warn(
+			`PI model version unavailable; hits keep the model-id detection name: ${err instanceof Error ? err.message : String(err)}`,
+		);
+		return undefined;
+	}
+}
 
 function softmax(logits: number[]): number[] {
 	const max = Math.max(...logits);
@@ -104,6 +129,7 @@ export class BundledPiProvider implements PiCheckProvider {
 		tokenize: (text: string, options: Record<string, unknown>) => TokenizerOutput;
 	} | null = null;
 	private session: unknown = null;
+	private modelVersion: string | undefined;
 	private tensorClass: unknown = null;
 	private inputNames: Set<string> = new Set();
 	private initPromise: Promise<boolean> | null = null;
@@ -174,6 +200,7 @@ export class BundledPiProvider implements PiCheckProvider {
 				findings,
 				contentName: context,
 				modelId,
+				modelVersion: this.modelVersion,
 				contentSnippet: maxChunk || undefined,
 			};
 			this.logger.info("PI model inference completed", {
@@ -219,6 +246,7 @@ export class BundledPiProvider implements PiCheckProvider {
 
 			const sess = this.session as { inputNames: string[] };
 			this.inputNames = new Set(sess.inputNames);
+			this.modelVersion = await computeModelVersion(this.modelPath, this.logger);
 
 			BundledPiProvider.modelRuntimeLoaded = true;
 			this.logger.info("PI model loaded", { path: this.modelPath });

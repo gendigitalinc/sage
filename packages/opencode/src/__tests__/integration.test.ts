@@ -26,6 +26,14 @@ interface Hooks {
 	>;
 }
 
+interface PluginModule {
+	default: {
+		id: string;
+		server: (input: Record<string, unknown>) => Promise<Hooks>;
+		setup: (context: unknown) => Promise<() => Promise<void>>;
+	};
+}
+
 describe("OpenCode integration: Sage plugin pipeline", { timeout: 30_000 }, () => {
 	let tmpHome: string;
 	let prevHome: string | undefined;
@@ -81,10 +89,8 @@ describe("OpenCode integration: Sage plugin pipeline", { timeout: 30_000 }, () =
 		await mkdir(sageDir, { recursive: true });
 		await writeFile(resolve(sageDir, "config.json"), JSON.stringify({}, null, 2), "utf8");
 
-		const mod = (await import(PLUGIN_DIST)) as {
-			default: (input: Record<string, unknown>) => Promise<Hooks>;
-		};
-		hooks = await mod.default({
+		const mod = (await import(PLUGIN_DIST)) as PluginModule;
+		hooks = await mod.default.server({
 			client: {
 				app: {
 					log: async () => {
@@ -258,10 +264,8 @@ describe("OpenCode integration: Plugin scanning", { timeout: 30_000 }, () => {
 			"utf8",
 		);
 
-		const mod = (await import(PLUGIN_DIST)) as {
-			default: (input: Record<string, unknown>) => Promise<Hooks>;
-		};
-		_hooks = await mod.default({
+		const mod = (await import(PLUGIN_DIST)) as PluginModule;
+		_hooks = await mod.default.server({
 			client: {
 				app: {
 					log: async () => {
@@ -350,6 +354,67 @@ describe("OpenCode integration: Plugin scanning", { timeout: 30_000 }, () => {
 		};
 		const plugins = await discoverOpenCodePlugins(logger);
 		expect(plugins.some((p) => p.key.includes("my-plugin"))).toBe(true);
+	});
+
+	it("discovers NPM plugins from the v2 plugins key", async () => {
+		const projectDir = await mkdtemp(resolve(tmpdir(), "opencode-v2-project-"));
+		await writeFile(
+			resolve(projectDir, "opencode.json"),
+			JSON.stringify(
+				{
+					plugins: [
+						"v2-string-plugin",
+						{ package: "v2-object-plugin", options: { enabled: true } },
+						"./local-plugin.ts",
+					],
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+		for (const name of ["v2-string-plugin", "v2-object-plugin"]) {
+			const dir = resolve(tmpHome, ".cache", "opencode", "node_modules", name);
+			await mkdir(dir, { recursive: true });
+			await writeFile(
+				resolve(dir, "package.json"),
+				JSON.stringify({ name, version: "2.0.0" }),
+				"utf8",
+			);
+		}
+
+		const { discoverOpenCodePlugins } = await import("../plugin-discovery.js");
+		const logger = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
+		const plugins = await discoverOpenCodePlugins(logger, projectDir);
+		expect(plugins.some((p) => p.key === "v2-string-plugin@2.0.0")).toBe(true);
+		expect(plugins.some((p) => p.key === "v2-object-plugin@2.0.0")).toBe(true);
+
+		await rm(projectDir, { recursive: true, force: true });
+	});
+
+	it("reads plugin names from v1 and v2 config entry shapes", async () => {
+		const { configPluginNames } = await import("../plugin-discovery.js");
+		expect(
+			configPluginNames({
+				plugin: ["a", ["b", { x: 1 }], 42],
+				plugins: ["c", { package: "d" }, { options: {} }, "file:///tmp/p.ts", "../p.js"],
+			}),
+		).toEqual(["a", "b", "c", "d"]);
+		expect(configPluginNames({ plugins: "not-an-array" })).toEqual([]);
+	});
+
+	it("discovers local plugins from the singular plugin directory", async () => {
+		const projectDir = await mkdtemp(resolve(tmpdir(), "opencode-project-"));
+		const dir = resolve(projectDir, ".opencode", "plugin");
+		await mkdir(dir, { recursive: true });
+		await writeFile(resolve(dir, "singular-plugin.js"), "export default {};", "utf8");
+
+		const { discoverOpenCodePlugins } = await import("../plugin-discovery.js");
+		const logger = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
+		const plugins = await discoverOpenCodePlugins(logger, projectDir);
+		expect(plugins.some((p) => p.key.includes("singular-plugin"))).toBe(true);
+
+		await rm(projectDir, { recursive: true, force: true });
 	});
 
 	it("discovers local plugins from project directory", async () => {

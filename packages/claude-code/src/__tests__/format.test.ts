@@ -5,7 +5,14 @@ import type {
 	Verdict,
 	VersionCheckResult,
 } from "@gendigital/sage-core";
-import { formatStartupClean, formatThreatBanner, severityEmoji } from "@gendigital/sage-core";
+import {
+	formatPiWarning,
+	formatSessionStartMessage,
+	formatStartupClean,
+	formatThreatBanner,
+	SESSION_START_FP_HINT,
+	severityEmoji,
+} from "@gendigital/sage-core";
 import { describe, expect, it } from "vitest";
 import { formatBlockReason } from "../format.js";
 
@@ -91,6 +98,106 @@ describe("formatStartupClean", () => {
 	it("does not append update notice when version check is null", () => {
 		const msg = formatStartupClean("0.4.0", null);
 		expect(msg).not.toContain("Update available");
+	});
+
+	it("does not include the false positive hint", () => {
+		const vc: VersionCheckResult = {
+			currentVersion: "0.4.0",
+			latestVersion: "0.5.0",
+			updateAvailable: true,
+		};
+		expect(formatStartupClean("0.4.0")).not.toContain(SESSION_START_FP_HINT);
+		expect(formatStartupClean("0.4.0", vc)).not.toContain(SESSION_START_FP_HINT);
+	});
+});
+
+describe("session-start false positive hint", () => {
+	it("uses the same wording as the runtime FP hint", () => {
+		expect(SESSION_START_FP_HINT).toBe(
+			"If this is a false positive, ask your agent to report it with the sage_report_false_positive MCP tool.",
+		);
+	});
+
+	it.each([
+		[
+			"skill",
+			makeFinding({ threatId: "SKILL-CHECK", title: "Malicious skill", sourceFile: "SKILL.md" }),
+		],
+		[
+			"URL",
+			makeFinding({ threatId: "URL-CHECK", title: "Malicious URL", sourceFile: "URL check" }),
+		],
+		[
+			"file",
+			makeFinding({ threatId: "FILE-CHECK", title: "Malicious file", sourceFile: "bin/run.sh" }),
+		],
+	])("is shown for %s findings in verbose and compact styles", (_kind, finding) => {
+		const result: PluginScanResult = { plugin: makePlugin(), findings: [finding] };
+		expect(formatThreatBanner("0.3.1", [result])).toContain(SESSION_START_FP_HINT);
+		expect(formatThreatBanner("0.3.1", [result], null, undefined, "compact")).toContain(
+			SESSION_START_FP_HINT,
+		);
+	});
+
+	it("appears once after all findings and before the update notice (verbose)", () => {
+		const findings = Array.from({ length: 7 }, (_, i) =>
+			makeFinding({ threatId: `CLT-${i}`, severity: "warning" }),
+		);
+		const results: PluginScanResult[] = [
+			{ plugin: makePlugin("plugin-a@mp"), findings },
+			{ plugin: makePlugin("plugin-b@mp"), findings: [makeFinding({ severity: "critical" })] },
+		];
+		const vc: VersionCheckResult = {
+			currentVersion: "0.4.0",
+			latestVersion: "0.5.0",
+			updateAvailable: true,
+		};
+		const msg = formatThreatBanner("0.4.0", results, vc);
+		expect(msg.split(SESSION_START_FP_HINT)).toHaveLength(2);
+		expect(msg.indexOf(SESSION_START_FP_HINT)).toBeGreaterThan(msg.indexOf("plugin-b@mp"));
+		expect(msg.indexOf(SESSION_START_FP_HINT)).toBeGreaterThan(msg.indexOf("... and 2 more"));
+		expect(msg.indexOf(SESSION_START_FP_HINT)).toBeLessThan(msg.indexOf("Update available"));
+	});
+
+	it("is a single line after the findings tail in compact style", () => {
+		const results: PluginScanResult[] = [
+			{
+				plugin: makePlugin(),
+				findings: [makeFinding({ severity: "critical" }), makeFinding()],
+			},
+		];
+		const lines = formatThreatBanner("0.3.1", results, null, undefined, "compact").split("\n");
+		expect(lines).toContain(SESSION_START_FP_HINT);
+		expect(lines.indexOf(SESSION_START_FP_HINT)).toBe(lines.indexOf("…and 1 more finding") + 1);
+	});
+
+	it("is omitted when only info findings exist", () => {
+		const result: PluginScanResult = {
+			plugin: makePlugin(),
+			findings: [makeFinding({ severity: "info" })],
+		};
+		expect(formatThreatBanner("0.3.1", [result])).not.toContain(SESSION_START_FP_HINT);
+		const compact = formatThreatBanner("0.3.1", [result], null, undefined, "compact");
+		expect(compact).toContain("No threats found");
+		expect(compact).not.toContain(SESSION_START_FP_HINT);
+	});
+
+	it("is omitted from the session-start message when no threats are found", () => {
+		for (const style of ["verbose", "compact"] as const) {
+			const msg = formatSessionStartMessage(
+				"0.3.1",
+				{ scanResults: [], versionCheck: null },
+				undefined,
+				style,
+			);
+			expect(msg).toContain("No threats found");
+			expect(msg).not.toContain(SESSION_START_FP_HINT);
+		}
+	});
+
+	it("prompt-injection warning uses the same FP wording", () => {
+		const msg = formatPiWarning({ risk: 0.9, contentName: "https://example.com" });
+		expect(msg).toContain(SESSION_START_FP_HINT);
 	});
 });
 
@@ -213,8 +320,9 @@ describe("formatBlockReason", () => {
 			makeVerdict({ source: "heuristic", matchedThreatId: "DUMMY-CMD-DENY-001" }),
 		);
 		expect(msg).toContain("Rule        DUMMY-CMD-DENY-001");
-		expect(msg).toContain("sage_report_false_positive");
-		expect(msg).toContain("(rule DUMMY-CMD-DENY-001)");
+		expect(msg).toContain(
+			"If this is a false positive, ask your agent to report it with the sage_report_false_positive MCP tool (rule DUMMY-CMD-DENY-001).",
+		);
 	});
 
 	it("points user-exception blocks at the exceptions file instead of FP reporting", () => {

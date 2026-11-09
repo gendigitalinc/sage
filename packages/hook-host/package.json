@@ -1,0 +1,52 @@
+{
+  "name": "@gendigital/sage-hook-host",
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "description": "Shared in-process hook handler for pi/OMP-style Sage connectors only (pi, Oh My Pi) — not a universal connector layer; OpenClaw/OpenCode use their own integration",
+  "homepage": "https://github.com/gendigitalinc/sage",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gendigitalinc/sage.git",
+    "directory": "packages/hook-host"
+  },
+  "bugs": {
+    "url": "https://github.com/gendigitalinc/sage/issues"
+  },
+  "version": "0.15.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "pnpm run clean && tsc",
+    "clean": "node ../../scripts/clean.mjs dist tsconfig.tsbuildinfo",
+    "prepack": "node ../../scripts/check-workspace-refs.mjs",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@gendigital/sage-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "security",
+    "adr",
+    "agent-security",
+    "pi",
+    "oh-my-pi"
+  ]
+}

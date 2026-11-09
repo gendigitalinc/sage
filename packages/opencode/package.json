@@ -4,7 +4,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.14.0",
+  "version": "0.15.0",
   "type": "module",
   "description": "Safety for Agents - ADR layer for OpenCode",
   "homepage": "https://github.com/gendigitalinc/sage",
@@ -24,6 +24,7 @@
     }
   },
   "files": [
+    "index.js",
     "dist/**",
     "resources/**",
     "package.json",

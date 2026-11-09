@@ -7,6 +7,7 @@ import {
 	getInstallationId,
 	getRecentEntries,
 	type HookType,
+	hasReportableDetectionSignals,
 	isFreshTimestamp,
 	isSkillId,
 	type Logger,
@@ -37,6 +38,8 @@ type AuditRuntimeVerdictEntry = {
 	severity?: unknown;
 	reasons?: unknown;
 	source?: unknown;
+	custom_threat_matched?: unknown;
+	non_custom_detection_matched?: unknown;
 	user_override?: unknown;
 	signals?: unknown;
 	content?: unknown;
@@ -110,7 +113,13 @@ function readContentSnippet(entry: AuditRuntimeVerdictEntry): string | undefined
 
 function isRuntimeVerdictEntry(v: unknown): v is AuditRuntimeVerdictEntry {
 	if (!v || typeof v !== "object" || Array.isArray(v)) return false;
-	return (v as Record<string, unknown>).type === "runtime_verdict";
+	const entry = v as Record<string, unknown>;
+	return (
+		entry.type === "runtime_verdict" &&
+		(entry.custom_threat_matched !== true ||
+			entry.non_custom_detection_matched === true ||
+			hasReportableDetectionSignals(parseRuntimeAuditSignals(entry.signals)))
+	);
 }
 
 /** A skill_verdict entry whose `skill_id` the guards below have already validated. */

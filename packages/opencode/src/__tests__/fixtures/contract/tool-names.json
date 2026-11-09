@@ -12,7 +12,10 @@
 		"websearch": "WebSearch",
 		"question": "Question",
 		"task": "Task",
-		"read_lines": "ReadLines"
+		"read_lines": "ReadLines",
+		"shell": "Bash",
+		"patch": "ApplyPatch",
+		"subagent": "Task"
 	},
 	"opencodeToolNames": ["bash", "write", "edit", "read", "grep", "webfetch"]
 }

@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApprovalStore } from "../approval-store.js";
-import { approveAction, formatDenyMessage, guardToolCall, summarizeArtifacts } from "../guard.js";
+import {
+	approveAction,
+	formatAskBlockMessage,
+	formatDenyMessage,
+	guardToolCall,
+	summarizeArtifacts,
+} from "../guard.js";
 import type { Verdict } from "../types.js";
 
 // Mock evaluator
@@ -171,6 +177,38 @@ describe("formatDenyMessage", () => {
 		expect(msg).toContain("Rule: 6e26ae6f (your exception rule)");
 		expect(msg).toContain("~/.sage/exceptions.json");
 		expect(msg).not.toContain("sage_report_false_positive");
+	});
+});
+
+describe("formatAskBlockMessage", () => {
+	const verdict = makeVerdict({
+		decision: "ask",
+		severity: "warning",
+		category: "command",
+		reasons: ["suspicious pipe"],
+		source: "heuristic",
+		matchedThreatId: "CLT-CMD-001",
+	});
+
+	it("says the user declined, and tells the model not to retry", () => {
+		const msg = formatAskBlockMessage(verdict, "declined");
+		expect(msg).toContain("Sage blocked this action.");
+		expect(msg).toContain("The user explicitly declined");
+		expect(msg).toContain("Do not retry this tool call");
+		expect(msg).toContain("Rule: CLT-CMD-001");
+		expect(msg).not.toContain("sage_report_false_positive");
+	});
+
+	it("does not claim a user decision when nobody was asked", () => {
+		const noUi = formatAskBlockMessage(verdict, "no_ui");
+		expect(noUi).toContain("No interactive UI is attached");
+		expect(noUi).toContain("This is not a user decision.");
+		expect(noUi).not.toContain("declined");
+
+		const failed = formatAskBlockMessage(verdict, "prompt_failed");
+		expect(failed).toContain("confirmation dialog failed");
+		expect(failed).toContain("This is not a user decision.");
+		expect(failed).not.toContain("declined");
 	});
 });
 

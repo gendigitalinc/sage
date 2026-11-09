@@ -440,3 +440,16 @@
   expires_at: null
   revoked: false
   # Source: ATR-2026-00097 (pattern unchanged from upstream). Covers zh-CN, zh-TW, ja, ko.
+
+- id: "CLT-PI-094"
+  version: 1
+  detection_name: "Other:SagePromptInjection-CP [Heur]"
+  category: prompt_injection
+  severity: warning
+  confidence: 0.70
+  case_insensitive: true
+  pattern: "\\b(?:disregard|ignore|forget|override)\\s+(?:all\\s+|any\\s+)?(?:your|the|my)\\s+system\\s+(?:prompt|message|instructions?)\\b"
+  match_on: content
+  title: "Instruction override: disregard system prompt"
+  expires_at: null
+  revoked: false

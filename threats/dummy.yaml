@@ -19,6 +19,9 @@
 #   WebFetch/Bash  url         ✓            ✓                      ✓
 #   WebFetch/Bash  domain      ✓            —                      —
 #
+# Submit-only (flags: ["submit_only"], allow + capped non-blocking telemetry):
+#   Bash (command), Write/Edit/Read (file_path)
+#
 # The file_path rules also cover Read, Delete, Glob, and LS tools
 # (they produce the same artifact type).
 # The url rules also cover URLs embedded in Bash commands and file content.
@@ -84,7 +87,6 @@
   title: "[TEST] Canary log-only command"
   expires_at: null
   revoked: false
-  flags: ["report"]
 
 # ─── File-path patterns (Write / Edit / Read / Delete tools) ────────
 
@@ -123,7 +125,6 @@
   title: "[TEST] Canary log-only file path"
   expires_at: null
   revoked: false
-  flags: ["report"]
 
 # ─── Content patterns (Write / Edit tools — file body) ──────────────
 
@@ -162,7 +163,6 @@
   title: "[TEST] Canary log-only content"
   expires_at: null
   revoked: false
-  flags: ["report"]
 
 # ─── URL patterns (WebFetch / Bash / Write content) ─────────────────
 # Uses .test TLD (RFC 2606 reserved, never resolves) for safety.
@@ -202,7 +202,6 @@
   title: "[TEST] Canary log-only URL"
   expires_at: null
   revoked: false
-  flags: ["report"]
 
 # ─── Domain pattern (verifies domain→url routing in heuristics) ─────
 
@@ -217,3 +216,37 @@
   title: "[TEST] Canary deny domain"
   expires_at: null
   revoked: false
+
+# ─── Submit-only patterns (telemetry, never block) ──────────────────
+#
+# `flags: ["submit_only"]` removes the rule from the verdict entirely and
+# instead submits a non-blocking event to /v2/heuristic, capped at one submit
+# per rule per client per 24h (packages/core/src/submit-limits.ts). The
+# confidence is deliberately deny-level so a regression that lets the flag
+# leak into the verdict shows up as a deny.
+
+- id: "DUMMY-CMD-SUBMIT-001"
+  version: 1
+  detection_name: "CMD:SageTestCommandSubmit-A [Tst]"
+  category: testing
+  severity: critical
+  confidence: 0.95
+  pattern: "diagmark_cmd_d7e7127e"
+  match_on: command
+  title: "[TEST] Canary submit-only command"
+  expires_at: null
+  revoked: false
+  flags: ["submit_only"]
+
+- id: "DUMMY-FILE-SUBMIT-001"
+  version: 1
+  detection_name: "FN:SageTestFileSubmit-A [Tst]"
+  category: testing
+  severity: critical
+  confidence: 0.95
+  pattern: "diagmark_file_57871281"
+  match_on: file_path
+  title: "[TEST] Canary submit-only file path"
+  expires_at: null
+  revoked: false
+  flags: ["submit_only"]

@@ -13736,6 +13736,12 @@ var CONTENT_FIELD_LIMITS = Object.freeze({
   package_registry: 128
 });
 
+// ../core/dist/model-storage.js
+init_config();
+
+// ../core/dist/detection-names.js
+init_types2();
+
 // ../core/dist/audit-log.js
 init_file_utils();
 
@@ -13906,7 +13912,7 @@ init_file_utils();
 var import_meta = {};
 function resolveVersion() {
   if (true)
-    return "0.14.0";
+    return "0.15.0";
   try {
     const pkgPath = (0, import_node_path2.join)((0, import_node_path2.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
     const pkg = JSON.parse(getFileContentSync(pkgPath));
@@ -13917,9 +13923,6 @@ function resolveVersion() {
   return "dev";
 }
 var VERSION = resolveVersion();
-
-// ../core/dist/model-storage.js
-init_config();
 
 // ../core/dist/clients/model-downloader.js
 init_types2();
@@ -13983,6 +13986,12 @@ init_types2();
 // ../core/dist/evaluator.js
 init_config();
 
+// ../core/dist/extractors.js
+var MAX_CONTENT_SIZE = 64 * 1024;
+
+// ../core/dist/deobfuscate.js
+var REPLACEMENT_CHAR = String.fromCharCode(65533);
+
 // ../core/dist/exceptions.js
 init_config();
 init_file_utils();
@@ -13994,9 +14003,6 @@ init_types2();
 
 // ../core/dist/exceptions.js
 init_types2();
-
-// ../core/dist/extractors.js
-var MAX_CONTENT_SIZE = 64 * 1024;
 
 // ../core/dist/package-checker.js
 init_types2();
@@ -14058,8 +14064,15 @@ function formatStatusLine(denied, flagged, lastReason, lastCategory, branding = 
   return line;
 }
 
+// ../core/dist/submit-limits.js
+init_config();
+init_file_utils();
+init_types2();
+var SUBMIT_WINDOW_MS = 24 * 60 * 60 * 1e3;
+
 // ../core/dist/threat-loader.js
 var import_yaml2 = __toESM(require_dist(), 1);
+init_config();
 init_file_utils();
 init_types2();
 
@@ -14068,6 +14081,10 @@ init_types2();
 
 // ../core/dist/index.js
 init_file_utils();
+
+// ../core/dist/format.js
+var FP_REPORT_TOOL_NAME = "sage_report_false_positive";
+var SESSION_START_FP_HINT = `If this is a false positive, ask your agent to report it with the ${FP_REPORT_TOOL_NAME} MCP tool.`;
 
 // ../core/dist/guard.js
 init_config();

@@ -121,6 +121,22 @@ importers:
         specifier: ^4.0.0
         version: 4.0.18(@types/node@22.19.11)(yaml@2.9.0)
 
+  packages/hook-host:
+    dependencies:
+      '@gendigital/sage-core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.11
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.0.18(@types/node@22.19.11)(yaml@2.9.0)
+
   packages/mcp:
     dependencies:
       '@gendigital/sage-core':
@@ -142,6 +158,31 @@ importers:
       vitest:
         specifier: ^4.0.0
         version: 4.0.18(@types/node@22.19.11)(yaml@2.9.0)
+
+  packages/omp:
+    devDependencies:
+      '@gendigital/sage-core':
+        specifier: workspace:*
+        version: link:../core
+      '@gendigital/sage-hook-host':
+        specifier: workspace:*
+        version: link:../hook-host
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.11
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.0.18(@types/node@22.19.11)(yaml@2.9.0)
+    optionalDependencies:
+      koffi:
+        specifier: ^2.9.0
+        version: 2.15.1
 
   packages/openclaw:
     devDependencies:
@@ -192,6 +233,34 @@ importers:
       vitest:
         specifier: ^4.0.0
         version: 4.0.18(@types/node@22.19.11)(yaml@2.9.0)
+
+  packages/pi:
+    devDependencies:
+      '@gendigital/sage-core':
+        specifier: workspace:*
+        version: link:../core
+      '@gendigital/sage-hook-host':
+        specifier: workspace:*
+        version: link:../hook-host
+      '@gendigital/sage-mcp':
+        specifier: workspace:*
+        version: link:../mcp
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.11
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.0.18(@types/node@22.19.11)(yaml@2.9.0)
+    optionalDependencies:
+      koffi:
+        specifier: ^2.9.0
+        version: 2.15.1
 
 packages:
 

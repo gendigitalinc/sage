@@ -63,7 +63,7 @@ async function renameWithRetry(from, to, attempts = 5) {
       const transient = code === "EPERM" || code === "EACCES" || code === "EBUSY";
       if (!transient || i === attempts - 1)
         throw err;
-      await new Promise((resolve6) => setTimeout(resolve6, 10 * 2 ** i));
+      await new Promise((resolve7) => setTimeout(resolve7, 10 * 2 ** i));
     }
   }
 }
@@ -13834,8 +13834,8 @@ var require_dist = __commonJS({
 
 // src/session-start.ts
 var import_node_fs3 = require("node:fs");
-var import_promises11 = require("node:fs/promises");
-var import_node_path21 = require("node:path");
+var import_promises12 = require("node:fs/promises");
+var import_node_path22 = require("node:path");
 
 // ../core/dist/allowlist-migration.js
 var import_node_path3 = require("node:path");
@@ -13933,7 +13933,45 @@ function scrubHomePath(value) {
   return value;
 }
 
+// ../core/dist/model-storage.js
+var import_node_fs = require("node:fs");
+var import_node_path4 = require("node:path");
+init_config();
+var MODEL_SCHEMA_VERSION = "v2";
+var REQUIRED_MODELS_BY_SCHEMA = {
+  v1: ["pi-model"],
+  v2: ["pi-model"]
+};
+var REQUIRED_MODEL_FILES = {
+  "pi-model": [
+    "model_int8.onnx",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "vocab.txt",
+    "config.json"
+  ]
+};
+function getModelStorageRoot(sageDir = resolvePath("~/.sage")) {
+  return (0, import_node_path4.join)(resolvePath(sageDir), "models");
+}
+function getModelDir(modelName, schema = MODEL_SCHEMA_VERSION, sageDir) {
+  return (0, import_node_path4.join)(getModelStorageRoot(sageDir), schema, modelName);
+}
+function isModelPresent(modelName, schema = MODEL_SCHEMA_VERSION, sageDir) {
+  const dir = getModelDir(modelName, schema, sageDir);
+  const files = REQUIRED_MODEL_FILES[modelName];
+  if (!files || files.length === 0)
+    return false;
+  return files.every((f) => (0, import_node_fs.existsSync)((0, import_node_path4.resolve)(dir, f)));
+}
+function missingRequiredModels(schema = MODEL_SCHEMA_VERSION, sageDir) {
+  const required = REQUIRED_MODELS_BY_SCHEMA[schema] ?? [];
+  return required.filter((name) => !isModelPresent(name, schema, sageDir));
+}
+
 // ../core/dist/detection-names.js
+init_types2();
 var REPORTING_ENGINE_SHORTHANDS = {
   package: "sgpk",
   amsi: "sgam",
@@ -13950,6 +13988,9 @@ var SKILL_DETECTION_NAMES = {
   HIGH: "Other:SageSuspiciousSkill-A [Susp]",
   CRITICAL: "Other:SageMaliciousSkill-A [Trj]"
 };
+function isCanonicalDetectionName(name) {
+  return /^\w+:\w+-[A-Z]+ \[[^\]\r\n]+\]$/.test(name);
+}
 function skillDetectionName(verdict) {
   return SKILL_DETECTION_NAMES[verdict.toUpperCase()];
 }
@@ -13979,7 +14020,7 @@ init_file_utils();
 
 // ../core/dist/jsonl-log-writer.js
 var import_promises2 = require("node:fs/promises");
-var import_node_path4 = require("node:path");
+var import_node_path5 = require("node:path");
 init_config();
 init_file_utils();
 var writeQueues = /* @__PURE__ */ new Map();
@@ -14016,7 +14057,7 @@ async function rotateIfNeeded(filePath, maxBytes, maxFiles) {
   });
 }
 async function appendJsonlEntryNow(path, config, entry) {
-  await (0, import_promises2.mkdir)((0, import_node_path4.dirname)(path), { recursive: true });
+  await (0, import_promises2.mkdir)((0, import_node_path5.dirname)(path), { recursive: true });
   await rotateIfNeeded(path, config.max_bytes, config.max_files);
   await (0, import_promises2.appendFile)(path, `${JSON.stringify(entry)}
 `);
@@ -14407,19 +14448,19 @@ var PersistentPowershellAmsiBackend = class {
     return this.available;
   }
   waitForLine(timeout) {
-    return new Promise((resolve6, reject) => {
+    return new Promise((resolve7, reject) => {
       const timer = setTimeout(() => {
         this.pendingResponse = null;
         reject(new Error("timeout"));
       }, timeout);
-      this.pendingResponse = { resolve: resolve6, reject, timer };
+      this.pendingResponse = { resolve: resolve7, reject, timer };
     });
   }
   async enqueueScan(operation) {
     const previous = this.scanQueue;
     let release;
-    this.scanQueue = new Promise((resolve6) => {
-      release = resolve6;
+    this.scanQueue = new Promise((resolve7) => {
+      release = resolve7;
     });
     await previous;
     try {
@@ -14467,10 +14508,10 @@ var PersistentPowershellAmsiBackend = class {
           const line = this.stdoutBuffer.slice(0, idx).trim();
           this.stdoutBuffer = this.stdoutBuffer.slice(idx + 1);
           if (this.pendingResponse) {
-            const { resolve: resolve6, timer } = this.pendingResponse;
+            const { resolve: resolve7, timer } = this.pendingResponse;
             this.pendingResponse = null;
             clearTimeout(timer);
-            resolve6(line);
+            resolve7(line);
           }
           idx = this.stdoutBuffer.indexOf("\n");
         }
@@ -14569,7 +14610,7 @@ var WslPowershellAmsiBackend = class {
     if (!this.available)
       return null;
     const truncated = content.length > MAX_SCAN_LENGTH ? content.slice(0, MAX_SCAN_LENGTH) : content;
-    return new Promise((resolve6) => {
+    return new Promise((resolve7) => {
       try {
         const ps = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", PS_ONESHOT_SCRIPT], { stdio: ["pipe", "pipe", "pipe"] });
         let stdout = "";
@@ -14579,7 +14620,7 @@ var WslPowershellAmsiBackend = class {
             ps.kill();
           } catch {
           }
-          resolve6(null);
+          resolve7(null);
         }, PS_TIMEOUT);
         ps.stdout?.on("data", (chunk) => {
           stdout += chunk.toString();
@@ -14592,7 +14633,7 @@ var WslPowershellAmsiBackend = class {
         ps.on("error", (err) => {
           clearTimeout(timer);
           this.logger.debug("AMSI: PowerShell one-shot error", { error: String(err) });
-          resolve6(null);
+          resolve7(null);
         });
         ps.on("exit", () => {
           clearTimeout(timer);
@@ -14605,11 +14646,11 @@ var WslPowershellAmsiBackend = class {
                 contentName
               });
             }
-            resolve6(null);
+            resolve7(null);
             return;
           }
           this.logger.debug("AMSI: PowerShell one-shot result", { contentName, amsiResult });
-          resolve6(interpretAmsiResult(amsiResult, content, contentName));
+          resolve7(interpretAmsiResult(amsiResult, content, contentName));
         });
         const req = JSON.stringify({ content: truncated, contentName });
         ps.stdin?.write(`${req}
@@ -14617,7 +14658,7 @@ var WslPowershellAmsiBackend = class {
         ps.stdin?.end();
       } catch (e) {
         this.logger.warn("AMSI: PowerShell one-shot failed", { error: String(e), contentName });
-        resolve6(null);
+        resolve7(null);
       }
     });
   }
@@ -14673,15 +14714,15 @@ init_types2();
 init_types2();
 
 // ../core/dist/version.js
-var import_node_path5 = require("node:path");
+var import_node_path6 = require("node:path");
 var import_node_url = require("node:url");
 init_file_utils();
 var import_meta = {};
 function resolveVersion() {
   if (true)
-    return "0.14.0";
+    return "0.15.0";
   try {
-    const pkgPath = (0, import_node_path5.join)((0, import_node_path5.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
+    const pkgPath = (0, import_node_path6.join)((0, import_node_path6.dirname)((0, import_node_url.fileURLToPath)(import_meta.url)), "..", "package.json");
     const pkg = JSON.parse(getFileContentSync(pkgPath));
     if (typeof pkg.version === "string")
       return pkg.version;
@@ -14823,43 +14864,6 @@ var FileCheckClient = class {
     return [this.getSubdomain(), getProviderName(), getProviderTld()].join(".");
   }
 };
-
-// ../core/dist/model-storage.js
-var import_node_fs = require("node:fs");
-var import_node_path6 = require("node:path");
-init_config();
-var MODEL_SCHEMA_VERSION = "v2";
-var REQUIRED_MODELS_BY_SCHEMA = {
-  v1: ["pi-model"],
-  v2: ["pi-model"]
-};
-var REQUIRED_MODEL_FILES = {
-  "pi-model": [
-    "model_int8.onnx",
-    "tokenizer.json",
-    "tokenizer_config.json",
-    "special_tokens_map.json",
-    "vocab.txt",
-    "config.json"
-  ]
-};
-function getModelStorageRoot(sageDir = resolvePath("~/.sage")) {
-  return (0, import_node_path6.join)(resolvePath(sageDir), "models");
-}
-function getModelDir(modelName, schema = MODEL_SCHEMA_VERSION, sageDir) {
-  return (0, import_node_path6.join)(getModelStorageRoot(sageDir), schema, modelName);
-}
-function isModelPresent(modelName, schema = MODEL_SCHEMA_VERSION, sageDir) {
-  const dir = getModelDir(modelName, schema, sageDir);
-  const files = REQUIRED_MODEL_FILES[modelName];
-  if (!files || files.length === 0)
-    return false;
-  return files.every((f) => (0, import_node_fs.existsSync)((0, import_node_path6.resolve)(dir, f)));
-}
-function missingRequiredModels(schema = MODEL_SCHEMA_VERSION, sageDir) {
-  const required = REQUIRED_MODELS_BY_SCHEMA[schema] ?? [];
-  return required.filter((name) => !isModelPresent(name, schema, sageDir));
-}
 
 // ../core/dist/clients/model-downloader.js
 init_types2();
@@ -15496,6 +15500,26 @@ init_types2();
 // ../core/dist/evaluator.js
 init_config();
 
+// ../core/dist/extractors.js
+var URL_PATTERN = /https?:\/\/[^\s"')<>[\]{}]+/g;
+var TRAILING_PUNCT = /[.,;:!?]+$/;
+var MAX_CONTENT_SIZE = 64 * 1024;
+function extractUrls(text) {
+  const seen = /* @__PURE__ */ new Set();
+  const urls = [];
+  for (const match of text.matchAll(URL_PATTERN)) {
+    const url = match[0].replace(TRAILING_PUNCT, "");
+    if (!seen.has(url)) {
+      seen.add(url);
+      urls.push(url);
+    }
+  }
+  return urls;
+}
+
+// ../core/dist/deobfuscate.js
+var REPLACEMENT_CHAR = String.fromCharCode(65533);
+
 // ../core/dist/exceptions.js
 var import_node_crypto4 = require("node:crypto");
 init_config();
@@ -15648,23 +15672,6 @@ function findPluginAllowException(rules, pluginKey) {
   return found ?? null;
 }
 
-// ../core/dist/extractors.js
-var URL_PATTERN = /https?:\/\/[^\s"')<>[\]{}]+/g;
-var TRAILING_PUNCT = /[.,;:!?]+$/;
-var MAX_CONTENT_SIZE = 64 * 1024;
-function extractUrls(text) {
-  const seen = /* @__PURE__ */ new Set();
-  const urls = [];
-  for (const match of text.matchAll(URL_PATTERN)) {
-    const url = match[0].replace(TRAILING_PUNCT, "");
-    if (!seen.has(url)) {
-      seen.add(url);
-      urls.push(url);
-    }
-  }
-  return urls;
-}
-
 // ../core/dist/package-checker.js
 init_types2();
 
@@ -15721,10 +15728,246 @@ async function pruneSessionStatusFiles(maxAgeMs = 24 * 60 * 60 * 1e3) {
   }
 }
 
-// ../core/dist/threat-loader.js
-var import_yaml2 = __toESM(require_dist(), 1);
+// ../core/dist/submit-limits.js
+init_config();
 init_file_utils();
 init_types2();
+var SUBMIT_WINDOW_MS = 24 * 60 * 60 * 1e3;
+
+// ../core/dist/threat-loader.js
+var import_promises6 = require("node:fs/promises");
+var import_node_path11 = require("node:path");
+var import_yaml2 = __toESM(require_dist(), 1);
+init_config();
+init_file_utils();
+init_types2();
+var MAX_THREAT_RULES = 1e4;
+function getUserThreatsDir(sageDirPath) {
+  return (0, import_node_path11.join)(resolvePath(sageDirPath ?? SAGE_DIR), "threats");
+}
+var REQUIRED_FIELDS = /* @__PURE__ */ new Set([
+  "id",
+  "version",
+  "detection_name",
+  "category",
+  "severity",
+  "confidence",
+  "pattern",
+  "match_on",
+  "title"
+]);
+var MACRO_FILENAME = "_macros.yaml";
+var MAX_MACRO_PASSES = 5;
+var MACRO_REF = /\{\{([A-Z0-9_]+)\}\}/g;
+function expandMacros(pattern, macros) {
+  let expanded = pattern;
+  for (let pass = 0; pass <= MAX_MACRO_PASSES; pass++) {
+    if (!expanded.includes("{{"))
+      return expanded;
+    if (pass === MAX_MACRO_PASSES) {
+      throw new Error(`macro nesting exceeds ${MAX_MACRO_PASSES} passes`);
+    }
+    expanded = expanded.replace(MACRO_REF, (_match, name) => {
+      const value = macros[name];
+      if (value === void 0)
+        throw new Error(`undefined macro {{${name}}}`);
+      return value;
+    });
+  }
+  return expanded;
+}
+function readMacros(filename, data, logger2) {
+  const macros = {};
+  for (const [name, value] of Object.entries(data)) {
+    if (typeof value !== "string") {
+      logger2.warn(`Skipping macro ${name} in ${filename}: not a string`);
+      continue;
+    }
+    macros[name] = value;
+  }
+  return macros;
+}
+function parseExpiresAt(value) {
+  if (value == null)
+    return null;
+  try {
+    const date = new Date(String(value));
+    return Number.isNaN(date.getTime()) ? null : date;
+  } catch {
+    return null;
+  }
+}
+function isExpired(entry) {
+  const expiresAt = parseExpiresAt(entry.expires_at);
+  if (expiresAt === null)
+    return false;
+  return Date.now() > expiresAt.getTime();
+}
+async function loadThreatDirectory(threatDir, logger2, { custom: custom2 = false, customThreatIds = /* @__PURE__ */ new Set(), bundledThreatIds = /* @__PURE__ */ new Set(), maxRules = MAX_THREAT_RULES, logCustomRuleIds = false, optional = false } = {}) {
+  const threats = [];
+  let files;
+  try {
+    files = (await (0, import_promises6.readdir)(threatDir)).filter((f) => f.endsWith(".yaml")).sort();
+  } catch (error) {
+    const code = error.code;
+    if (optional && code === "ENOENT") {
+      logger2.debug("Custom threat directory does not exist", { path: threatDir });
+      return threats;
+    }
+    logger2.warn("Threat directory does not exist or is unreadable", {
+      path: threatDir,
+      error: String(error)
+    });
+    return threats;
+  }
+  const ruleFiles = [];
+  let macros = {};
+  for (const filename of files) {
+    let content;
+    try {
+      content = await getFileContent((0, import_node_path11.join)(threatDir, filename));
+    } catch (e) {
+      logger2.warn(`Failed to read ${filename}`, { error: String(e) });
+      continue;
+    }
+    let data;
+    try {
+      data = (0, import_yaml2.parse)(content);
+    } catch (e) {
+      logger2.warn(`Failed to parse ${filename}`, { error: String(e) });
+      continue;
+    }
+    if (filename === MACRO_FILENAME) {
+      if (typeof data !== "object" || data === null || Array.isArray(data)) {
+        logger2.warn(`Expected mapping in ${filename}, got ${Array.isArray(data) ? "list" : typeof data}`);
+        continue;
+      }
+      macros = readMacros(filename, data, logger2);
+      continue;
+    }
+    if (!Array.isArray(data)) {
+      logger2.warn(`Expected list in ${filename}, got ${typeof data}`);
+      continue;
+    }
+    ruleFiles.push({ filename, data });
+  }
+  ruleFilesLoop: for (const { filename, data } of ruleFiles) {
+    for (const entry of data) {
+      if (threats.length >= maxRules) {
+        logger2.warn("Threat rule limit reached; ignoring remaining rules", {
+          path: threatDir,
+          maxRules: MAX_THREAT_RULES
+        });
+        break ruleFilesLoop;
+      }
+      if (typeof entry !== "object" || entry === null) {
+        logger2.warn(`Skipping non-object entry in ${filename}`);
+        continue;
+      }
+      const record = entry;
+      const keys = new Set(Object.keys(record));
+      const missing = [...REQUIRED_FIELDS].filter((f) => !keys.has(f));
+      if (missing.length > 0) {
+        logger2.warn(`Skipping threat in ${filename}: missing fields ${missing.join(", ")}`);
+        continue;
+      }
+      if (typeof record.id !== "string" || record.id.length === 0) {
+        logger2.warn(`Skipping threat in ${filename}: invalid id`, { id: record.id });
+        continue;
+      }
+      if (custom2 && customThreatIds.has(record.id)) {
+        logger2.warn(bundledThreatIds.has(record.id) ? `Skipping custom threat ${record.id}: id conflicts with a bundled rule` : `Skipping custom threat ${record.id}: duplicate custom rule id`, { id: record.id, path: (0, import_node_path11.join)(threatDir, filename) });
+        continue;
+      }
+      if (record.revoked === true)
+        continue;
+      if (isExpired(record))
+        continue;
+      let pattern;
+      let compiledPattern;
+      try {
+        pattern = expandMacros(record.pattern, macros);
+        const flags2 = record.case_insensitive === true ? "i" : "";
+        compiledPattern = new RegExp(pattern, flags2);
+      } catch (e) {
+        logger2.warn(`Skipping threat ${record.id}: invalid regex pattern`, {
+          error: String(e)
+        });
+        continue;
+      }
+      const rawMatchOn = record.match_on;
+      const matchOn = new Set(Array.isArray(rawMatchOn) ? rawMatchOn : [rawMatchOn]);
+      const rawFlags = record.flags;
+      const flags = Array.isArray(rawFlags) ? rawFlags : [];
+      const confidence = Number(record.confidence);
+      if (!Number.isFinite(confidence) || confidence <= 0 || confidence > 1) {
+        logger2.warn(`Skipping threat ${record.id}: invalid confidence value`, {
+          confidence: record.confidence
+        });
+        continue;
+      }
+      const version = record.version;
+      if (typeof version !== "number" || !Number.isInteger(version) || version <= 0) {
+        logger2.warn(`Skipping threat ${record.id}: invalid version`, {
+          version
+        });
+        continue;
+      }
+      const detectionName = record.detection_name;
+      if (typeof detectionName !== "string" || !isCanonicalDetectionName(detectionName)) {
+        logger2.warn(`Skipping threat ${record.id}: invalid detection_name`, {
+          detectionName
+        });
+        continue;
+      }
+      const threat = {
+        id: record.id,
+        version,
+        detectionName,
+        category: record.category,
+        severity: record.severity,
+        confidence,
+        pattern,
+        compiledPattern,
+        matchOn,
+        title: record.title,
+        expiresAt: parseExpiresAt(record.expires_at),
+        revoked: false,
+        flags,
+        customRule: custom2
+      };
+      threats.push(threat);
+      if (custom2) {
+        customThreatIds.add(threat.id);
+        if (logCustomRuleIds) {
+          logger2.info("Loaded custom threat rule", {
+            id: threat.id,
+            path: (0, import_node_path11.join)(threatDir, filename)
+          });
+        }
+      }
+    }
+  }
+  logger2.debug(`Loaded ${threats.length} threats from ${threatDir}`);
+  return threats;
+}
+async function loadThreats(threatDir, logger2 = nullLogger, options = {}) {
+  const bundledThreats = await loadThreatDirectory(threatDir, logger2);
+  if (!options.customThreatsDir || (0, import_node_path11.resolve)(options.customThreatsDir) === (0, import_node_path11.resolve)(threatDir)) {
+    return bundledThreats;
+  }
+  const bundledThreatIds = new Set(bundledThreats.map((threat) => threat.id));
+  const customThreatIds = new Set(bundledThreatIds);
+  const customThreats = await loadThreatDirectory(options.customThreatsDir, logger2, {
+    custom: true,
+    customThreatIds,
+    bundledThreatIds,
+    maxRules: Math.max(0, MAX_THREAT_RULES - bundledThreats.length),
+    logCustomRuleIds: options.logCustomRuleIds,
+    optional: true
+  });
+  return [...bundledThreats, ...customThreats];
+}
 
 // ../core/dist/evaluator.js
 init_types2();
@@ -15749,6 +15992,8 @@ function kv(key, value) {
 function separatorLine(headerLength) {
   return "\u2501".repeat(headerLength);
 }
+var FP_REPORT_TOOL_NAME = "sage_report_false_positive";
+var SESSION_START_FP_HINT = `If this is a false positive, ask your agent to report it with the ${FP_REPORT_TOOL_NAME} MCP tool.`;
 function formatUpdateNotice(result) {
   return `\u2B06\uFE0F  Update available: v${result.currentVersion} \u2192 v${result.latestVersion} (https://github.com/gendigitalinc/sage)`;
 }
@@ -15814,6 +16059,10 @@ function formatThreatBannerVerbose(version, results, versionCheck, branding) {
       lines.push(`   ... and ${overflow} more findings`);
     }
   }
+  if (!first) {
+    lines.push("");
+    lines.push(SESSION_START_FP_HINT);
+  }
   if (versionCheck?.updateAvailable) {
     lines.push("");
     lines.push(formatUpdateNotice(versionCheck));
@@ -15836,6 +16085,7 @@ function formatThreatBannerCompact(version, results, versionCheck, branding) {
   if (remaining > 0) {
     lines.push(`\u2026and ${remaining} more finding${remaining === 1 ? "" : "s"}`);
   }
+  lines.push(SESSION_START_FP_HINT);
   if (versionCheck?.updateAvailable) {
     lines.push(formatUpdateNotice(versionCheck));
   }
@@ -15859,7 +16109,7 @@ init_config();
 init_types2();
 
 // ../core/dist/install-state.js
-var import_node_path11 = require("node:path");
+var import_node_path12 = require("node:path");
 init_config();
 init_file_utils();
 
@@ -15897,7 +16147,7 @@ init_types2();
 var INSTALL_STATE_SCHEMA_VERSION = 1;
 var SKILL_UPLOAD_NOTICE_ID = SKILL_UPLOAD_NOTICE.id;
 function defaultStatePath(sageDirPath) {
-  return (0, import_node_path11.join)(sageDirPath ?? resolvePath(SAGE_DIR), "install-state.json");
+  return (0, import_node_path12.join)(sageDirPath ?? resolvePath(SAGE_DIR), "install-state.json");
 }
 function emptyState() {
   return { schemaVersion: INSTALL_STATE_SCHEMA_VERSION, notices: {} };
@@ -16110,8 +16360,8 @@ function createOperationalLogger(config, runtime) {
       try {
         const result = await Promise.race([
           Promise.allSettled([...pendingWrites]).then(() => "drained"),
-          new Promise((resolve6) => {
-            timeout = setTimeout(() => resolve6("timeout"), remainingMs);
+          new Promise((resolve7) => {
+            timeout = setTimeout(() => resolve7("timeout"), remainingMs);
             timeout.unref?.();
           })
         ]);
@@ -16160,12 +16410,12 @@ function createOperationalLogger(config, runtime) {
 
 // ../core/dist/plugin-scan-cache.js
 var import_node_crypto5 = require("node:crypto");
-var import_promises6 = require("node:fs/promises");
-var import_node_path12 = require("node:path");
+var import_promises7 = require("node:fs/promises");
+var import_node_path13 = require("node:path");
 init_config();
 init_file_utils();
 init_types2();
-var DEFAULT_CACHE_PATH = (0, import_node_path12.join)(getHomeDir(), ".sage", "plugin_scan_cache.json");
+var DEFAULT_CACHE_PATH = (0, import_node_path13.join)(getHomeDir(), ".sage", "plugin_scan_cache.json");
 var DEFAULT_CACHE_TTL_MS = MS_PER_DAY;
 var SCHEMA_VERSION = 5;
 function cacheKey(pluginKey, version, lastUpdated) {
@@ -16178,13 +16428,13 @@ async function computeConfigHash(sageVersion, ...dirs) {
   for (const dir of dirs) {
     let files;
     try {
-      files = (await (0, import_promises6.readdir)(dir)).filter((f) => f.endsWith(".yaml")).sort();
+      files = (await (0, import_promises7.readdir)(dir)).filter((f) => f.endsWith(".yaml")).sort();
     } catch {
       continue;
     }
     for (const file of files) {
       try {
-        const content = await getFileContent((0, import_node_path12.join)(dir, file));
+        const content = await getFileContent((0, import_node_path13.join)(dir, file));
         h.update(content);
       } catch {
       }
@@ -16284,21 +16534,21 @@ function storeResult(cache2, pluginKey, version, lastUpdated, findings) {
 
 // ../core/dist/plugin-scanner.js
 var import_node_crypto8 = require("node:crypto");
-var import_promises9 = require("node:fs/promises");
-var import_node_path16 = require("node:path");
+var import_promises10 = require("node:fs/promises");
+var import_node_path17 = require("node:path");
 init_config();
 init_file_utils();
 
 // ../core/dist/skill-id.js
 var import_node_crypto6 = require("node:crypto");
-var import_promises7 = require("node:fs/promises");
-var import_node_path13 = require("node:path");
+var import_promises8 = require("node:fs/promises");
+var import_node_path14 = require("node:path");
 var SKIP_DIRS = /* @__PURE__ */ new Set(["node_modules", ".git", "__pycache__"]);
 var MAX_SKILL_BYTES = 50 * 1024 * 1024;
 var SkillTooLargeError = class extends Error {
 };
 function isContained(childReal, rootReal) {
-  return childReal === rootReal || childReal.startsWith(`${rootReal}${import_node_path13.sep}`);
+  return childReal === rootReal || childReal.startsWith(`${rootReal}${import_node_path14.sep}`);
 }
 function normalizePath(p) {
   let out = p.replace(/\\/g, "/").normalize("NFC");
@@ -16309,24 +16559,24 @@ function normalizePath(p) {
   return out;
 }
 async function entriesFromDirectory(dirPath, maxBytes = Number.POSITIVE_INFINITY) {
-  const absDir = (0, import_node_path13.resolve)(dirPath);
-  const rootReal = await (0, import_promises7.realpath)(absDir);
+  const absDir = (0, import_node_path14.resolve)(dirPath);
+  const rootReal = await (0, import_promises8.realpath)(absDir);
   const entries = [];
   const visited = /* @__PURE__ */ new Set();
   let total = 0;
   async function walk(currentPath) {
-    const real = await (0, import_promises7.realpath)(currentPath);
+    const real = await (0, import_promises8.realpath)(currentPath);
     if (visited.has(real))
       return;
     if (!isContained(real, rootReal))
       return;
     visited.add(real);
-    const items = await (0, import_promises7.readdir)(currentPath);
+    const items = await (0, import_promises8.readdir)(currentPath);
     const dirs = [];
     const files = [];
     for (const item of items) {
-      const fullPath = (0, import_node_path13.join)(currentPath, item);
-      const st = await (0, import_promises7.stat)(fullPath);
+      const fullPath = (0, import_node_path14.join)(currentPath, item);
+      const st = await (0, import_promises8.stat)(fullPath);
       if (st.isDirectory())
         dirs.push(item);
       else if (st.isFile())
@@ -16335,24 +16585,24 @@ async function entriesFromDirectory(dirPath, maxBytes = Number.POSITIVE_INFINITY
     dirs.sort();
     files.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
     for (const d of dirs) {
-      const fullPath = (0, import_node_path13.join)(currentPath, d);
-      const relPath = (0, import_node_path13.relative)(absDir, fullPath).replace(/\\/g, "/");
+      const fullPath = (0, import_node_path14.join)(currentPath, d);
+      const relPath = (0, import_node_path14.relative)(absDir, fullPath).replace(/\\/g, "/");
       entries.push({ entryPath: relPath, isDir: true, content: Buffer.alloc(0) });
       await walk(fullPath);
     }
     for (const f of files) {
-      const fullPath = (0, import_node_path13.join)(currentPath, f.name);
-      const fileReal = await (0, import_promises7.realpath)(fullPath);
+      const fullPath = (0, import_node_path14.join)(currentPath, f.name);
+      const fileReal = await (0, import_promises8.realpath)(fullPath);
       if (!isContained(fileReal, rootReal))
         continue;
       total += f.size;
       if (total > maxBytes)
         throw new SkillTooLargeError();
-      const relPath = (0, import_node_path13.relative)(absDir, fullPath).replace(/\\/g, "/");
+      const relPath = (0, import_node_path14.relative)(absDir, fullPath).replace(/\\/g, "/");
       entries.push({
         entryPath: relPath,
         isDir: false,
-        content: await (0, import_promises7.readFile)(fullPath)
+        content: await (0, import_promises8.readFile)(fullPath)
       });
     }
   }
@@ -16393,7 +16643,7 @@ async function findSkillPackagesWithMtime(rootDir) {
   const found = [];
   let rootReal;
   try {
-    rootReal = await (0, import_promises7.realpath)((0, import_node_path13.resolve)(rootDir));
+    rootReal = await (0, import_promises8.realpath)((0, import_node_path14.resolve)(rootDir));
   } catch {
     return found;
   }
@@ -16401,7 +16651,7 @@ async function findSkillPackagesWithMtime(rootDir) {
   async function walk(currentPath) {
     let real;
     try {
-      real = await (0, import_promises7.realpath)(currentPath);
+      real = await (0, import_promises8.realpath)(currentPath);
     } catch {
       return 0;
     }
@@ -16412,7 +16662,7 @@ async function findSkillPackagesWithMtime(rootDir) {
     visited.add(real);
     let st;
     try {
-      st = await (0, import_promises7.stat)(currentPath);
+      st = await (0, import_promises8.stat)(currentPath);
     } catch {
       return 0;
     }
@@ -16421,7 +16671,7 @@ async function findSkillPackagesWithMtime(rootDir) {
       return subtreeMax;
     let items;
     try {
-      items = await (0, import_promises7.readdir)(currentPath);
+      items = await (0, import_promises8.readdir)(currentPath);
     } catch {
       return subtreeMax;
     }
@@ -16429,7 +16679,7 @@ async function findSkillPackagesWithMtime(rootDir) {
     let entry;
     if (items.includes("SKILL.md")) {
       try {
-        if ((await (0, import_promises7.stat)((0, import_node_path13.join)(currentPath, "SKILL.md"))).isFile()) {
+        if ((await (0, import_promises8.stat)((0, import_node_path14.join)(currentPath, "SKILL.md"))).isFile()) {
           entry = { folder: currentPath, newestMtimeMs: 0 };
           found.push(entry);
         }
@@ -16439,7 +16689,7 @@ async function findSkillPackagesWithMtime(rootDir) {
     for (const item of items) {
       if (SKIP_DIRS.has(item))
         continue;
-      const childMax = await walk((0, import_node_path13.join)(currentPath, item));
+      const childMax = await walk((0, import_node_path14.join)(currentPath, item));
       if (childMax > subtreeMax)
         subtreeMax = childMax;
     }
@@ -16447,16 +16697,16 @@ async function findSkillPackagesWithMtime(rootDir) {
       entry.newestMtimeMs = subtreeMax;
     return subtreeMax;
   }
-  await walk((0, import_node_path13.resolve)(rootDir));
+  await walk((0, import_node_path14.resolve)(rootDir));
   return found;
 }
 function looseSkillKey(skillsRoot, folder, tag, scope) {
-  const rel = (0, import_node_path13.relative)((0, import_node_path13.resolve)(skillsRoot), (0, import_node_path13.resolve)(folder)).split(import_node_path13.sep).join("/") || (0, import_node_path13.basename)(folder);
+  const rel = (0, import_node_path14.relative)((0, import_node_path14.resolve)(skillsRoot), (0, import_node_path14.resolve)(folder)).split(import_node_path14.sep).join("/") || (0, import_node_path14.basename)(folder);
   return `skill:${tag}/${rel}@${scope}`;
 }
 async function discoverLooseSkills(skillsDir, tag, scope) {
-  const resolvedRoot = (0, import_node_path13.resolve)(skillsDir);
-  const packages = (await findSkillPackagesWithMtime(skillsDir)).filter((p) => (0, import_node_path13.resolve)(p.folder) !== resolvedRoot);
+  const resolvedRoot = (0, import_node_path14.resolve)(skillsDir);
+  const packages = (await findSkillPackagesWithMtime(skillsDir)).filter((p) => (0, import_node_path14.resolve)(p.folder) !== resolvedRoot);
   return packages.map(({ folder, newestMtimeMs }) => ({
     key: looseSkillKey(resolvedRoot, folder, tag, scope),
     installPath: folder,
@@ -16470,7 +16720,7 @@ async function dedupeSkillsByResolvedPath(skills) {
   for (const skill of skills) {
     let canonical = skill.installPath;
     try {
-      canonical = await (0, import_promises7.realpath)(skill.installPath);
+      canonical = await (0, import_promises8.realpath)(skill.installPath);
     } catch {
     }
     if (seen.has(canonical))
@@ -16512,15 +16762,15 @@ async function computeSkillIdsForRoot(rootDir, logger2) {
 }
 
 // ../core/dist/skill-pending.js
-var import_promises8 = require("node:fs/promises");
-var import_node_path14 = require("node:path");
+var import_promises9 = require("node:fs/promises");
+var import_node_path15 = require("node:path");
 init_config();
 init_file_utils();
 init_types2();
 var SCHEMA_VERSION2 = 1;
 var PENDING_TTL_MS = 60 * 60 * 1e3;
 function defaultPendingPath() {
-  return (0, import_node_path14.join)(resolvePath(SAGE_DIR), "skill_pending.json");
+  return (0, import_node_path15.join)(resolvePath(SAGE_DIR), "skill_pending.json");
 }
 async function loadPendingMarker(pendingPath = defaultPendingPath(), logger2 = nullLogger) {
   let raw;
@@ -16558,7 +16808,7 @@ async function loadPendingMarker(pendingPath = defaultPendingPath(), logger2 = n
 async function savePendingMarker(marker, pendingPath = defaultPendingPath(), logger2 = nullLogger) {
   if (Object.keys(marker.entries).length === 0) {
     try {
-      await (0, import_promises8.unlink)(pendingPath);
+      await (0, import_promises9.unlink)(pendingPath);
     } catch (e) {
       if (!e || typeof e !== "object" || e.code !== "ENOENT") {
         logger2.warn(`Failed to delete empty pending marker at ${pendingPath}`, {
@@ -16610,7 +16860,7 @@ function listPending(marker) {
 }
 
 // ../core/dist/skill-verdict-cache.js
-var import_node_path15 = require("node:path");
+var import_node_path16 = require("node:path");
 init_config();
 init_file_utils();
 init_types2();
@@ -16646,7 +16896,7 @@ function mergeSources(existing, incoming) {
   return merged.length > 0 ? merged : void 0;
 }
 function defaultCachePath2() {
-  return (0, import_node_path15.join)(resolvePath(SAGE_DIR), "skill_verdict_cache.json");
+  return (0, import_node_path16.join)(resolvePath(SAGE_DIR), "skill_verdict_cache.json");
 }
 async function loadSkillVerdictCacheInternal(cachePath, ttlMs, logger2, pruneOnLoad) {
   let raw;
@@ -16770,7 +17020,7 @@ var SKILL_ENTRY_ID_NAMESPACE = Buffer.from("75bba79a376142a7bacbf95d791126d3", "
 // ../core/dist/plugin-scanner.js
 init_types2();
 function defaultPluginsRegistry() {
-  return (0, import_node_path16.join)(getClaudeConfigDir(), "plugins", "installed_plugins.json");
+  return (0, import_node_path17.join)(getClaudeConfigDir(), "plugins", "installed_plugins.json");
 }
 var SCANNABLE_EXTENSIONS2 = /* @__PURE__ */ new Set([
   ".py",
@@ -16827,7 +17077,7 @@ async function walkPluginFiles(installPath, logger2) {
   const visited = /* @__PURE__ */ new Set();
   let rootReal;
   try {
-    rootReal = await (0, import_promises9.realpath)((0, import_node_path16.resolve)(installPath));
+    rootReal = await (0, import_promises10.realpath)((0, import_node_path17.resolve)(installPath));
   } catch (e) {
     logger2.warn(`Error walking plugin path ${installPath}`, { error: String(e) });
     return files;
@@ -16835,7 +17085,7 @@ async function walkPluginFiles(installPath, logger2) {
   async function walk(dirOrFile) {
     let real;
     try {
-      real = await (0, import_promises9.realpath)(dirOrFile);
+      real = await (0, import_promises10.realpath)(dirOrFile);
     } catch {
       return;
     }
@@ -16846,12 +17096,12 @@ async function walkPluginFiles(installPath, logger2) {
     visited.add(real);
     let stats;
     try {
-      stats = await (0, import_promises9.stat)(dirOrFile);
+      stats = await (0, import_promises10.stat)(dirOrFile);
     } catch {
       return;
     }
     if (stats.isFile()) {
-      if (SCANNABLE_EXTENSIONS2.has((0, import_node_path16.extname)(dirOrFile).toLowerCase()) && stats.size <= MAX_FILE_SIZE) {
+      if (SCANNABLE_EXTENSIONS2.has((0, import_node_path17.extname)(dirOrFile).toLowerCase()) && stats.size <= MAX_FILE_SIZE) {
         files.push(dirOrFile);
       }
       return;
@@ -16859,20 +17109,20 @@ async function walkPluginFiles(installPath, logger2) {
     if (stats.isDirectory()) {
       let entries;
       try {
-        entries = await (0, import_promises9.readdir)(dirOrFile);
+        entries = await (0, import_promises10.readdir)(dirOrFile);
       } catch {
         return;
       }
       for (const entry of entries) {
         if (SKIP_DIRS.has(entry))
           continue;
-        const fullPath = (0, import_node_path16.join)(dirOrFile, entry);
+        const fullPath = (0, import_node_path17.join)(dirOrFile, entry);
         await walk(fullPath);
       }
     }
   }
   try {
-    await walk((0, import_node_path16.resolve)(installPath));
+    await walk((0, import_node_path17.resolve)(installPath));
   } catch (e) {
     logger2.warn(`Error walking plugin path ${installPath}`, { error: String(e) });
   }
@@ -16909,7 +17159,7 @@ async function scanPlugin(plugin, options = {}) {
     }
     if (amsiClient) {
       try {
-        const scanName = `${plugin.key}/${(0, import_node_path16.relative)(plugin.installPath, filePath)}`;
+        const scanName = `${plugin.key}/${(0, import_node_path17.relative)(plugin.installPath, filePath)}`;
         const amsiResult = await amsiClient.scanString("Plugin", scanName, content);
         if (amsiResult && (amsiResult.isDetected || amsiResult.isBlockedByAdmin)) {
           result.findings.push({
@@ -16917,7 +17167,7 @@ async function scanPlugin(plugin, options = {}) {
             title: `AMSI detection (result=${amsiResult.amsiResult})`,
             severity: "critical",
             artifact: content.slice(0, 200),
-            sourceFile: (0, import_node_path16.relative)(plugin.installPath, filePath)
+            sourceFile: (0, import_node_path17.relative)(plugin.installPath, filePath)
           });
         }
       } catch {
@@ -16970,7 +17220,7 @@ async function scanPlugin(plugin, options = {}) {
               title: `Malicious file (${fr.detectionNames.join(", ") || "unknown"})`,
               severity: "critical",
               artifact: fr.sha256,
-              sourceFile: (0, import_node_path16.relative)(plugin.installPath, filePath)
+              sourceFile: (0, import_node_path17.relative)(plugin.installPath, filePath)
             });
           }
         }
@@ -16997,7 +17247,7 @@ function pushSkillFindingIfRisky(findings, plugin, skillId, folder, verdict) {
     title: verdict.summary?.trim() || (risk === "CRITICAL" ? "Malicious skill detected" : "Suspicious skill detected"),
     severity,
     artifact: skillId.slice(0, 16),
-    sourceFile: (0, import_node_path16.relative)(plugin.installPath, folder) || "."
+    sourceFile: (0, import_node_path17.relative)(plugin.installPath, folder) || "."
   });
 }
 async function runSkillCheck(plugin, findings, logger2, paths = {}) {
@@ -17035,7 +17285,7 @@ async function runSkillCheck(plugin, findings, logger2, paths = {}) {
       if (verdict) {
         if (!recordedVerdicts.has(skillId)) {
           recordedVerdicts.set(skillId, recordAnalyzedSkillVerdict(verdictCache, skillId, verdict, {
-            skillName: (0, import_node_path16.basename)(folder),
+            skillName: (0, import_node_path17.basename)(folder),
             agentRuntime: paths.agentRuntime,
             containerKey: plugin.key,
             loggingConfig: paths.loggingConfig
@@ -17087,12 +17337,12 @@ async function runSkillCheck(plugin, findings, logger2, paths = {}) {
 // ../core/dist/session-start.js
 var import_node_child_process = require("node:child_process");
 var import_node_fs2 = require("node:fs");
-var import_node_path18 = require("node:path");
+var import_node_path19 = require("node:path");
 init_config();
 init_file_utils();
 
 // ../core/dist/session-start-scan.js
-var import_node_path17 = require("node:path");
+var import_node_path18 = require("node:path");
 init_config();
 init_types2();
 function fromCachedFinding(finding) {
@@ -17175,8 +17425,8 @@ async function scanAllPlugins(context, config, plugins, exceptions, amsiClient, 
     deniedByException: 0,
     findingsCount: 0
   };
-  const skillPendingPath = context.sageDirPath ? (0, import_node_path17.join)(context.sageDirPath, "skill_pending.json") : void 0;
-  const skillVerdictCachePath = context.sageDirPath ? (0, import_node_path17.join)(context.sageDirPath, "skill_verdict_cache.json") : void 0;
+  const skillPendingPath = context.sageDirPath ? (0, import_node_path18.join)(context.sageDirPath, "skill_pending.json") : void 0;
+  const skillVerdictCachePath = context.sageDirPath ? (0, import_node_path18.join)(context.sageDirPath, "skill_verdict_cache.json") : void 0;
   const cacheTtlMs = skillCacheTtlMs(config);
   for (const plugin of plugins) {
     const denyMatch = findPluginDenyException(exceptions, plugin.key);
@@ -17342,6 +17592,16 @@ async function checkForUpdate(currentVersion, logger2 = nullLogger, timeoutMs = 
 async function runSessionStart(ctx) {
   const logger2 = ctx.logger ?? nullLogger;
   const sageDirPath = resolvePath(ctx.sageDirPath ?? "~/.sage");
+  try {
+    await loadThreats(ctx.threatsDir, logger2, {
+      customThreatsDir: getUserThreatsDir(sageDirPath),
+      logCustomRuleIds: true
+    });
+  } catch (error) {
+    logger2.warn("Threat rules failed to load at session start (fail-open)", {
+      error: String(error)
+    });
+  }
   pruneOrphanedTmpFiles(sageDirPath).catch(() => {
   });
   deployConfigDefaults(sageDirPath, logger2).catch(() => {
@@ -17524,7 +17784,7 @@ async function maybeSpawnSkillUploadWorker(args) {
     });
     return;
   }
-  const marker = await loadPendingMarker((0, import_node_path18.join)(args.sageDirPath, "skill_pending.json"), args.logger);
+  const marker = await loadPendingMarker((0, import_node_path19.join)(args.sageDirPath, "skill_pending.json"), args.logger);
   const pendingCount = listPending(marker).length;
   if (pendingCount === 0) {
     args.logger.debug("Skill upload worker skipped", {
@@ -17640,8 +17900,8 @@ var CANONICAL_SET = new Set(CANONICAL_TOOLS);
 init_types2();
 
 // src/approval-tracker.ts
-var import_promises10 = require("node:fs/promises");
-var import_node_path19 = require("node:path");
+var import_promises11 = require("node:fs/promises");
+var import_node_path20 = require("node:path");
 var PENDING_STALE_MS2 = 60 * 60 * 1e3;
 var CONSUMED_TTL_MS = 10 * 60 * 1e3;
 var STALE_FILE_MS = 2 * 60 * 60 * 1e3;
@@ -17660,7 +17920,7 @@ async function saveOrDelete(path, data) {
   const resolved = resolvePath(path);
   if (Object.keys(data).length === 0) {
     try {
-      await (0, import_promises10.unlink)(resolved);
+      await (0, import_promises11.unlink)(resolved);
     } catch {
     }
   } else {
@@ -17690,17 +17950,17 @@ function pruneExpiredConsumed(store) {
 async function pruneStaleSessionFiles(logger2 = nullLogger) {
   try {
     const dir = resolvedSageDir2();
-    const entries = await (0, import_promises10.readdir)(dir);
+    const entries = await (0, import_promises11.readdir)(dir);
     const now = Date.now();
     for (const file of entries) {
       if (!(file.startsWith("pending-approvals-") || file.startsWith("consumed-approvals-")) || !file.endsWith(".json")) {
         continue;
       }
       try {
-        const fullPath = (0, import_node_path19.join)(dir, file);
-        const info = await (0, import_promises10.stat)(fullPath);
+        const fullPath = (0, import_node_path20.join)(dir, file);
+        const info = await (0, import_promises11.stat)(fullPath);
         if (now - info.mtimeMs < STALE_FILE_MS) continue;
-        const path = (0, import_node_path19.join)(dir, file);
+        const path = (0, import_node_path20.join)(dir, file);
         if (file.startsWith("pending-approvals-")) {
           let store = await loadJson(path) ?? {};
           store = pruneStalePending(store);
@@ -17722,12 +17982,12 @@ async function pruneStaleSessionFiles(logger2 = nullLogger) {
 var STATUSLINE_MARKER = "sage-statusline.cjs";
 
 // src/personal-skills.ts
-var import_node_path20 = require("node:path");
-async function discoverClaudeCodeSkills(projectDir, personalSkillsDir = (0, import_node_path20.join)(getClaudeConfigDir(), "skills")) {
+var import_node_path21 = require("node:path");
+async function discoverClaudeCodeSkills(projectDir, personalSkillsDir = (0, import_node_path21.join)(getClaudeConfigDir(), "skills")) {
   try {
     return await discoverLooseSkillsAcrossRoots([
       { dir: personalSkillsDir, tag: "claude", scope: "personal" },
-      { dir: (0, import_node_path20.join)(projectDir, ".claude", "skills"), tag: "claude", scope: "project" }
+      { dir: (0, import_node_path21.join)(projectDir, ".claude", "skills"), tag: "claude", scope: "project" }
     ]);
   } catch {
     return [];
@@ -17758,11 +18018,11 @@ function resolveClaudeCodeVersion(env = process.env) {
 // src/session-start.ts
 var logger = nullLogger;
 function getPluginRoot() {
-  return (0, import_node_path21.resolve)(__dirname, "..", "..", "..");
+  return (0, import_node_path22.resolve)(__dirname, "..", "..", "..");
 }
 function getPluginManifest(pluginRoot) {
   try {
-    const manifest = (0, import_node_fs3.readFileSync)((0, import_node_path21.join)(pluginRoot, ".claude-plugin", "plugin.json"), "utf-8");
+    const manifest = (0, import_node_fs3.readFileSync)((0, import_node_path22.join)(pluginRoot, ".claude-plugin", "plugin.json"), "utf-8");
     const parsed = JSON.parse(manifest);
     return {
       name: parsed.name ?? null,
@@ -17787,7 +18047,7 @@ function readHookInput() {
 async function readSettingsJson(path) {
   let raw;
   try {
-    raw = await (0, import_promises11.readFile)(path, "utf8");
+    raw = await (0, import_promises12.readFile)(path, "utf8");
   } catch (error) {
     if (error.code === "ENOENT") {
       return {};
@@ -17807,13 +18067,13 @@ var INTERPRETERS = /^(bash|sh|zsh|dash|fish|env|node|deno|python\d?|perl|ruby)$/
 var SCRIPT_READ_LIMIT = 64 * 1024;
 async function scriptReferencesMarker(command, home) {
   const tokens = command.match(/(?:"([^"]+)"|'([^']+)'|(\S+))/g) ?? [];
-  const scriptToken = tokens.map((raw) => raw.replace(/^["']|["']$/g, "")).find((t) => !t.startsWith("-") && !INTERPRETERS.test((0, import_node_path21.basename)(t)));
+  const scriptToken = tokens.map((raw) => raw.replace(/^["']|["']$/g, "")).find((t) => !t.startsWith("-") && !INTERPRETERS.test((0, import_node_path22.basename)(t)));
   if (!scriptToken) return false;
   const resolved = scriptToken.replace(/^~/, home);
   try {
-    const info = await (0, import_promises11.stat)(resolved);
+    const info = await (0, import_promises12.stat)(resolved);
     if (!info.isFile()) return false;
-    const handle = await (0, import_promises11.open)(resolved, "r");
+    const handle = await (0, import_promises12.open)(resolved, "r");
     try {
       const len = Math.min(info.size, SCRIPT_READ_LIMIT);
       const buf = Buffer.alloc(len);
@@ -17828,12 +18088,12 @@ async function scriptReferencesMarker(command, home) {
 }
 async function configureStatusLine(pluginRoot, branding) {
   const home = process.env.HOME ?? "";
-  const settingsPath = (0, import_node_path21.join)(getClaudeConfigDir(), "settings.json");
+  const settingsPath = (0, import_node_path22.join)(getClaudeConfigDir(), "settings.json");
   const settings = await readSettingsJson(settingsPath);
   if (settings === null) {
     return `${branding.name}: Could not read ${settingsPath} \u2014 skipping status line auto-configuration.`;
   }
-  const statuslineCjs = (0, import_node_path21.join)(pluginRoot, "packages", "claude-code", "dist", "sage-statusline.cjs");
+  const statuslineCjs = (0, import_node_path22.join)(pluginRoot, "packages", "claude-code", "dist", "sage-statusline.cjs");
   const command = `node "${statuslineCjs}"`;
   const sageStatusLine = { type: "command", command, refreshInterval: 5 };
   const existing = settings.statusLine;
@@ -17880,8 +18140,8 @@ async function main() {
   pruneSessionStatusFiles().catch(() => {
   });
   const pluginRoot = getPluginRoot();
-  const threatsDir = (0, import_node_path21.join)(pluginRoot, "threats");
-  const trustedDomainsDir = (0, import_node_path21.join)(pluginRoot, "trusted-domains");
+  const threatsDir = (0, import_node_path22.join)(pluginRoot, "threats");
+  const trustedDomainsDir = (0, import_node_path22.join)(pluginRoot, "trusted-domains");
   const manifest = getPluginManifest(pluginRoot);
   let plugins = await discoverPlugins(void 0, logger);
   if (manifest.name) {
@@ -17899,10 +18159,10 @@ async function main() {
     manifest.version,
     "claude-code",
     branding,
-    (0, import_node_path21.resolve)(__dirname, "model-download-worker.cjs"),
+    (0, import_node_path22.resolve)(__dirname, "model-download-worker.cjs"),
     "verbose",
     resolveClaudeCodeVersion(),
-    (0, import_node_path21.resolve)(__dirname, "skill-upload-worker.cjs"),
+    (0, import_node_path22.resolve)(__dirname, "skill-upload-worker.cjs"),
     (noticeIds) => {
       for (const id of noticeIds) {
         const text = formatNoticeById(id, branding);

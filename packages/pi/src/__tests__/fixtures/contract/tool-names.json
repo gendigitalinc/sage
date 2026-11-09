@@ -1,0 +1,14 @@
+{
+	"pi": {
+		"bash": "Bash",
+		"powershell": "Bash",
+		"write": "Write",
+		"edit": "Edit",
+		"read": "Read",
+		"grep": "Grep",
+		"find": "Glob",
+		"ls": "List",
+		"web_search": "WebSearch",
+		"url_context": "WebFetch"
+	}
+}

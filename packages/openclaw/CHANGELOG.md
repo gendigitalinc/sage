@@ -1,5 +1,24 @@
 # @gendigital/sage-openclaw
 
+## 0.15.0
+
+### Minor Changes
+
+- Load custom threat rules from `~/.sage/threats/*.yaml` alongside bundled rules. Bundled IDs take precedence, invalid local rules fail open with warnings, and the combined rule count is capped at 10,000. Loaded custom rule IDs are logged at session start. Custom matches stay local and are excluded from Community IQ telemetry, submit-only reporting, and false-positive reports.
+
+- Detect obfuscated prompt injections in content. Before the prompt-injection rules run, Sage now also scans bounded, deobfuscated variants of written, edited and read content and of tool output: leetspeak (`1gnor3`), letter-spaced text (`i g n o r e`), zero-width and fullwidth characters, and plausible base64 and hex snippets (up to two levels deep, tolerating a truncated final nibble). Decoded content is only ever treated as text and is never stored or passed on.
+  Each transform has to justify itself, so ordinary content is left alone: leet is folded only when the result is a word the injection rules key on (`python3`, `v1beta1`, `x01` or `el3v3n` are never touched), spaced text is regrouped only when every word is known, and an encoded snippet counts only if it decodes to readable text (hashes, keys, images and JWTs do not). Only prompt-injection rules see the variants, so command, credential and URL rules are unaffected; input size, decoding depth, decoded bytes and processing time are capped. PostToolUse warnings now say how a hidden injection was found, for example `[after decoding: base64]`.
+  Adds `CLT-PI-094` for overrides aimed at the system prompt ("disregard your system prompt"), which no existing rule matched even in plain text. It asks at the default sensitivity and denies only at paranoid.
+  Not decoded: percent-encoding, ROT13, MIME-wrapped (multi-line) base64, UTF-16 base64, `0x41, 0x42` lists, homoglyphs and Unicode tag characters.
+
+- Name every prompt-injection classifier hit uniquely in audit, telemetry and false-positive reports: `Text:OnlineClassifier [Misc]|<model version>-<text hash>|sgpi`. The model version is the first 8 hex characters of the SHA-256 over the model and tokenizer files; the text hash is the SHA-256 of the highest-risk chunk. Results below the 0.5 hit threshold keep the previous `sgml` name.
+
+- Add submit-only threat rules. A rule with `flags: ["submit_only"]` never affects the verdict (no deny, ask or PostToolUse warning). When it matches on a non-deny verdict and Community IQ is enabled, Sage sends a non-blocking event to `/v2/heuristic`. Each rule may submit at most once per 24 hours per installation. The limit is tracked in `~/.sage/submit-limits.json`, and if that file can't be written, the event is dropped instead of being sent without a limit. Blocking `deny` telemetry is never capped. Adds the canary rules `DUMMY-CMD-SUBMIT-001` and `DUMMY-FILE-SUBMIT-001`.
+
+### Patch Changes
+
+- The session-start "Threat Detected" alert now ends with a short hint that false positives can be reported ("If this is a false positive, ask your agent to report it with the sage_report_false_positive MCP tool."). Runtime block messages (plus the matched rule id) and the prompt-injection warning use the same wording. The hint appears in both the verbose (CLI) and compact (IDE notification) layouts only when findings are listed; the clean "No threats found" message is unchanged.
+
 ## 0.14.0
 
 ### Minor Changes

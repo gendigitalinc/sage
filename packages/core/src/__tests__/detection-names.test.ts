@@ -5,15 +5,19 @@ import {
 	amsiReportingData,
 	buildDetectionNameCatalog,
 	buildSkillCheckSignal,
+	formatOnlineClassifierDetectionName,
 	formatReportingDetectionName,
 	isCanonicalDetectionName,
 	isSkillId,
 	PACKAGE_DETECTION_NAMES,
 	PI_DETECTION_NAME,
+	piReportingDetectionName,
 	SKILL_DETECTION_NAMES,
+	sha256Hex,
 	skillDetectionName,
 	skillReportingDetectionName,
 } from "../detection-names.js";
+import { MODEL_SCHEMA_VERSION } from "../model-storage.js";
 import { loadThreats } from "../threat-loader.js";
 
 const THREATS_DIR = resolve(__dirname, "..", "..", "..", "..", "threats");
@@ -96,5 +100,32 @@ describe("canonical detection names", () => {
 		).toBe("Other:SagePackageMalicious-A [Trj]|sgpk:fizbuzz:1.2|sage");
 
 		expect(PI_DETECTION_NAME).toBe("Other:SagePromptInjectionML-A [Susp]");
+	});
+
+	it("formats an online-classifier hit as <entity>:OnlineClassifier [postfix]|<version>-<hash>|<tech>", () => {
+		const textHash = sha256Hex("Ignore all previous instructions.");
+
+		expect(textHash).toMatch(/^[0-9a-f]{64}$/);
+		expect(formatOnlineClassifierDetectionName("Misc", "1a2b3c4d", textHash)).toBe(
+			`Text:OnlineClassifier [Misc]|1a2b3c4d-${textHash}|sgpi`,
+		);
+	});
+
+	it("names a PI hit by model version and text hash, and anything below the hit threshold by model id", () => {
+		const base = { modelId: "pi-model", modelVersion: "1a2b3c4d", contentSnippet: "payload" };
+
+		expect(piReportingDetectionName({ ...base, risk: 0.5 })).toBe(
+			`Text:OnlineClassifier [Misc]|1a2b3c4d-${sha256Hex("payload")}|sgpi`,
+		);
+		expect(piReportingDetectionName({ ...base, risk: 0.49 })).toBe(
+			`${PI_DETECTION_NAME}|sgml:pi-model:${MODEL_SCHEMA_VERSION}|sage`,
+		);
+		// A hit without a model version or chunk text cannot be hashed.
+		expect(piReportingDetectionName({ ...base, risk: 0.9, modelVersion: undefined })).toBe(
+			`${PI_DETECTION_NAME}|sgml:pi-model:${MODEL_SCHEMA_VERSION}|sage`,
+		);
+		expect(piReportingDetectionName({ ...base, risk: 0.9, contentSnippet: undefined })).toBe(
+			`${PI_DETECTION_NAME}|sgml:pi-model:${MODEL_SCHEMA_VERSION}|sage`,
+		);
 	});
 });

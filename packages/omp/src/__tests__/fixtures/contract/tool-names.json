@@ -1,0 +1,12 @@
+{
+	"omp": {
+		"bash": "Bash",
+		"eval": "Bash",
+		"debug": "Bash",
+		"write": "Write",
+		"edit": "Edit",
+		"ast_edit": "Edit",
+		"read": "Read"
+	},
+	"intentionallyUnguarded": ["grep", "find", "glob", "ask", "task", "github", "manage_skill"]
+}

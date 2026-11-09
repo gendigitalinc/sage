@@ -146,6 +146,7 @@ export {
 	evaluateToolCall,
 	evaluateToolOutput,
 	extractOutputForPiCheck,
+	hasReportableDetectionSignals,
 	type ToolEvaluationContext,
 	type ToolEvaluationRequest,
 	type ToolOutputEvaluationRequest,
@@ -202,6 +203,7 @@ export {
 } from "./file-utils.js";
 // Format (shared alert formatting)
 export {
+	FP_REPORT_TOOL_NAME,
 	formatPiWarning,
 	formatSessionStartMessage,
 	formatStartupClean,
@@ -212,13 +214,16 @@ export {
 	remediationHint,
 	ruleLabel,
 	SEPARATOR_WIDTH,
+	SESSION_START_FP_HINT,
 	separatorLine,
 	severityEmoji,
 	type ThreatBannerStyle,
 } from "./format.js";
 // Guard (soft-gated connector orchestrator)
 export {
+	type AskBlockReason,
 	approveAction,
+	formatAskBlockMessage,
 	formatDenyMessage,
 	type GuardResult,
 	guardToolCall,
@@ -387,6 +392,8 @@ export {
 	sanitizeSessionId,
 	updateSessionStatus,
 } from "./statusline.js";
+// Per-rule telemetry submit cap
+export { claimRuleSubmissions, SUBMIT_WINDOW_MS } from "./submit-limits.js";
 // Threat loader
 export { loadThreats } from "./threat-loader.js";
 // Tool names (canonical vocabulary)
@@ -453,6 +460,7 @@ export {
 	ArtifactTypeSchema,
 	CacheConfigSchema,
 	ConfigSchema,
+	DEFAULT_PI_MEDIUM_RISK_THRESHOLD,
 	DecisionSchema,
 	ExceptionDecisionSchema,
 	ExceptionMatchSchema,
@@ -461,6 +469,7 @@ export {
 	ExceptionsFileSchema,
 	FileCheckConfigSchema,
 	HookTypeSchema,
+	isSubmitOnlyThreat,
 	LoggingConfigSchema,
 	nullLogger,
 	OperationalLoggingConfigSchema,
@@ -468,6 +477,7 @@ export {
 	PackageCheckConfigSchema,
 	PiCheckConfigSchema,
 	SensitivitySchema,
+	SUBMIT_ONLY_FLAG,
 	ThreatSchema,
 	UrlCheckConfigSchema,
 	VerdictSeveritySchema,

@@ -85,6 +85,14 @@ Project config (`.opencode/opencode.json`):
 }
 ```
 
+OpenCode v2 (beta) reads plugins from the `plugins` key (entries may be a package name or `{ "package": "...", "options": {} }`). The same package serves both versions:
+
+```json
+{
+  "plugins": ["@gendigital/sage-opencode"]
+}
+```
+
 Or install from source:
 
 ```bash
@@ -93,6 +101,8 @@ cd sage
 pnpm install && pnpm --filter @gendigital/sage-opencode run build
 # Then use local path in config: "/absolute/path/to/sage/packages/opencode"
 ```
+
+For OpenCode v2, add the built package directory to `plugins` in `opencode.jsonc`. Local directory loading requires the package-root `index.js`. Verify with `opencode plugin list`; it should show `@gendigital/sage-opencode`.
 
 ### Verify It Works
 
@@ -126,7 +136,7 @@ Sage intercepts tool calls made by AI agents, extracts security-relevant artifac
 | Cursor | `beforeShellExecution`, `preToolUse` (Write, Edit, Delete, WebFetch), `beforeMCPExecution`, `beforeReadFile` |
 | VS Code (Copilot) | `PreToolUse` on all Copilot agent tools (`run_in_terminal`, `create_file`, `replace_string_in_file`, `insert_edit_into_file`, `multi_replace_string_in_file`, `read_file`, `fetch_webpage`, `apply_patch`). Hooks are installed at `~/.copilot/hooks/hooks.json`, which is also read by Copilot CLI — so protection covers CLI agent sessions too. |
 | OpenClaw | `exec`, `web_fetch`, `write`, `edit`, `read`, `apply_patch` |
-| OpenCode | `bash`, `webfetch`, `read`, `write`, `edit`, `ls`, `glob`, `grep` |
+| OpenCode | `bash`, `webfetch`, `read`, `write`, `edit`, `ls`, `glob`, `grep` (v2: also `shell`, `patch`) |
 
 ### Data Flow
 
@@ -861,23 +871,37 @@ Replace `<path-to-sage-openclaw>` with the absolute path to the installed `@gend
 
 ### OpenCode
 
-Sage uses OpenCode plugin hooks:
+The package's default export is a single definition, `{ id: "@gendigital/sage-opencode", server, setup }`, that loads on both OpenCode generations: v1 calls `server`, and v2 calls `setup`. Both share the same interception, approval, scan, and MCP code.
+
+OpenCode v1 plugin hooks:
 
 - `tool.execute.before` — extracts artifacts and runs the Sage evaluator
 - `tool` — registers Sage tools (`sage_approve`)
 - `config` — auto-registers the Sage MCP server so `sage_report_false_positive` and `sage_list_audit_entries` are available without any user configuration
+- `event` (`session.updated`) — runs the plugin/skill scan once per session
 
-For `ask` verdicts, Sage blocks the tool call and returns an action ID. The agent calls `sage_approve`, which shows a native approval dialog to the user.
+OpenCode v2 (beta) plugin domains:
+
+- `tool.hook("execute.before")` — the same evaluator; a block fails only that tool call with the Sage message, and the turn continues
+- `tool.transform` — registers `sage_approve`
+- `permission.hook("evaluate")` — asks for native approval of Sage-flagged actions
+- `mcp.transform` — registers the Sage MCP server, unless a `sage` server is already configured
+- `session.hook("prompt")` — runs the plugin/skill scan once per session
+
+For `ask` verdicts, Sage blocks the tool call and returns an action ID. The agent calls `sage_approve`, which shows a native approval dialog to the user. v1 uses the permission dialog; v2 calls `permission.assert` for the `sage_approval` action. Approving allows the flagged call with the same arguments; rejecting keeps it blocked. The v2 prompt does not save an "always allow" rule. If a v2 approval is denied or no prompt appears, check OpenCode permission rules for `sage_approval`. v2 server plugins have no toast API, so v2 notifications are written to the Sage operational log.
+
+Plugin scanning reads both the `plugin` (v1) and `plugins` (v2) keys from `opencode.json`. It also covers local plugin files in `plugins/` and `plugin/` under `~/.config/opencode/` and `.opencode/`.
 
 **Tool mapping:**
 
 | OpenCode tool | Sage extraction |
 |---------------|-----------------|
-| `bash` | command + URL extraction |
+| `bash` / `shell` (v2) | command + URL extraction |
 | `webfetch` | URL extraction |
-| `read` | file path |
+| `read` | file path (`filePath` on v1, `path` on v2) |
 | `write` | file path + content |
 | `edit` | file path + edited content |
+| `patch` (v2) | file paths from patch headers + patch content |
 | `ls` | file path |
 | `glob` | pattern as file_path artifact |
 | `grep` | pattern as content artifact |
@@ -962,7 +986,23 @@ With URL checks, file checks, skill uploads, and Community IQ all disabled, all 
 
 **Can I add custom threat rules?**
 
-Not yet. Custom user threat definitions (`~/.sage/threats/`) are planned but not yet implemented. Currently, only the rules shipped in `threats/` are used.
+Yes. Create `~/.sage/threats/` and put one or more `*.yaml` rule files there. Custom rules use the same format as Sage's bundled rules; see the [rule schema](developer-guide.md#rule-schema).
+
+For example, save this as `~/.sage/threats/company.yaml`:
+
+```yaml
+- id: "ORG-CMD-001"
+  version: 1
+  detection_name: "CMD:SageCommand-A [Heur]"
+  category: tool
+  severity: warning
+  confidence: 0.9
+  pattern: "internal-deploy-prod"
+  match_on: command
+  title: "Company production deployment command"
+```
+
+Sage loads bundled rules first. A custom rule with a bundled ID is ignored and logged, so local files cannot override bundled rules. Invalid local rules are skipped with a warning, and Sage continues starting. Sage logs each loaded custom rule ID at session start. Custom-rule signals stay local: custom-only events are excluded from Community IQ telemetry and false-positive reporting, while co-occurring non-custom detections remain eligible. Custom rules are excluded from submit-only reporting. The bundled and custom rules together are limited to 10,000. Files under `~/.sage/threats/` persist when Sage is updated.
 
 **What about MCP tool calls?**
 

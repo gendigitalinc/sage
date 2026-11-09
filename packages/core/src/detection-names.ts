@@ -1,4 +1,7 @@
-import type { PackageCheckResult, Threat } from "./types.js";
+import { createHash } from "node:crypto";
+import { MODEL_SCHEMA_VERSION } from "./model-storage.js";
+import type { PackageCheckResult, PiCheckResult, Threat } from "./types.js";
+import { DEFAULT_PI_MEDIUM_RISK_THRESHOLD } from "./types.js";
 
 /** Canonical ML prompt-injection detection name. Model IDs and scores stay in structured fields. */
 export const PI_DETECTION_NAME = "Other:SagePromptInjectionML-A [Susp]";
@@ -31,6 +34,42 @@ export function formatReportingDetectionName(
 		? `${REPORTING_ENGINE_SHORTHANDS[engine]}:${optionalData}`
 		: REPORTING_ENGINE_SHORTHANDS[engine];
 	return `${canonicalName}|${engineMetadata}|${REPORTING_DETECTION_SUFFIX}`;
+}
+
+/** Lowercase hexadecimal SHA-256 of a UTF-8 string. */
+export function sha256Hex(text: string): string {
+	return createHash("sha256").update(text).digest("hex");
+}
+
+/**
+ * Format `Text:OnlineClassifier [<postfix>]|<model version>-<text hash>|sgpi`: one
+ * unique name per classifier hit, so each hit can be attributed and resolved on
+ * its own.
+ */
+export function formatOnlineClassifierDetectionName(
+	postfix: string,
+	modelVersion: string,
+	textHash: string,
+): string {
+	return `Text:OnlineClassifier [${postfix}]|${modelVersion}-${textHash}|sgpi`;
+}
+
+/**
+ * Reporting name for a PI model result. A hit (risk at or above the medium
+ * threshold) is named by model version and the hash of its highest-risk chunk;
+ * anything else, or a hit that cannot be hashed, keeps the model-id name.
+ */
+export function piReportingDetectionName(
+	r: Pick<PiCheckResult, "risk" | "modelId" | "modelVersion" | "contentSnippet">,
+): string {
+	if (r.risk >= DEFAULT_PI_MEDIUM_RISK_THRESHOLD && r.modelVersion && r.contentSnippet) {
+		return formatOnlineClassifierDetectionName("Misc", r.modelVersion, sha256Hex(r.contentSnippet));
+	}
+	return formatReportingDetectionName(
+		PI_DETECTION_NAME,
+		"ml",
+		`${r.modelId}:${MODEL_SCHEMA_VERSION}`,
+	);
 }
 
 export type PackageDetectionVerdict = Exclude<PackageCheckResult["verdict"], "clean">;

@@ -13,6 +13,7 @@ Sage is a TypeScript monorepo with a shared core library and platform-specific c
 ```
 packages/
 ├── core/          @gendigital/sage-core         Platform-agnostic detection engine
+├── hook-host/     @gendigital/sage-hook-host     Shared handler for pi/omp-style hosts ONLY (confirm/setStatus UI); NOT a generic hook layer — OpenClaw/OpenCode have different result shapes and call guardToolCall directly
 ├── claude-code/   @gendigital/sage-claude-code   Claude Code hook entry points
 ├── openclaw/      @gendigital/sage-openclaw       OpenClaw plugin connector
 ├── opencode/      @gendigital/sage-opencode       OpenCode plugin connector
@@ -51,6 +52,15 @@ packages/
 Session start deploys `ConfigSchema`'s portable defaults to `~/.sage/config.defaults.json` for GUI tools. Bump `CONFIG_DEFAULTS_SCHEMA_VERSION` whenever that serialized defaults payload changes, including added or removed fields, type changes, and default-value changes. The version establishes deployment precedence between concurrently installed Sage versions; it is not only a JSON compatibility marker.
 
 ### Connector Architecture
+
+Pick the template by how the host delivers tool calls, not by the product name.
+
+| Host API style | Connector | Pattern |
+| --- | --- | --- |
+| MCP hook tools (separate process per hook) | Claude Code | `mcp-hook-tools.ts` — normalize, guard, return JSON |
+| In-process plugin event (`before_tool_call`) | OpenClaw, OpenCode | Connector-owned `tool-handler.ts` + `guardToolCall` |
+| In-process `tool_call` / `tool_result` hooks | pi, Oh My Pi (omp) | `@gendigital/sage-hook-host` (`packages/hook-host`), plus a thin adapter. Not part of sage-core's public API. |
+| Editor hook installer (out-of-process hook script) | Cursor, VS Code, Copilot CLI | `packages/extension` installs a hook that calls the same core evaluator |
 
 **Claude Code** (`packages/claude-code/src/`):
 
@@ -144,10 +154,8 @@ Git hooks are installed automatically by `pnpm install` (via `core.hooksPath`). 
 
 | Stage | Checks | Speed |
 |-------|--------|-------|
-| **pre-commit** | gitleaks, private key detection, lint | Fast |
+| **pre-commit** | private key detection, lint | Fast |
 | **pre-push** | build, typecheck, test, changeset check | Slow (fails fast) |
-
-**Required:** Install [gitleaks](https://github.com/gitleaks/gitleaks) for secret scanning (`brew install gitleaks` / `choco install gitleaks`). The pre-commit hook will refuse to commit without it.
 
 ### Commands
 
@@ -158,7 +166,7 @@ Git hooks are installed automatically by `pnpm install` (via `core.hooksPath`). 
 | `pnpm test -- --reporter=verbose` | Verbose test output |
 | `pnpm test -- <file>` | Run a single test file |
 | `pnpm test -- -t "name"` | Run tests matching name |
-| `e2e/run.sh <agent>` | Containerized live E2E (Layer 2) for one agent: `claude`, `copilot`, `opencode`, `cursor`, `openclaw`, `vscode` (or `all`). Builds the pinned agent image, then runs the suite in container mode. Requires Docker + `e2e/.env`. |
+| `e2e/run.sh <agent>` | Containerized live E2E (Layer 2) for one agent: `claude`, `copilot`, `opencode`, `cursor`, `openclaw`, `vscode` (or `all`). Builds the pinned agent image, then runs the suite in container mode. Requires Docker + `e2e/.env`. pi and omp are not in this harness yet: their drift capture is wired (`captureHookInput` with `pi-` / `omp-` prefixes) but there is no `agents.json` entry, image, or native runner. **Tracked gap:** the pi/omp READMEs claim verification against specific host versions (pi 1.3.0, OMP 18.12), but no Layer 2 drift detection enforces this yet. Wire an `agents.json` entry + image (or native runner) for pi and omp so host-version drift is caught before these connectors ship widely. |
 | `pnpm test:e2e:cursor` / `:vscode` | Desktop Extension Host suite (Layer 3) against an installed Cursor / VS Code binary. The other `test:e2e:*` scripts are the in-container entry points invoked by `e2e/run.sh` and skip outside container mode. |
 | `pnpm build:sea` | Build standalone SEA binaries |
 | `pnpm lint` | Lint with Biome |
@@ -533,12 +541,12 @@ Add a macro whenever a second rule would otherwise copy a fragment.
 | `title` | string | Human-readable description |
 | `expires_at` | string or null | ISO 8601 expiration date, or `null` for permanent |
 | `revoked` | boolean | Set `true` to disable a rule without removing it |
-| `flags` | string[] | *(optional)* Behavioral flags. Supported: `"report"` (send signal to backend) |
+| `flags` | string[] | *(optional)* Behavioral flags. Supported: `"submit_only"` (never affects the verdict; sends capped non-blocking telemetry to `/v2/heuristic`, max 1 submit/rule/client/24h — see [decision-pipeline.md](decision-pipeline.md#flags)). Unknown flags are ignored. |
 | `case_insensitive` | boolean | *(optional)* Match pattern case-insensitively (default: `false`) |
 
 `id`, `version`, and the YAML-authored `detection_name` are separate metadata contracts. The immutable `id` is the engineering identity, `version` tracks authored rule revisions, and the authored name is the stable canonical identity shown on user-facing surfaces. A version bump must never change the authored detection name; create a new rule identity if the detection concept itself changes. Do not put changing values such as rule versions, package coordinates, model IDs, scores, or AMSI result codes into YAML.
 
-When Sage writes audit signals or sends telemetry/false-positive reports, it derives a reporting name in the form `<canonical name>|<engine shorthand>:<optional data>|sage`. Heuristics use `sghe:<rule id>:<rule version>`, package checks use `sgpk:<package name>[:<version>]`, prompt-injection ML uses `sgml:<model id>:<model schema>`, and AMSI uses `sgam:<AMSI rule name>:<amsi result hex>`. AMSI rule names are `AMSI_DETECTED`, `AMSI_BLOCKED_BY_ADMIN`, or `AMSI_UNKNOWN`; the value is lowercase hexadecimal without a `0x` prefix (for example, `sgam:AMSI_DETECTED:8000` for result `0x8000`). Every reporting name ends in `|sage`. Keep these reporting suffixes out of YAML and user notifications.
+When Sage writes audit signals or sends telemetry/false-positive reports, it derives a reporting name in the form `<canonical name>|<engine shorthand>:<optional data>|sage`. Heuristics use `sghe:<rule id>:<rule version>`, package checks use `sgpk:<package name>[:<version>]`, prompt-injection ML uses `sgml:<model id>:<model schema>` (hits instead use the online-classifier form `Text:OnlineClassifier [Misc]|<model version>-<text hash>|sgpi`), and AMSI uses `sgam:<AMSI rule name>:<amsi result hex>`. AMSI rule names are `AMSI_DETECTED`, `AMSI_BLOCKED_BY_ADMIN`, or `AMSI_UNKNOWN`; the value is lowercase hexadecimal without a `0x` prefix (for example, `sgam:AMSI_DETECTED:8000` for result `0x8000`). Every reporting name ends in `|sage`, except online-classifier hits, which end in their technology tag (`|sgpi`). Keep these reporting suffixes out of YAML and user notifications.
 
 Rule authors must increment `version` manually when changing a pattern, confidence, severity, match target, category, or other behavior that can change matching or verdicts. Documentation-only edits do not require a bump. Automatic version-bump enforcement is deferred; review the version explicitly with every rule change.
 

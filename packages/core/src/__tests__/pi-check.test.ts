@@ -1,10 +1,12 @@
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { BundledPiProvider, StubPiProvider } from "../clients/pi-check.js";
+import { BundledPiProvider, computeModelVersion, StubPiProvider } from "../clients/pi-check.js";
 import { DecisionEngine } from "../engine.js";
 import { extractOutputForPiCheck } from "../evaluator.js";
 import type { Logger, PiCheckResult } from "../types.js";
+import { nullLogger } from "../types.js";
 
 // ── Provider Tests ──────────────────────────────────────────────────
 
@@ -53,6 +55,13 @@ describe("BundledPiProvider", () => {
 		}
 	});
 
+	it("reports an 8-hex model version derived from the model files", async () => {
+		const provider = new BundledPiProvider();
+		const result = await provider.checkContent("normal code content", "Write:index.ts");
+		if (result) expect(result.modelVersion).toMatch(/^[0-9a-f]{8}$/);
+		// If model not available (CI without onnxruntime), returns null — also OK
+	});
+
 	it("logs missing model at debug instead of warn", async () => {
 		const calls = {
 			debug: [] as string[],
@@ -78,6 +87,56 @@ describe("BundledPiProvider", () => {
 });
 
 // ── PostToolUse Output Extraction ───────────────────────────────────
+
+describe("computeModelVersion", () => {
+	const FILES = [
+		"config.json",
+		"special_tokens_map.json",
+		"tokenizer.json",
+		"tokenizer_config.json",
+		"vocab.txt",
+		"model_int8.onnx",
+	];
+
+	async function makeModelDir(weights: string): Promise<string> {
+		const dir = join(
+			tmpdir(),
+			`sage-model-version-${process.pid}-${Math.random().toString(36).slice(2)}`,
+		);
+		await mkdir(dir, { recursive: true });
+		for (const name of FILES)
+			await writeFile(join(dir, name), name === "model_int8.onnx" ? weights : name);
+		return dir;
+	}
+
+	it("is a stable 8-hex digest that changes with the model weights", async () => {
+		const a = await makeModelDir("weights-1");
+		const b = await makeModelDir("weights-1");
+		const c = await makeModelDir("weights-2");
+		try {
+			const version = await computeModelVersion(a);
+			expect(version).toMatch(/^[0-9a-f]{8}$/);
+			expect(await computeModelVersion(b)).toBe(version);
+			expect(await computeModelVersion(c)).not.toBe(version);
+		} finally {
+			await Promise.all([a, b, c].map((d) => rm(d, { recursive: true, force: true })));
+		}
+	});
+
+	it("returns undefined and logs instead of throwing when a model file is missing", async () => {
+		const dir = await makeModelDir("weights");
+		const warnings: string[] = [];
+		const logger = { ...nullLogger, warn: (msg: string) => warnings.push(msg) };
+		try {
+			await rm(join(dir, "vocab.txt"));
+			expect(await computeModelVersion(dir, logger)).toBeUndefined();
+			expect(warnings).toHaveLength(1);
+			expect(warnings[0]).toContain("vocab.txt");
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+});
 
 describe("extractOutputForPiCheck", () => {
 	// CC format: tool_response as object

@@ -3,12 +3,28 @@
  */
 
 import { readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
+import { resolvePath, SAGE_DIR } from "./config.js";
 import { isCanonicalDetectionName } from "./detection-names.js";
 import { getFileContent } from "./file-utils.js";
 import type { Logger, Threat } from "./types.js";
 import { nullLogger } from "./types.js";
+
+/** Maximum number of bundled and custom rules loaded in one process. */
+const MAX_THREAT_RULES = 10_000;
+
+export interface LoadThreatsOptions {
+	/** Optional user-owned directory, loaded after the bundled rules. */
+	customThreatsDir?: string;
+	/** Emit one info log per successfully loaded custom rule. */
+	logCustomRuleIds?: boolean;
+}
+
+/** The persistent, user-owned directory for custom threat definitions. */
+export function getUserThreatsDir(sageDirPath?: string): string {
+	return join(resolvePath(sageDirPath ?? SAGE_DIR), "threats");
+}
 
 const REQUIRED_FIELDS = new Set([
 	"id",
@@ -94,17 +110,40 @@ function isExpired(entry: Record<string, unknown>): boolean {
 	return Date.now() > expiresAt.getTime();
 }
 
-export async function loadThreats(
+async function loadThreatDirectory(
 	threatDir: string,
-	logger: Logger = nullLogger,
+	logger: Logger,
+	{
+		custom = false,
+		customThreatIds = new Set<string>(),
+		bundledThreatIds = new Set<string>(),
+		maxRules = MAX_THREAT_RULES,
+		logCustomRuleIds = false,
+		optional = false,
+	}: {
+		custom?: boolean;
+		customThreatIds?: Set<string>;
+		bundledThreatIds?: Set<string>;
+		maxRules?: number;
+		logCustomRuleIds?: boolean;
+		optional?: boolean;
+	} = {},
 ): Promise<Threat[]> {
 	const threats: Threat[] = [];
 
 	let files: string[];
 	try {
 		files = (await readdir(threatDir)).filter((f) => f.endsWith(".yaml")).sort();
-	} catch {
-		logger.warn("Threat directory does not exist or is unreadable", { path: threatDir });
+	} catch (error) {
+		const code = (error as NodeJS.ErrnoException).code;
+		if (optional && code === "ENOENT") {
+			logger.debug("Custom threat directory does not exist", { path: threatDir });
+			return threats;
+		}
+		logger.warn("Threat directory does not exist or is unreadable", {
+			path: threatDir,
+			error: String(error),
+		});
 		return threats;
 	}
 
@@ -149,8 +188,16 @@ export async function loadThreats(
 		ruleFiles.push({ filename, data });
 	}
 
-	for (const { filename, data } of ruleFiles) {
+	ruleFilesLoop: for (const { filename, data } of ruleFiles) {
 		for (const entry of data) {
+			if (threats.length >= maxRules) {
+				logger.warn("Threat rule limit reached; ignoring remaining rules", {
+					path: threatDir,
+					maxRules: MAX_THREAT_RULES,
+				});
+				break ruleFilesLoop;
+			}
+
 			if (typeof entry !== "object" || entry === null) {
 				logger.warn(`Skipping non-object entry in ${filename}`);
 				continue;
@@ -161,6 +208,21 @@ export async function loadThreats(
 			const missing = [...REQUIRED_FIELDS].filter((f) => !keys.has(f));
 			if (missing.length > 0) {
 				logger.warn(`Skipping threat in ${filename}: missing fields ${missing.join(", ")}`);
+				continue;
+			}
+
+			if (typeof record.id !== "string" || record.id.length === 0) {
+				logger.warn(`Skipping threat in ${filename}: invalid id`, { id: record.id });
+				continue;
+			}
+
+			if (custom && customThreatIds.has(record.id)) {
+				logger.warn(
+					bundledThreatIds.has(record.id)
+						? `Skipping custom threat ${record.id}: id conflicts with a bundled rule`
+						: `Skipping custom threat ${record.id}: duplicate custom rule id`,
+					{ id: record.id, path: join(threatDir, filename) },
+				);
 				continue;
 			}
 
@@ -214,8 +276,8 @@ export async function loadThreats(
 				continue;
 			}
 
-			threats.push({
-				id: record.id as string,
+			const threat: Threat = {
+				id: record.id,
 				version,
 				detectionName,
 				category: record.category as string,
@@ -228,10 +290,50 @@ export async function loadThreats(
 				expiresAt: parseExpiresAt(record.expires_at as string | null | undefined),
 				revoked: false,
 				flags,
-			});
+				customRule: custom,
+			};
+			threats.push(threat);
+			if (custom) {
+				customThreatIds.add(threat.id);
+				if (logCustomRuleIds) {
+					logger.info("Loaded custom threat rule", {
+						id: threat.id,
+						path: join(threatDir, filename),
+					});
+				}
+			}
 		}
 	}
 
 	logger.debug(`Loaded ${threats.length} threats from ${threatDir}`);
 	return threats;
+}
+
+/**
+ * Load bundled rules first, followed by optional user-owned rules. Bundled IDs
+ * always win, and custom IDs are deduplicated so a local file cannot shadow a
+ * bundled rule or an earlier custom definition.
+ */
+export async function loadThreats(
+	threatDir: string,
+	logger: Logger = nullLogger,
+	options: LoadThreatsOptions = {},
+): Promise<Threat[]> {
+	const bundledThreats = await loadThreatDirectory(threatDir, logger);
+	if (!options.customThreatsDir || resolve(options.customThreatsDir) === resolve(threatDir)) {
+		return bundledThreats;
+	}
+
+	const bundledThreatIds = new Set(bundledThreats.map((threat) => threat.id));
+	const customThreatIds = new Set(bundledThreatIds);
+	const customThreats = await loadThreatDirectory(options.customThreatsDir, logger, {
+		custom: true,
+		customThreatIds,
+		bundledThreatIds,
+		maxRules: Math.max(0, MAX_THREAT_RULES - bundledThreats.length),
+		logCustomRuleIds: options.logCustomRuleIds,
+		optional: true,
+	});
+
+	return [...bundledThreats, ...customThreats];
 }

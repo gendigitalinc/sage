@@ -84,6 +84,29 @@ export interface Threat {
 	expiresAt: Date | null;
 	revoked: boolean;
 	flags: string[];
+	/** True for user-owned rules; these remain local and are never reported. */
+	customRule?: boolean;
+}
+
+/**
+ * Threat flag marking a rule as submit-only (hunting / canary): its matches
+ * never influence the verdict, but they submit non-blocking telemetry to
+ * `/v2/heuristic`, subject to the per-rule submit cap (see `submit-limits.ts`).
+ * Custom rules are always local and are never submitted, even with this flag.
+ */
+export const SUBMIT_ONLY_FLAG = "submit_only";
+
+/**
+ * True when the threat carries the {@link SUBMIT_ONLY_FLAG}. Tolerates absent flags.
+ *
+ * Submit-only handling is split across two consumers; keep them in sync:
+ * - `DecisionEngine.collectSignals` (engine.ts) drops the matches from the verdict.
+ * - `evaluateToolCall` (evaluator.ts) claims submit slots for bundled rules and
+ *   sends capped non-blocking telemetry; `evaluateToolOutput` skips them for
+ *   PostToolUse warnings.
+ */
+export function isSubmitOnlyThreat(threat: Pick<Threat, "flags">): boolean {
+	return threat.flags?.includes(SUBMIT_ONLY_FLAG) ?? false;
 }
 
 // ── Heuristic match ─────────────────────────────────────────────────
@@ -92,6 +115,11 @@ export interface HeuristicMatch {
 	threat: Threat;
 	artifact: string;
 	matchValue: string;
+	/**
+	 * Set only when the match came from a deobfuscated variant of the content
+	 * (`deobfuscated:<technique>[+<technique>…]`); absent for raw matches.
+	 */
+	context?: string;
 }
 
 // ── URL Check ───────────────────────────────────────────────────────
@@ -122,6 +150,10 @@ export interface Verdict {
 	source: string;
 	artifacts: string[];
 	matchedThreatId: string | null;
+	/** The primary matched rule is a user-owned custom rule. */
+	customThreat?: boolean;
+	/** At least one custom rule matched during this evaluation. */
+	customThreatMatched?: boolean;
 	reasons: string[];
 	/** Medium-risk PI results — for connector-level warning injection. */
 	piWarnings?: PiCheckResult[];
@@ -170,6 +202,8 @@ export interface PiCheckResult {
 	contentName: string;
 	/** Model identifier for telemetry (derived from model directory name) */
 	modelId: string;
+	/** First 8 hex characters of the SHA-256 over the model and tokenizer files. */
+	modelVersion?: string;
 	/** Full highest-scoring chunk (up to 512 tokens) for telemetry. */
 	contentSnippet?: string;
 }
@@ -520,7 +554,14 @@ export interface Branding {
 
 // ── Agent runtime ──────────────────────────────────────────────────
 
-export type AgentRuntime = "claude-code" | "openclaw" | "opencode" | "cursor" | "vscode";
+export type AgentRuntime =
+	| "claude-code"
+	| "openclaw"
+	| "opencode"
+	| "cursor"
+	| "vscode"
+	| "pi"
+	| "omp";
 
 // ── Hook types (FP reporting) ───────────────────────────────────────
 
